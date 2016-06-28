@@ -602,6 +602,12 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(sampleAnnotations = newAnnotations, saSignature = newSignature)
   }
 
+  def join(that: VariantSampleMatrix[T]) : VariantSampleMatrix[T]= {
+
+    
+
+  }
+
   def queryVA(code: String): (BaseType, Querier) = {
 
     val st = Map(Annotation.VARIANT_HEAD ->(0, vaSignature))
