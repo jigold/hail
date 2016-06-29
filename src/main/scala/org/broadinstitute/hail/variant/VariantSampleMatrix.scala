@@ -602,9 +602,34 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(sampleAnnotations = newAnnotations, saSignature = newSignature)
   }
 
-  def join(that: VariantSampleMatrix[T]) : VariantSampleMatrix[T]= {
+  def join(otherRDD: VariantSampleMatrix[T], vaPath: List[String], gaPath: List[String], saPath : List[String] = List("sa")) : VariantSampleMatrix[T]= {
 
-    
+    val (newVASignature, vaInserter) = insertVA(otherRDD.vaSignature, vaPath)
+    val (newGASignature, gaInserter) = insertGlobal(otherRDD.saSignature, gaPath)
+    val (newSASignature, saInserter) = insertSA(otherRDD.saSignature, saPath) //TODO check that types match
+
+
+    val newRDD = this.rdd.map({
+      case(v,va,gt) => (v,(va,gt))
+    }).join(
+      otherRDD.rdd.map({
+        case(v,va,gt) => (v,(va,gt))
+      })
+    ).map({
+      case((v,((va1,gt1),(va2,gt2)))) =>
+        (v, vaInserter(va1, Some(va2)), gt1 ++ gt2)
+    }
+    )
+
+    copy(rdd = newRDD,
+      vaSignature = newVASignature,
+      saSignature = newSASignature,
+      globalSignature = newGASignature,
+      sampleIds = sampleIds ++ otherRDD.sampleIds,
+      sampleAnnotations = sampleAnnotations ++ otherRDD.sampleAnnotations,
+      globalAnnotation = gaInserter(globalAnnotation,Some(otherRDD.globalAnnotation)),
+      wasSplit = wasSplit || otherRDD.wasSplit //TODO check that this is correct -- should be since inner join
+    )
 
   }
 
