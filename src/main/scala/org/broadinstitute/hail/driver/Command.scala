@@ -69,6 +69,7 @@ object ToplevelCommands {
   register(GQByDP)
   register(GQHist)
   register(ImportVCF)
+  register(Join)
   register(LinearRegressionCommand)
   register(MendelErrorsCommand)
   register(SplitMulti)
