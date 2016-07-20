@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.driver
 
+import breeze.linalg.DenseVector
 import org.apache.spark.HashPartitioner
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.RichRDD
@@ -22,7 +23,7 @@ object RareVariantsBurden extends Command {
 
     def name = "rareBurden"
 
-    def description = "Computes per-gene counts of rare variations for dominant and recessive modes"
+    def description = "Computes per-gene counts of rare variations for dominant and recessive modes. Recessive mode takes all MAF by default, so filtering should be done upstream or mPopRAF option used."
 
     def supportsMultiallelic = false
 
@@ -33,10 +34,12 @@ object RareVariantsBurden extends Command {
       var gene_annotation: String = _
       @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output filename prefix")
       var output: String = _
-      @Args4jOption(required = false, name = "-mraf", aliases = Array("--max-recessive-af"), usage = "Maximum allele frequency considered for recessive enrichment test")
-      var mraf : Double = 0.01
-      @Args4jOption(required = false, name = "-mdaf", aliases = Array("--max-dominant-af"), usage = "Maximum allele frequency considered for dominant enrichment test")
-      var mdaf : Double = 0.001
+      @Args4jOption(required = false, name = "-mDAF", aliases = Array("--max-dominant-af"), usage = "Maximum allele frequency considered for dominant enrichment test")
+      var mDAF : Double = 0.001
+      @Args4jOption(required = false, name = "-mPopRAF", aliases = Array("--max-pop-recessive-af"), usage = "Maximum allele frequency in a single population (each SA strat) considered for recessive enrichment test. Not used if negative.")
+      var mPopRAF : Double = -1.0
+      @Args4jOption(required = false, name = "-mPopDAF", aliases = Array("--max-pop-dominant-af"), usage = "Maximum allele frequency in a single population (each SA strat) considered for dominant enrichment test. Not used if negative.")
+      var mPopDAF : Double = -1.0
       @Args4jOption(required = false, name = "-vaStrat", aliases = Array("--va_stratification"), usage = "Stratify results based on variant annotations. Comma-separated list of annotations.")
       var vaStrat: String = ""
       @Args4jOption(required = false, name = "-saStrat", aliases = Array("--sa_stratification"), usage = "Stratify results based on sample annotations. Comma-separated list of annotations.")
@@ -52,7 +55,7 @@ object RareVariantsBurden extends Command {
     def getSingleVariantHeaderString(variantAnnotations: Array[String], sampleAnnotations: Array[String]) : String = {
       (sampleAnnotations ++
         variantAnnotations ++
-        Array("nHets","nHomVar")).mkString("\t")
+        Array("nHets","nHomVar","nDomNonRef")).mkString("\t")
     }
 
     def getVariantPairHeaderString(variantAnnotations: Array[String], sampleAnnotations: Array[String]) : String = {
@@ -68,15 +71,15 @@ object RareVariantsBurden extends Command {
 
   }
 
-    class GeneBurdenResult(svsm: SparseVariantSampleMatrix, val vaStrat: Array[String], val saStrat: Array[String]){
+    class GeneBurdenResult(svsm: SparseVariantSampleMatrix, val vaStrat: Array[String], val saStrat: Array[String], val uniqueSaStrat: Array[String], val samplesStrat: IndexedSeq[Int], val mDAF: Double, val mPopDAF: Double){
 
       //Caches variant information
       private val vaCache = mutable.Map[Int,String]()
       private val phaseCache = mutable.Map[(String,String),Option[Double]]()
 
       //Stores results
-      //Stores nHet, nHomVar
-      private val singleVariantsCounts = mutable.Map[String,(Int,Int)]()
+      //Stores nHet, nHomVar, nDomVars
+      private val singleVariantsCounts = mutable.Map[String,(Int,Int,Int)]()
       //Stores the number of coumpound hets
       private val compoundHetcounts = mutable.Map[String,Int]()
 
@@ -91,11 +94,48 @@ object RareVariantsBurden extends Command {
         saQueriers(i) = svsm.querySA(saStrat(i))
       })
 
+      //Compute the MAFs
+      private val nSAStrats = uniqueSaStrat.size
+      private val nSamplesPerStrat = samplesStrat.foldLeft(Array.fill(nSAStrats)(0))({(ag,s) => ag(s)+=1; ag})
+      private val maf = new Array[Double](svsm.variants.size)
+      private val maxPopMaf = new Array[Double](svsm.variants.size)
 
+      if (mPopDAF >= 0) {
+        computeMaxPopMAF()
+      }else{
+        svsm.foreachVariant({
+          case(v,vi,si,gt) =>
+            var noCall = 0
+            var ac = 0
+            gt.foreach({ g => if( g > -1) ac+= g else noCall +=1})
+            maf(vi) = ac / (2* (svsm.nSamples - noCall))
+        })
+      }
+
+      //Compute and record the pre-sample counts
       computePerSampleCounts()
 
+      //Compute MAF per population (and overall)
+      private def computeMaxPopMAF() : Unit = {
+        svsm.foreachVariant({
+          (v, vi, si, gt) =>
+            val nNoCall = Array.fill(nSAStrats)(0)
+            val ac = Array.fill(nSAStrats)(0)
+              si.indices.foreach({
+                i =>
+                  if (gt(i) > -1) {
+                    ac(samplesStrat(si(i))) += gt(i)
+                  } else {
+                    nNoCall(samplesStrat(si(i))) += 1
+                  }
+              })
+              maxPopMaf(vi) = nSamplesPerStrat.indices.map(i => if (nSamplesPerStrat(i) - nNoCall(i) == 0) 0.0 else ac(i).toDouble / (2 * (nSamplesPerStrat(i) - nNoCall(i)))).max
+              maf(vi) = ac.sum.toDouble / (2 * (svsm.nSamples - nNoCall.sum))
 
-      def computePerSampleCounts() : Unit = {
+        })
+      }
+
+      private def computePerSampleCounts() : Unit = {
 
         //Private class to store sample-level information
         class sampleVariants{
@@ -104,6 +144,7 @@ object RareVariantsBurden extends Command {
           var homVarVars = mutable.HashSet[String]()
           //var NoCallVars = mutable.HashSet[String]()
           var compHetVars = mutable.HashSet[String]()
+          var domVars = mutable.HashSet[String]()
         }
 
         val samplesCounts = new Array[sampleVariants](svsm.sampleIDs.size)
@@ -113,31 +154,49 @@ object RareVariantsBurden extends Command {
         s_hetVariantBuilder.sizeHint(svsm.variants.size) //TODO: Remove then updating to Scala 2.12+
 
         svsm.foreachSample({
-          (sid, variants, genotypes) =>
+          (s, si, variants, genotypes) =>
             //Get the sample stratification
-            val saStrat = saQueriers.map({querier =>
-              svsm.getSampleAnnotation(sid,querier._2).getOrElse("NA").toString()
-            }).mkString("\t")
+            val saStrat = uniqueSaStrat(samplesStrat(si))
 
             //Save sampleCounts for this sample
             val sampleCounts = new sampleVariants()
 
-            //Get all variants with het/homvar genotype
+            //Compute results for single variants
             s_hetVariantBuilder.clear()
             variants.indices.foreach({
               i =>
                 val vi = variants(i)
+                var addHet = 0
+                var addHomVar = 0
+                var addDomVar = 0
+                val va = concatStrats(saStrat,getVAStrats(vi))
+
                 genotypes(i) match{
                   //case -1 => sampleCounts.NoCallVars.add(concatStrats(saStrat,getVAStrats(vi)))
                   case 1 =>
-                    sampleCounts.hetVars.add(concatStrats(saStrat,getVAStrats(vi)))
+                    if(sampleCounts.hetVars.add(va)){ addHet += 1 }
                     s_hetVariantBuilder += vi
-                  case 2 => sampleCounts.homVarVars.add(concatStrats(saStrat,getVAStrats(vi)))
+                    if(maf(vi) < mDAF && (mPopDAF < 0 || maxPopMaf(vi) < mPopDAF)){
+                      if(sampleCounts.domVars.add(va)){ addDomVar +=1 }
+                    }
+                  case 2 =>
+                    if(sampleCounts.homVarVars.add(va)){ addHomVar += 1 }
+                    if(maf(vi) < mDAF && (mPopDAF < 0 || maxPopMaf(vi) < mPopDAF)){
+                      if(sampleCounts.domVars.add(va)){ addDomVar +=1 }
+                    }
                   case _ =>
                 }
+
+                if(addHet + addHomVar + addDomVar > 0){
+                  singleVariantsCounts.get(va) match {
+                    case Some((nHets, nHomVars, nDomVars)) => singleVariantsCounts(va) = (nHets+addHet,nHomVars+addHomVar,nDomVars+addDomVar)
+                    case None => singleVariantsCounts(va) = (addHet,addHomVar,addDomVar)
+                  }
+                }
+
             })
 
-            //Computes all pairs of variants
+            //Computes compound het results based on all pairs of het variants
             val s_variants = s_hetVariantBuilder.result()
             s_variants.indices.foreach({
               i1 =>
@@ -151,11 +210,12 @@ object RareVariantsBurden extends Command {
                           //Sort annotations before insertion to prevent duplicates
                           val va1 = getVAStrats(v1i)
                           val va2 = getVAStrats(v2i)
-                          if (va1 < va2) {
-                            sampleCounts.compHetVars.add(concatStrats(saStrat,getVAStrats(v1i), getVAStrats(v2i)))
-                          }
-                          else {
-                            sampleCounts.compHetVars.add(concatStrats(saStrat,getVAStrats(v2i), getVAStrats(v1i)))
+                          val compHetVA = if(va1 < va2) concatStrats(saStrat,getVAStrats(v1i), getVAStrats(v2i)) else concatStrats(saStrat,getVAStrats(v2i), getVAStrats(v1i))
+                          if(sampleCounts.compHetVars.add(compHetVA)){
+                            compoundHetcounts.get(compHetVA) match {
+                              case Some(nCompHets) => compoundHetcounts(compHetVA) = nCompHets+1
+                              case None => compoundHetcounts(compHetVA) = 1
+                            }
                           }
                         }
                       case None =>
@@ -163,27 +223,6 @@ object RareVariantsBurden extends Command {
 
                 })
             })
-
-            //Add sample results to global results
-            sampleCounts.hetVars.foreach({
-              ann => singleVariantsCounts.get(ann) match {
-                case Some((nHets, nHomVars)) => singleVariantsCounts(ann) = (nHets+1,nHomVars)
-                case None => singleVariantsCounts(ann) = (1,0)
-              }
-            })
-            sampleCounts.homVarVars.foreach({
-              ann => singleVariantsCounts.get(ann) match {
-                case Some((nHets, nHomVars)) => singleVariantsCounts(ann) = (nHets,nHomVars+1)
-                case None => singleVariantsCounts(ann) = (0,1)
-              }
-            })
-            sampleCounts.compHetVars.foreach({
-              ann => compoundHetcounts.get(ann) match {
-                case Some(nCompHets) => compoundHetcounts(ann) = nCompHets+1
-                case None => compoundHetcounts(ann) = 1
-              }
-            })
-
         })
 
       }
@@ -193,15 +232,25 @@ object RareVariantsBurden extends Command {
       }
 
       def getSingleVariantsStats(group_name : String) : String = {
-        singleVariantsCounts.map({case (ann,(nHets,nHoms)) =>
-          "%s%s\t%d\t%d".format(group_name,if(ann.isEmpty) "" else "\t"+ann,nHets,nHoms)
+        val str = singleVariantsCounts.map({case (ann,(nHets,nHoms,nDoms)) =>
+          "%s%s\t%d\t%d\t%d".format(group_name,if(ann.isEmpty) "" else "\t"+ann,nHets,nHoms,nDoms)
         }).mkString("\n")
+        if(str.isEmpty){
+          group_name + "\t" + Array.fill(3 + saStrat.size + vaStrat.size)("NA").mkString("\t")
+        }else{
+          str
+        }
       }
 
       def getVariantPairsStats(group_name : String) : String = {
-        compoundHetcounts.map({case (ann,nCHets) =>
+        val str = compoundHetcounts.map({case (ann,nCHets) =>
           "%s%s\t%d".format(group_name,if(ann.isEmpty) "" else "\t"+ann,nCHets)
         }).mkString("\n")
+        if(str.isEmpty){
+          group_name + "\t" + Array.fill(1 + saStrat.size + 2*vaStrat.size)("NA").mkString("\t")
+        }else{
+          str
+        }
       }
 
       private def getVAStrats(variantIndex : Int) :  String = {
@@ -235,68 +284,85 @@ object RareVariantsBurden extends Command {
       val saStrats = if(!options.saStrat.isEmpty()) options.saStrat.split(",") else Array[String]()
       val vaStrats = if(!options.vaStrat.isEmpty()) options.vaStrat.split(",") else Array[String]()
 
+      val partitioner = new HashPartitioner(options.number_partitions)
+
+      //Get annotations
+      val geneAnn = state.vds.queryVA(options.gene_annotation)._2
+
       //Get annotation queriers
       val saQueriers = for (strat <- saStrats) yield {
         state.vds.querySA(strat)
       }
 
       //Group samples by stratification
-      val samplesByStrat = state.sc.broadcast(for (i <- state.vds.sampleIds.indices) yield {
-        saQueriers.map({case(basetype,querier) => querier(state.vds.sampleAnnotations(i))}).mkString("\t")
+      val uniqueSaStrats = new ArrayBuffer[String]()
+      val samplesStrat = state.sc.broadcast(for (i <- state.vds.sampleIds.indices) yield {
+        val strat = saQueriers.map({case(basetype,querier) => querier(state.vds.sampleAnnotations(i)).getOrElse("NA")}).mkString("\t")
+        val stratIndex = uniqueSaStrats.indexOf(strat)
+        if(stratIndex < 0){
+          uniqueSaStrats += strat
+          uniqueSaStrats.size - 1
+        }else{
+          stratIndex
+        }
       })
+      val uniqueSaStratsBr = state.sc.broadcast(uniqueSaStrats.toArray)
 
-      //Unique sample strats
-      val uniqueSaStrats = state.sc.broadcast(samplesByStrat.value.toSet)
+      val mDAF = options.mDAF
+      val mPopRAF = options.mPopRAF
+      val mPopDAF = options.mPopDAF
 
-      //Filter variants that have a MAF higher than what we're looking for in ALL stratifications
-      val maxAF = if(options.mraf > options.mdaf) options.mraf else options.mdaf
-      def rareVariantsFilter = {(v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
+      //Sanity check when using PopAF
+      //This is needed as no AF-check is done for the recessive model when aggregating variants
+      //Could be changed if needed...
+      if(mPopDAF > mPopRAF){
+        fatal("The maximum AF for the dominant model cannot be larger than the maximum AF for the recessive model")
+      }
+
+      //Filter variants that have a MAF higher than what we're looking for in ANY stratification
+      val maxPopAF = if(options.mPopRAF > options.mPopDAF) options.mPopRAF else options.mPopDAF
+
+      //Filter variants
+      def popAFVariantFilter = {(v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
 
         //Get AN and AC for each of the strats
-        val an = uniqueSaStrats.value.foldLeft(mutable.Map[String,Int]()){case(m, strat) => m.update(strat,0); m}
-        val ac = uniqueSaStrats.value.foldLeft(mutable.Map[String,Int]()){case(m, strat) => m.update(strat,0); m}
+        val an = Array.fill(uniqueSaStratsBr.value.size)(0)
+        val ac = Array.fill(uniqueSaStratsBr.value.size)(0)
 
         gs.zipWithIndex.foreach({ case (genotype, i) =>
-          if (genotype.isHomRef) {
-            an(samplesByStrat.value(i)) += 2
-          }
-          else if(genotype.isHet){
-            an(samplesByStrat.value(i)) += 2
-            ac(samplesByStrat.value(i)) += 1
-          }
-          else if(genotype.isHomVar){
-            an(samplesByStrat.value(i)) += 2
-            ac(samplesByStrat.value(i)) += 2
+          if (genotype.isCalled) {
+            an(samplesStrat.value(i)) += 2
+            ac(samplesStrat.value(i)) += genotype.nNonRefAlleles.getOrElse(0)
           }
         })
 
-        //Check that the max AF isn't above the threshold
-        uniqueSaStrats.value.foldLeft(0) {
-          (ag, st) =>
-            val af = if (an(st) > 0) ac(st) / an(st) else 0
+        //Check that the max population AF isn't above the threshold
+        val popAF = uniqueSaStratsBr.value.indices.foldLeft(0.0) {
+          (ag, sti) =>
+            val af = if (an(sti) > 0) ac(sti).toDouble / an(sti) else 0.0
             if (af > ag) af else ag
-        } < maxAF
+        }
 
+        //If the dominant population AF isn't used and variant would be filtered via pop AF filter,
+        //make sure it would also be filtered with the overall dominant filter
+        if(popAF >= maxPopAF && mPopDAF < 0){
+            ac.sum.toDouble / an.sum < mDAF
+        }else {
+          popAF < maxPopAF
+        }
       }
 
-      val partitioner = new HashPartitioner(options.number_partitions)
-
-      //Get annotations
-      val geneAnn = state.vds.queryVA(options.gene_annotation)._2
-
-      info("Computing gene burden")
+      val filteredVDS = if(mPopRAF < 0) state.vds else state.vds.filterVariants(popAFVariantFilter)
 
       val gb = SparseVariantSampleMatrixRRDBuilder.buildByVAstoreVAandSA(
-        state.vds.filterVariants(rareVariantsFilter),
+        filteredVDS,
         state.sc,
         partitioner,
         vaStrats,
         saStrats
       )({case (v,va) => geneAnn(va).get.toString}).mapValues(
-        {case svsm => new GeneBurdenResult(svsm, vaStrats, saStrats)}
+        {case svsm => new GeneBurdenResult(svsm, vaStrats, saStrats, uniqueSaStratsBr.value, samplesStrat.value, mDAF, mPopDAF)}
       ).persist(StorageLevel.MEMORY_AND_DISK)
-
-      info("Writing out results")
 
       //Write out single variant stats
       new RichRDD(gb.map(

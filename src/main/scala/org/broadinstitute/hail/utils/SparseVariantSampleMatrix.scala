@@ -444,27 +444,56 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String], val vaSignatu
   }
 
   //Applies an operation on each sample
-  //The map operation accesses the sample name and arrays of variant ID and genotypes.
-  def mapSamples[R](mapOp: (String,Array[Int],Array[Byte]) => R)(implicit uct: ClassTag[R]): Array[R] = {
+  //The map operation accesses the sample name and index and arrays of variant ID and genotypes.
+  def mapSamples[R](mapOp: (String, Int, Array[Int],Array[Byte]) => R)(implicit uct: ClassTag[R]): Array[R] = {
 
     //Build samples view if not created yet
     if(s_vindices.isEmpty){ buildSampleView() }
 
-    sampleIDs.indices.map({
-      si =>
-        mapOp(sampleIDs(si), s_vindices(si),s_genotypes(si))
+    sampleIDs.zipWithIndex.map({
+      case(s,si) =>
+        mapOp(s, si, s_vindices(si),s_genotypes(si))
     }).toArray
 
   }
 
-  def foreachSample(f: (String,Array[Int],Array[Byte]) => Unit) : Unit = {
+  //Applies an operation on each variant
+  //The map operation accesses the variant name and index and arrays of sample Index and genotypes.
+  def mapVariants[R](mapOp: (String, Int, Array[Int],Array[Byte]) => R)(implicit uct: ClassTag[R]): Array[R] = {
+
+    variants.zipWithIndex.map({
+      case(v,vi) =>
+        mapOp(v, vi, v_sindices(vi),v_genotypes(vi))
+    }).toArray
+
+  }
+
+  def foreachSample(f: (String, Int, Array[Int],Array[Byte]) => Unit) : Unit = {
 
     //Build samples view if not created yet
     if(s_vindices.isEmpty){ buildSampleView() }
 
-    sampleIDs.indices.foreach({
-      si =>
-        f(sampleIDs(si), s_vindices(si),s_genotypes(si))
+    sampleIDs.zipWithIndex.foreach({
+      case(s,si) =>
+        f(s, si, s_vindices(si),s_genotypes(si))
+    })
+
+  }
+
+  def foreachVariant(f: (String, Int, Array[Int],Array[Byte]) => Unit): Unit = {
+
+    variants.zipWithIndex.foreach({
+      case(v,vi) =>
+        f(v, vi, v_sindices(vi),v_genotypes(vi))
+    })
+
+  }
+
+  def foldLeftVariant[R](z: R)(op: (R,(String, Int, Array[Int],Array[Byte])) => R)(implicit uct: ClassTag[R]): R = {
+
+    variants.zipWithIndex.foldLeft(z)({
+      case(agg,(v,vi)) =>
+        op(agg,(v, vi, v_sindices(vi),v_genotypes(vi)))
     })
 
   }
