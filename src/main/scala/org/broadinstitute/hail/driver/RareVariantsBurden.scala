@@ -12,7 +12,7 @@ import org.broadinstitute.hail.utils.{SparseVariantSampleMatrix, SparseVariantSa
 import org.broadinstitute.hail.Utils._
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, ArrayBuilder}
 
 
 /**
@@ -59,7 +59,7 @@ object RareVariantsBurden extends Command {
       (sampleAnnotations ++
         variantAnnotations.map(ann => ann + "1") ++
         variantAnnotations.map(ann => ann + "2") ++
-        Array("nCHets","nCHetsD")).mkString("\t")
+        Array("nCompHets")).mkString("\t")
     }
 
     /**private def zipVA(va1: Array[String],va2: Array[String]) : Array[String] = {
@@ -70,8 +70,15 @@ object RareVariantsBurden extends Command {
 
     class GeneBurdenResult(svsm: SparseVariantSampleMatrix, val vaStrat: Array[String], val saStrat: Array[String]){
 
-      private val vaCache = mutable.Map[String,Array[String]]()
+      //Caches variant information
+      private val vaCache = mutable.Map[Int,String]()
       private val phaseCache = mutable.Map[(String,String),Option[Double]]()
+
+      //Stores results
+      //Stores nHet, nHomVar
+      private val singleVariantsCounts = mutable.Map[String,(Int,Int)]()
+      //Stores the number of coumpound hets
+      private val compoundHetcounts = mutable.Map[String,Int]()
 
       //Get annotation queriers
       var vaQueriers = Array.ofDim[(BaseType,Querier)](vaStrat.size)
@@ -84,134 +91,128 @@ object RareVariantsBurden extends Command {
         saQueriers(i) = svsm.querySA(saStrat(i))
       })
 
-      //Stores all values found for variant annotations
-      //val vaValues = new Array[mutable.Set[String]](vaStrat.size)
 
-      //Compute burden
-      val results = new GBResults()
+      computePerSampleCounts()
 
-      //Loop through all samples
-      svsm.sampleIDs.indices.foreach({ i =>
 
-        //Get sample stratification
-        val saStrat = saQueriers.map({querier =>
-          svsm.getSampleAnnotation(i,querier._2).getOrElse("NA").toString()
-        })
-        //Compute and add sample results
-        results.addSampleResults( computeIndividualBurden(svsm.getSampleAsList(i), new GBSampleResults(saStrat)) )
+      def computePerSampleCounts() : Unit = {
 
-      })
-
-      //Result classes
-      class GBResults() {
-        val singleVariantsStats = mutable.Map[String, (Int,Int)]()
-        val variantPairsStats = mutable.Map[String, (Int,Double)]()
-
-        def addSampleVariantResult(current: mutable.Map[String, Int], sample: mutable.Map[String, Int]) = {
-          sample.foreach({ case(va,n) =>
-            if(current.contains(va)){
-              current(va) += 1
-            }else{
-              current(va) = 1
-            }
-          })
+        //Private class to store sample-level information
+        class sampleVariants{
+          //var homRefVars = mutable.HashSet[String]()
+          var hetVars = mutable.HashSet[String]()
+          var homVarVars = mutable.HashSet[String]()
+          //var NoCallVars = mutable.HashSet[String]()
+          var compHetVars = mutable.HashSet[String]()
         }
 
-        def addSampleResults(sRes : GBSampleResults) : GBResults = {
-          //Add single-variant results
-          sRes.singleVariantsStats.foreach({
-            case(ann,(nHet,nHomVar)) =>
-              singleVariantsStats.get(ann) match{
-                case Some((het,hvar)) => singleVariantsStats(ann) = (het+nHet,hvar+nHomVar)
-                case None => singleVariantsStats(ann) = (nHet,nHomVar)
-              }
-          })
+        val samplesCounts = new Array[sampleVariants](svsm.sampleIDs.size)
 
-          sRes.variantPairsStats.foreach({
-            case(ann,(nCHet,nCHetD)) =>
-              variantPairsStats.get(ann) match{
-                case Some((chet,chetD)) => variantPairsStats(ann) = (chet+nCHet,chetD+nCHetD)
-                case None => variantPairsStats(ann) = (nCHet,nCHetD)
-              }
-          })
-          this
-        }
+        //Creates the sets of het variants within a sample to compute compound hets
+        val s_hetVariantBuilder = new ArrayBuilder.ofInt()
+        s_hetVariantBuilder.sizeHint(svsm.variants.size) //TODO: Remove then updating to Scala 2.12+
 
-      }
+        svsm.foreachSample({
+          (sid, variants, genotypes) =>
+            //Get the sample stratification
+            val saStrat = saQueriers.map({querier =>
+              svsm.getSampleAnnotation(sid,querier._2).getOrElse("NA").toString()
+            }).mkString("\t")
 
-      private class GBSampleResults(val sampleStrat : Array[String]) extends GBResults {
+            //Save sampleCounts for this sample
+            val sampleCounts = new sampleVariants()
 
-        def addVariant(variant: String, gt : Genotype): GBSampleResults ={
-          //Sanity check -- should be assert?
-          if(gt.isHet || gt.isHomVar) {
-            val strat = (sampleStrat ++ getVAStrats(variant)).mkString("\t")
-            singleVariantsStats.get(strat) match {
-              case Some((nHet, nHomVar)) => singleVariantsStats(strat) = if(gt.isHet) (nHet + 1, nHomVar) else (nHet, nHomVar+1)
-              case None => singleVariantsStats(strat) = if(gt.isHet) (1, 0) else (0, 1)
-            }
-          }
-          this
-        }
-
-        def addCompoundHets(v1: String, previousVariants: List[String]): GBSampleResults ={
-          val v1Ann = getVAStrats(v1)
-          val v1AnnStr = v1Ann.mkString("")
-
-          previousVariants.foreach({v2 =>
-            val pPhase = getPhase(v1,v2)
-
-            //Create annotation String
-            val v2Ann = getVAStrats(v2)
-            val ann =
-              if(v1AnnStr < v2Ann.mkString("")) (sampleStrat ++ v1Ann ++ v2Ann).mkString("\t")
-              else (sampleStrat ++ v2Ann ++ v1Ann).mkString("\t")
-
-            //If the variants are compound hets, then only keep most likely compound het (smallest pPhase) for
-            //each stratification
-            pPhase match {
-              case Some(p) =>
-                variantPairsStats.get(ann) match {
-                  case Some((nOld, pOld)) => if (pOld > p) {
-                    variantPairsStats(ann) = if(p > 0.5) (1,p) else (0,p)
-                  }
-                  case None => variantPairsStats(ann) = if(p > 0.5) (1,p) else (0,p)
+            //Get all variants with het/homvar genotype
+            s_hetVariantBuilder.clear()
+            variants.indices.foreach({
+              i =>
+                val vi = variants(i)
+                genotypes(i) match{
+                  //case -1 => sampleCounts.NoCallVars.add(concatStrats(saStrat,getVAStrats(vi)))
+                  case 1 =>
+                    sampleCounts.hetVars.add(concatStrats(saStrat,getVAStrats(vi)))
+                    s_hetVariantBuilder += vi
+                  case 2 => sampleCounts.homVarVars.add(concatStrats(saStrat,getVAStrats(vi)))
+                  case _ =>
                 }
-              case None =>
-            }
-          })
-          this
-        }
+            })
+
+            //Computes all pairs of variants
+            val s_variants = s_hetVariantBuilder.result()
+            s_variants.indices.foreach({
+              i1 =>
+                val v1i = s_variants(i1)
+                Range(i1+1,s_variants.size).foreach({
+                  i2 =>
+                    val v2i = s_variants(i2)
+                    getPhase(svsm.variants(v1i),svsm.variants(v2i)) match {
+                      case Some(sameHap) =>
+                        if(sameHap < 0.5) {
+                          //Sort annotations before insertion to prevent duplicates
+                          val va1 = getVAStrats(v1i)
+                          val va2 = getVAStrats(v2i)
+                          if (va1 < va2) {
+                            sampleCounts.compHetVars.add(concatStrats(saStrat,getVAStrats(v1i), getVAStrats(v2i)))
+                          }
+                          else {
+                            sampleCounts.compHetVars.add(concatStrats(saStrat,getVAStrats(v2i), getVAStrats(v1i)))
+                          }
+                        }
+                      case None =>
+                    }
+
+                })
+            })
+
+            //Add sample results to global results
+            sampleCounts.hetVars.foreach({
+              ann => singleVariantsCounts.get(ann) match {
+                case Some((nHets, nHomVars)) => singleVariantsCounts(ann) = (nHets+1,nHomVars)
+                case None => singleVariantsCounts(ann) = (1,0)
+              }
+            })
+            sampleCounts.homVarVars.foreach({
+              ann => singleVariantsCounts.get(ann) match {
+                case Some((nHets, nHomVars)) => singleVariantsCounts(ann) = (nHets,nHomVars+1)
+                case None => singleVariantsCounts(ann) = (0,1)
+              }
+            })
+            sampleCounts.compHetVars.foreach({
+              ann => compoundHetcounts.get(ann) match {
+                case Some(nCompHets) => compoundHetcounts(ann) = nCompHets+1
+                case None => compoundHetcounts(ann) = 1
+              }
+            })
+
+        })
+
       }
 
-      //Methods
-      /**private def addVAValues(values : Array[String]) = {
-        * values.indices.foreach(i =>
-        * vaValues(i).add(values(i))
-        * )
-        * }*/
+      private def concatStrats(strats: String*): String ={
+        strats.filter({x => !x.isEmpty}).mkString("\t")
+      }
 
       def getSingleVariantsStats(group_name : String) : String = {
-
-        results.singleVariantsStats.map({case (ann,(nHets,nHoms)) =>
+        singleVariantsCounts.map({case (ann,(nHets,nHoms)) =>
           "%s%s\t%d\t%d".format(group_name,if(ann.isEmpty) "" else "\t"+ann,nHets,nHoms)
         }).mkString("\n")
       }
 
       def getVariantPairsStats(group_name : String) : String = {
-        results.variantPairsStats.map({case (ann,(nCHets,nCHetsD)) =>
-          "%s%s\t%d\t%.3f".format(group_name,if(ann.isEmpty) "" else "\t"+ann,nCHets,nCHetsD)
+        compoundHetcounts.map({case (ann,nCHets) =>
+          "%s%s\t%d".format(group_name,if(ann.isEmpty) "" else "\t"+ann,nCHets)
         }).mkString("\n")
       }
 
-      private def getVAStrats(variant : String) :  Array[String] = {
-        vaCache.get(variant) match {
+      private def getVAStrats(variantIndex : Int) :  String = {
+        vaCache.get(variantIndex) match {
           case Some(ann) => ann
           case None =>
             val va =vaQueriers.map({querier =>
-              svsm.getVariantAnnotation(variant,querier._2).getOrElse("NA").toString()
-            })
+              svsm.getVariantAnnotation(variantIndex,querier._2).getOrElse("NA").toString()
+            }).mkString("\t")
             //addVAValues(va)
-            vaCache(variant) = va
+            vaCache(variantIndex) = va
             va
         }
       }
@@ -225,20 +226,6 @@ object RareVariantsBurden extends Command {
             pPhase
         }
       }
-
-      private def computeIndividualBurden(variants: List[(String,Genotype)], res : GBSampleResults, previousHetVariants: List[String] = List[String]()): GBSampleResults = {
-
-        variants match {
-          case Nil => res
-          case (v,gt)::vgts =>
-            if(gt.isHet){
-              computeIndividualBurden(vgts,res.addVariant(v,gt).addCompoundHets(v,previousHetVariants),v::previousHetVariants)
-            }else{
-              computeIndividualBurden(vgts,res.addVariant(v,gt),previousHetVariants)
-            }
-        }
-      }
-
     }
 
 
