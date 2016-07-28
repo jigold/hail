@@ -457,7 +457,7 @@ class SparseVariantSampleMatrix(val sampleIDs: IndexedSeq[String], val vaSignatu
   }
 
   def getSampleAnnotation(sampleID: String, annotation: String): Option[Any] ={
-    val qsa = queryVA(annotation)._2
+    val qsa = querySA(annotation)._2
     qsa(sampleAnnotations(samplesIndex(sampleID)))
 
   }
