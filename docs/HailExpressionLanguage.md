@@ -2,7 +2,7 @@
 
 Several Hail commands provide the ability to perform a broad array of computations based on data structures exposed to the user.  
 
-**Supported comparisons and transformations:**
+## Expressions and operations
 
  - Conditionals: `if (p) a else b` -- The value of the conditional is the value of `a` or `b` depending on `p`.  If `p` is missing, the value of the conditional is missing.
  - Let: `let v1 = e1 and v2 = e2 and ... and vn = en in b` -- Bind variables `v1` through `vn` to result of evaluating the `ei`.  The value of the `let` is the value of `b`.  `v1` is visible in `e2` through `en`, etc.
@@ -20,7 +20,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - toInt: `i.toInt`
      - toFloat: `i.toFloat`
      - toLong: `i.toLong`
- - Numerical transformations:
+ - Numerical operations:
  
      - +, -, /, *, %: `a + b - c / d * e % f`
      - abs: `i.abs` -- returns the absolute value of `i`
@@ -53,18 +53,15 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - map: `arr.map(v => expr)` -- Returns a new array produced by applying `expr` to each element
      - filter: `arr.filter(v => expr)` -- Returns a new array subsetted to the elements where `expr` evaluated to true
      - exists: `arr.exists(v => expr)` -- Returns a boolean which is true if **any** element satisfies `expr`, false otherwise
-     - forall: `arr.forall(v => expr)` -- returns a boolean which is true if the array is empty, or `expr` evaluates to `true` for **every** element
+     - forall: `arr.forall(v => expr)` -- Returns a boolean which is true if the array is empty, or `expr` evaluates to `true` for **every** element
+     - sort: `arr.sort([ascending])` -- Returns a new array with the same elements in ascending order according to their value, which must be numeric or string. For descending order, use `arr.sort(false)`. Missing elements are always placed at the end.
+     - sortBy: `arr.sortBy(v => expr[,ascending])` -- Returns a new array with the same elements in ascending order according to the value of `expr`, which must be numeric or string. For descending order, use `arr.sortBy(v => expr, false)`. Elements with missing `expr` values are always placed at the end.
  - Set Operations: 
  
      - contains: `set.contains(elem)` -- returns true if the element is contained in the array, otherwise false
      - size: `set.size` -- returns the number of elements in the set as an integer
      - isEmpty: `set.isEmpty` -- returns true if the set contains 0 elements
      - equals: `set1 == set2` -- returns true if both sets contain the same elements
-     - plus: `set1 + elem` -- adds `elem` to `set1` and returns the new set
-     - minus: `set1 - elem` -- removes `elem` from `set1` (if it is present) and returns the new set
-     - union: `set1.union(set2)` -- returns a new set with all elements in `set1` or `set2`
-     - intersect: `set1.intersect(set2)` -- returns a new set with all elements in both `set1` and `set2`
-     - diff: `set1.diff(set2)` -- returns a new set with all elements not shared between `set1` and `set2`
      - min: `set.min` -- valid only for numeric sets, returns the minimum value
      - max: `set.max` -- valid only for numeric sets, returns the minimum value
      - find: `set.find(v => expr)` -- Returns the first non-missing element of `set` for which `expr` is true.  If no element satisfies the predicate, `find` returns NA.
@@ -100,6 +97,8 @@ Several Hail commands provide the ability to perform a broad array of computatio
             Now the following equality is true:
             
                 global.gene_dict["gene1"] == {"PLI": 0.998, "hits_in_exac": 1}
+      - merge: `merge(struct1, struct2)` -- create a new struct with all fields in struct1 and struct2
+      - select and drop: `select` / `drop` -- these take the format `select(struct, identifier1, identifier2, ...)`.  These methods return a subset of the struct.  One could, for example, remove the horrible `CSQ` from the info field of a vds with `annotatevariants expr -c 'va.info = drop(va.info, CSQ)`.  One can select a subset of fields from a table using `select(va.EIGEN, field1, field2, field3)`
 
 
 **Note:**
@@ -262,9 +261,21 @@ Compute statistics on number of singletons stratified by case/control:
 
 ```
 
-### Examples
+### Collect
 
-#### Filtering
+```
+    <aggregable>.collect( <Boolean expression> , <Any expression> )
+```
+
+`collect` is an aggregator that allows a set of elements of an aggregator to be collected into an `Array`.  For example, one can collect the list of non-ref sample IDs per variant with the following:
+
+```
+    annotatevariants expr -c 'va.hetSamples = gs.collect(g.isCalledNonRef, s)'
+```
+
+The above reads, "where the genotype is called non-reference, collect the sample id".  This returns an `Array[String]`.  If instead of `gs.collect(g.isCalledNonRef, s)` we had written `gs.collect(g.isCalled NonRef, g)`, we would have returned an `Array[Genotype]`.
+
+## Filtering
 
 Filtering requires an expression that evaluates to a boolean.
 
@@ -290,3 +301,35 @@ filtervariants expr --keep -c 'if (va.info.AC[va.aIndex]) == 1'
 ```
 
 See documentation on [exporting to TSV](ExportTSV.md) and [programmatic annotation](ProgrammaticAnnotation.md) for more examples of what Hail's language can do.
+
+<a name="statsFunctions"></a>
+## Statistical Functions
+
+### Fisher's exact test
+
+Hail's expression language exposes the `fet` function to calculate the p-value, odds ratio, and 95% confidence interval with Fisher's exact test for 2x2 tables. This implementation of FET is identical to the version implemented in [R](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html) with default parameters (two-sided, alpha = 0.05, null hypothesis that the odds ratio equals 1).
+
+The `fet` function takes four non-negative arguments of type Int.
+```
+annotatevariants expr -c 'va.fet = fet(a, b, c, d)'
+```
+
+The function adds four annotations of type Double to the annotation root specified on the left-hand side of the equation:
+ - `pValue`
+ - `oddsRatio`
+ - `ci95Lower`
+ - `ci95Upper`
+ 
+Note that the aggregator function `count` creates annotation of type Long, which must be converted to Int as in the workflow below. Caution: the maximum value of an Int is 2147483647. Converting a Long of larger value to Int will corrupt the value.
+
+**Example Workflow to Perform a Single-Variant Association Test Using FET:**
+```
+annotatesamples table -i /path/my/annotations.tsv -r "sa.pheno"
+annotatevariants expr -c 'va.minorCase = gs.count(sa.pheno.Pheno1 == "Case" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Case" && g.isHomVar)'
+annotatevariants expr -c 'va.majorCase = gs.count(sa.pheno.Pheno1 == "Case" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Case" && g.isHomRef)'
+annotatevariants expr -c 'va.minorControl = gs.count(sa.pheno.Pheno1 == "Control" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Control" && g.isHomVar)'
+annotatevariants expr -c 'va.majorControl = gs.count(sa.pheno.Pheno1 == "Control" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Control" && g.isHomRef)'
+annotatevariants expr -c 'va.fet = fet(va.minorCase.toInt, va.majorCase.toInt, va.minorControl.toInt, va.majorControl.toInt)'
+filtervariants expr --keep -c 'va.fet.pValue < 1e-4'
+exportvariants -o /path/my/results.tsv -c 'v, va.minorCase, va.majorCase, va.minorControl, va.majorControl, va.fet.pValue, va.fet.oddsRatio, va.fet.ci95Lower, va.fet.ci95Upper'
+```

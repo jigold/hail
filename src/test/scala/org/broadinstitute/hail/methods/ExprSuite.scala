@@ -4,39 +4,42 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.Genotype
-import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.broadinstitute.hail.utils.StringEscapeUtils._
+import org.broadinstitute.hail.variant.{Genotype, Locus, Variant}
+import org.broadinstitute.hail.{FatalException, SparkSuite, TestUtils}
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
-
 
 class ExprSuite extends SparkSuite {
 
   @Test def exprTest() {
-    val symTab = Map("i" ->(0, TInt),
-      "j" ->(1, TInt),
-      "d" ->(2, TDouble),
-      "d2" ->(3, TDouble),
-      "s" ->(4, TString),
-      "s2" ->(5, TString),
-      "a" ->(6, TArray(TInt)),
-      "m" ->(7, TInt),
-      "as" ->(8, TArray(TStruct(("a", TInt),
+    val symTab = Map("i" -> (0, TInt),
+      "j" -> (1, TInt),
+      "d" -> (2, TDouble),
+      "d2" -> (3, TDouble),
+      "s" -> (4, TString),
+      "s2" -> (5, TString),
+      "a" -> (6, TArray(TInt)),
+      "m" -> (7, TInt),
+      "as" -> (8, TArray(TStruct(("a", TInt),
         ("b", TString)))),
-      "gs" ->(9, TStruct(("noCall", TGenotype),
+      "gs" -> (9, TStruct(("noCall", TGenotype),
         ("homRef", TGenotype),
         ("het", TGenotype),
         ("homVar", TGenotype),
         ("hetNonRef35", TGenotype))),
-      "t" ->(10, TBoolean),
-      "f" ->(11, TBoolean),
-      "mb" ->(12, TBoolean),
-      "is" ->(13, TString),
-      "iset" ->(14, TSet(TInt)),
-      "genedict" ->(15, TDict(TInt)),
-      "structArray" ->(16, TArray(TStruct(
+      "t" -> (10, TBoolean),
+      "f" -> (11, TBoolean),
+      "mb" -> (12, TBoolean),
+      "is" -> (13, TString),
+      "iset" -> (14, TSet(TInt)),
+      "genedict" -> (15, TDict(TInt)),
+      "structArray" -> (16, TArray(TStruct(
         ("f1", TInt),
         ("f2", TString),
-        ("f3", TInt)))))
+        ("f3", TInt)))),
+      "a2" -> (17, TArray(TString)))
     val ec = EvalContext(symTab)
 
     val a = ec.a
@@ -64,6 +67,7 @@ class ExprSuite extends SparkSuite {
     a(16) = IndexedSeq(Annotation(1, "A", 2),
       Annotation(5, "B", 6),
       Annotation(10, "C", 10))
+    a(17) = IndexedSeq("a", "d", null, "c", "e", null, "d", "c")
 
     assert(a.length == symTab.size)
 
@@ -153,6 +157,52 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Int]("""a.find(x => x < 0)""").contains(-1))
 
+    assert(eval[IndexedSeq[_]]("""a.sort()""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
+    assert(eval[IndexedSeq[_]]("""a.sort(true)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
+    assert(eval[IndexedSeq[_]]("""a.sort(false)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
+
+    assert(eval[IndexedSeq[_]]("""a2.sort()""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
+    assert(eval[IndexedSeq[_]]("""a2.sort(true)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
+    assert(eval[IndexedSeq[_]]("""a2.sort(false)""").contains(IndexedSeq("e", "d", "d", "c", "c", "a", null, null)))
+
+    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sort(0)"""))
+    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sort("asdasd")"""))
+    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sort(true, true)"""))
+    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sort(null)"""))
+    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sort(asdasd)"""))
+
+
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => x)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => -x)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => (x - 2) * (x + 1))""").contains(IndexedSeq(1, 2, -1, 3, 3, 6, 8, null)))
+
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => x, true)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => x, false)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
+
+    assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
+    assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, true)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
+    assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, false)""").contains(IndexedSeq("e", "d", "d", "c", "c", "a", null, null)))
+
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(0)"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(0, true)"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(x => x, 0)"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(x => x, "asdasd")"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(x => x, true, true)"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(x => x, null)"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(x => x, asdasd)"""))
+
     assert(eval[String](""" "HELLO=" + j + ", asdasd" + 9""")
       .contains("HELLO=-7, asdasd9"))
 
@@ -174,9 +224,22 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""iset.max""").contains(2))
     assert(eval[Int]("""iset.sum""").contains(3))
 
+    assert(eval[String](""" "\t\t\t" """).contains("\t\t\t"))
+    assert(eval[String](""" "\"\"\"" """).contains("\"\"\""))
+    assert(eval[String](""" "```" """).contains("```"))
+
+    assert(eval[String](""" "\t" """) == eval[String]("\"\t\""))
+
     assert(eval[String](""" "a b c d".replace(" ", "_") """).contains("a_b_c_d"))
     assert(eval[String](" \"a\\tb\".replace(\"\\t\", \"_\") ").contains("a_b"))
     assert(eval[String](""" "a    b  c    d".replace("\\s+", "_") """).contains("a_b_c_d"))
+
+    // quoting '` optional in strings
+    assert(eval[String](""" "\"\'\`" """).contains(""""'`"""))
+    assert(eval[String](""" "\"'`" """).contains(""""'`"""))
+
+    // quoting "' optional in literal identifiers
+    assert(eval[Int]("""let `\"\'\`` = 5 in `"'\``""").contains(5))
 
     assert(eval[String]("""NA: String""").isEmpty)
     assert(eval[String]("""NA: Int""").isEmpty)
@@ -192,11 +255,11 @@ class ExprSuite extends SparkSuite {
     intercept[FatalException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
     intercept[FatalException](eval[IndexedSeq[Any]]("""[] """))
 
-    val (t, r) = evalWithType[Annotation](""" {"field1": 1, "field2": 2 } """)
+    val (t, r) = evalWithType[Annotation](""" {field1: 1, field2: 2 } """)
     assert(r.contains(Annotation(1, 2)))
     assert(t == TStruct(("field1", TInt), ("field2", TInt)))
 
-    val (t2, r2) = evalWithType[Annotation](""" {"field1": 1, "asdasd": "Hello" } """)
+    val (t2, r2) = evalWithType[Annotation](""" {field1: 1, asdasd: "Hello" } """)
     assert(r2.contains(Annotation(1, "Hello")))
     assert(t2 == TStruct(("field1", TInt), ("asdasd", TString)))
 
@@ -224,33 +287,85 @@ class ExprSuite extends SparkSuite {
     ))
     assert(eval[Boolean](""" index(structArray, f2).contains("B") """).contains(true))
     assert(eval[Boolean](""" index(structArray, f2).contains("E") """).contains(false))
+
+    // caused exponential blowup previously
+    assert(eval[Boolean](
+      """
+        |if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else true
+      """.stripMargin).contains(true))
+
+    assert(eval[Annotation]("""merge({a: 1, b: 2}, {c: false, d: true}) """).contains(Annotation(1, 2, false, true)))
+    assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, {c: false, d: true}) """).contains(Annotation(null, null, false, true)))
+    assert(eval[Annotation]("""merge({a: 1, b: 2}, NA: Struct{c: Boolean, d: Boolean}) """).contains(Annotation(1, 2, null, null)))
+    assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, NA: Struct{c: Boolean, d: Boolean}) """).isEmpty)
+    TestUtils.interceptFatal("invalid merge operation: same-name fields")(
+      eval[Annotation]("""merge({a: 1, b: 2}, {c: false, d: true, a: 1, b: 0}) """).contains(Annotation(1, 2, false, true)))
+    TestUtils.interceptFatal("invalid arguments to `merge'")(
+      eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}) """).isEmpty)
+    TestUtils.interceptFatal("invalid arguments to `merge'")(
+      eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, 5) """).isEmpty)
+
+    assert(eval[Annotation](""" select({a:1,b:2}, a) """).contains(Annotation(1)))
+    assert(eval[Boolean](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,`\tweird\t`) == drop(x, c) """).contains(true))
+    TestUtils.interceptFatal("too few arguments for method `select'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x) """))
+    TestUtils.interceptFatal("invalid arguments for method `select'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, 5,6,7) """))
+    TestUtils.interceptFatal("invalid arguments for method `select'\\s+Duplicate identifiers found")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,a,b,c,c) """))
+    TestUtils.interceptFatal("invalid arguments for method `select'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,c,d,e) """))
+
+    assert(eval[Annotation](""" drop({a:1,b:2}, a) """).contains(Annotation(2)))
+    TestUtils.interceptFatal("too few arguments for method `drop'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x) """))
+    TestUtils.interceptFatal("invalid arguments for method `drop'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, 5,6,7) """))
+    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+Duplicate identifiers found")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,a,b,c,c) """))
+    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,b,c,d,e) """))
+
+    assert(eval[Variant]("""Variant("1", 1, "A", "T")""").contains(Variant("1", 1, "A", "T")))
+    assert(eval[Variant]("""Variant("1", 1, "A", ["T", "G"])""").contains(Variant("1", 1, "A", Array("T", "G"))))
+    assert(eval[Boolean]("""let v = Variant("1", 1, "A", "T") in Variant(str(v)) == v""").contains(true))
+
+    assert(eval[Locus]("""Locus("1", 1)""").contains(Locus("1", 1)))
+    assert(eval[Locus]("""Locus("1:1")""").contains(Locus("1", 1)))
+    assert(eval[Boolean]("""let l = Locus("1", 1) in Locus(str(l)) == l""").contains(true))
+
+
     // FIXME catch parse errors
-  }
-
-  @Test def testAssign() {
-    val t1 = TStruct.empty
-
-    val (t2, insb) = t1.insert(TInt, "a", "b")
-    val (t3, insc) = t2.insert(TDouble, "a", "c")
-
-    val (tb, assb) = t3.assign("a", "b")
-    assert(tb == TInt)
-
-    val (tc, assc) = t3.assign("a", "c")
-    assert(tc == TDouble)
-
-    val qc = t3.query("a", "c")
-
-    val v1 = Annotation.empty
-    val v2 = insb(v1, Some(5))
-    val v3 = insc(v2, Some(7.2))
-
-    assert(qc(assc(v3, Some(-3.2))).contains(-3.2))
-    assert(qc(assc(v3, None)).isEmpty)
-
-    val v5 = assc(Annotation.empty, Some(6.7))
-
-    assert(qc(v5).contains(6.7))
+    assert(eval(""" "\``\''" """) == eval(""" "``''" """))
+    TestUtils.interceptFatal("""invalid escape character.*string.*\\a""")(eval[String](""" "this is bad \a" """))
+    TestUtils.interceptFatal("""unterminated string literal""")(eval[String](""" "unclosed string \" """))
+    TestUtils.interceptFatal("""invalid escape character.*backtick identifier.*\\i""")(eval[String](""" let `bad\identifier` = 0 in 0 """))
+    TestUtils.interceptFatal("""unterminated backtick identifier""")(eval[String](""" let `bad\identifier = 0 in 0 """))
   }
 
   @Test def testParseTypes() {
@@ -270,18 +385,34 @@ class ExprSuite extends SparkSuite {
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
       sb.clear()
-      t.pretty(sb, 0)
+      t.pretty(sb, compact = true, printAttrs = true)
       val res = sb.result()
       val parsed = Parser.parseType(res)
       t == parsed
     })
+    check(forAll { (t: Type) =>
+      sb.clear()
+      t.pretty(sb, printAttrs = true)
+      val res = sb.result()
+      //      println(res)
+      val parsed = Parser.parseType(res)
+      t == parsed
+    })
+
   }
 
   @Test def testJSON() {
     check(forAll { (t: Type) =>
       val a = t.genValue.sample()
-      val json = t.makeJSON(a)
-      a == Annotation.fromJson(json, t, "")
+      val json = t.toJSON(a)
+      val string = compact(json)
+      a == JSONAnnotationImpex.importAnnotation(parse(string), t, "")
+    })
+
+    check(forAll { (t: Type) =>
+      val a = t.genValue.sample()
+      val json = t.toJSON(a)
+      a == JSONAnnotationImpex.importAnnotation(json, t)
     })
   }
 
@@ -290,8 +421,16 @@ class ExprSuite extends SparkSuite {
       val sb = new StringBuilder
       t.pretty(sb, 0)
       val a = t.genValue.sample()
-      t.makeSparkReadable(t.makeSparkWritable(a)) == a
+      JSONAnnotationImpex.importAnnotation(
+        JSONAnnotationImpex.exportAnnotation(a, t), t) == a
     })
   }
 
+  @Test def testEscaping() {
+    val p = forAll { (s: String) =>
+      s == unescapeString(escapeString(s))
+    }
+
+    p.check(count = 1000)
+  }
 }

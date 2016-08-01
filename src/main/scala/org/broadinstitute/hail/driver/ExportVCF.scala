@@ -1,7 +1,5 @@
 package org.broadinstitute.hail.driver
 
-import java.time._
-
 import org.apache.spark.RangePartitioner
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
@@ -73,7 +71,6 @@ object ExportVCF extends Command {
       val sb = new StringBuilder()
 
       sb.append("##fileformat=VCFv4.2\n")
-      sb.append(s"##fileDate=${LocalDate.now}\n")
       // FIXME add Hail version
       if (exportPP)
         sb.append(
@@ -105,14 +102,9 @@ object ExportVCF extends Command {
         sb.append(f.attr("Number").getOrElse(infoNumber(f.`type`)))
         sb.append(",Type=")
         sb.append(infoType(f.`type`))
-        f.attr("Description") match {
-          case Some(d) =>
-            sb.append(",Description=\"")
-            sb.append(d)
-            sb += '"'
-          case None =>
-        }
-        sb.append(">\n")
+        sb.append(",Description=\"")
+        sb.append(f.attr("Description").getOrElse(""))
+        sb.append("\">\n")
       })
 
       if (options.append != null) {
@@ -160,7 +152,7 @@ object ExportVCF extends Command {
       sb.append(v.ref)
       sb += '\t'
       v.altAlleles.foreachBetween(aa =>
-        sb.append(aa.alt))(() => sb += ',')
+        sb.append(aa.alt))(sb += ',')
       sb += '\t'
 
       sb.append(qualQuery.flatMap(_ (a))
@@ -173,11 +165,7 @@ object ExportVCF extends Command {
         .map(_.asInstanceOf[Set[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
-            f.foreachBetween { s =>
-              sb.append(s)
-            } { () =>
-              sb += ','
-            }
+            f.foreachBetween(s => sb.append(s))(sb += ',')
           else
             sb += '.'
         case None => sb += '.'
@@ -200,11 +188,11 @@ object ExportVCF extends Command {
                 if (f.`type` != TBoolean) {
                   sb += '='
                   v match {
-                    case i: Iterable[_] => i.foreachBetween { elem => sb.append(elem) } { () => sb.append(",") }
+                    case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(sb += ',')
                     case _ => sb.append(v)
                   }
                 }
-              } { () => sb += ';' }
+              } { sb += ';' }
           }
 
         case None =>

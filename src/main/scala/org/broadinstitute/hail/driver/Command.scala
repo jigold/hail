@@ -48,7 +48,6 @@ object ToplevelCommands {
   register(AnnotateVariants)
   register(AnnotateGlobal)
   register(Cache)
-  register(ImportAnnotations)
   register(CompareVDS)
   register(Count)
   register(DownsampleVariants)
@@ -69,7 +68,9 @@ object ToplevelCommands {
   register(GQByDP)
   register(GQHist)
   register(GTCountByAnnotation)
+  register(ImportAnnotations)
   register(ImportVCF)
+  register(ImputeSex)
   register(LinearRegressionCommand)
   register(MendelErrorsCommand)
   register(SplitMulti)
@@ -144,7 +145,7 @@ abstract class SuperCommand extends Command {
 
   override def parseArgs(args: Array[String]): Options = {
     val options = newOptions
-    if (args(0) ==  "-h")
+    if (args(0) == "-h")
       options.printUsage = true
 
     val subArgs = args.dropWhile(_ == "-h")
