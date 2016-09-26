@@ -70,7 +70,8 @@ Several Hail commands provide the ability to perform a broad array of computatio
 
  - Numeric Array Operations:
      - min: `arr.min` -- valid only for numeric arrays, returns the minimum value
-     - max: `arr.max` -- valid only for numeric arrays, returns the minimum value
+     - max: `arr.max` -- valid only for numeric arrays, returns the maximum value
+     - sum: `arr.sum` -- valid only for numeric arrays, return the sum of elements
      - arithmetic: `+ - * /`
         - Array with scalar will apply the operation to each element of the array.  `[1, 2, 3] * 2` = `[2, 4, 6]`.
         - Array with Array will apply the operation positionally.  `[1, 2, 3] * [1, 0, -1]` = `[1, 0, -3]`.  _Fails if the dimension of the two arrays does not match._
