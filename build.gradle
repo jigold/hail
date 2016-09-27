@@ -288,9 +288,15 @@ task runNodeFaq(type: Exec, dependsOn: ['runPandoc', 'copyJavascript', 'copyHtml
     executable 'build/tmp/docs/compileFaqNode.js'
 }
 
-task copyCompiledHtml(type: Copy, dependsOn: ['runNodeDocs', 'runNodeFaq']) {
+task runNodeTutorial(type: Exec, dependsOn: ['runPandoc', 'copyJavascript', 'copyHtml']) {
+    args('tutorialTemplate.html', 'docs/', 'tutorial.html')
+    executable 'build/tmp/docs/compileTutorialNode.js'
+}
+
+task copyCompiledHtml(type: Copy, dependsOn: ['runNodeDocs', 'runNodeFaq', 'runNodeTutorial']) {
     from 'build/tmp/docs/index.html'
     from 'build/tmp/docs/faq.html'
+    from 'build/tmp/docs/tutorial.html'
     into 'build/docs'
 }
 
