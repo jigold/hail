@@ -16,6 +16,7 @@ body {
   margin: auto;
   max-width: 42em;
   background: #fefefe;
+  padding-top: 70px;
 }
 
 a, a code {
@@ -386,3 +387,117 @@ pre not:(.synopsis) {
     margin-bottom: 10px;
 }
 
+#hail-navbar  {
+  background-color: #ffffff ;
+/*  min-height: 50px;
+  max-height: 50px;*/
+/*  margin-bottom: 10px;*/
+  border-bottom: 1px solid #e7e7e7;
+  height: 50px;
+  font-size: 12px;
+  font-family: Helvetica;
+  font-weight: 600;
+  font-color: #555555;
+}
+
+/*#hail-navbar #hail-navbar-header {
+  min-height: 50px;
+}*/
+
+#hail-navbar #hail-container-fluid {
+    max-width: 42em;
+    margin: auto;
+}
+
+#hail-navbar #hail-navbar-collapse .nav-item a {
+  padding-top: 28px;
+  padding-bottom: 0px;
+  background-color: #FFFFFF;
+}
+
+#hail-navbar #hail-navbar-collapse a {
+  color: #555555;
+}
+
+#hail-navbar .dropdown-menu {
+  min-width: 100px;
+  background-color: #FFFFFF;
+}
+
+#hail-navbar #hail-navbar-collapse .nav-item .dropdown-menu a {
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+
+#hail-navbar #hail-navbar-collapse a:hover {
+    color: #2a388f;
+}
+
+#hail-navbar #hail-navbar-collapse:not(.in) .active.nav-item:not(:hover) {
+    border-bottom: 2px solid #555555;
+}
+
+#hail-navbar #hail-navbar-collapse:not(.in) .active.nav-item:hover {
+    border-bottom: 2px solid #2a388f;
+}
+
+#hail-navbar #hail-navbar-collapse.in .active.nav-item {
+    text-decoration: underline;
+}
+
+#hail-navbar #hail-navbar-collapse .dropdown-item {
+    background-color: green;
+}
+
+#hail-navbar #hail-navbar-collapse .dropdown-item.active {
+    text-decoration: underline;
+}
+
+
+#hail-navbar #hail-navbar-header .navbar-toggle {
+  margin-top: 3px;
+  margin-bottom: 3px; /* this has to be nav height - 34 */
+}
+
+@media (max-width: 480px) {
+  #hail-navbar #hail-navbar-header {
+      float: left;
+/*      padding: 5px;*/
+      text-align: center;
+      width: 100%;
+      margin-left: 0px;
+  }
+
+  #hail-navbar-brand {
+    float:none;
+  }
+}
+
+#hail-navbar #hail-navbar-collapse.in .nav-item a {
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+
+/*#hail-navbar #hail-navbar-collapse.in .nav-item a.active {
+  text-decoration: underline;
+}*/
+
+#hail-navbar #hail-navbar-collapse .dropdown-menu {
+  background-color: #ffffff;
+}
+
+.navbar-fixed-top {
+   -webkit-font-smoothing: antialiased;
+}
+
+img#logo {
+  height: 35px;
+  margin-top: 10px;
+}
+
+.jumptarget::before {
+    content: "";
+    display: block;
+    height: 50px;
+    margin: -50px 0 0;
+}

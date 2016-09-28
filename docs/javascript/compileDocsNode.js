@@ -7,10 +7,12 @@ process.on('uncaughtException', function (err) {
   process.exit(1);
 });
 
-const docsHtmlTemplate = __dirname + "/" + process.argv[2];
-const jsonCommandsFile = process.argv[3];
-const pandocOutputDir = __dirname + "/" + process.argv[4];
-const compiledHTMLOutputFile = __dirname + "/" + process.argv[5];
+const introHtmlTemplate = __dirname + "/" + process.argv[2];
+const commandsHtmlTemplate = __dirname + "/" + process.argv[3];
+const faqHtmlTemplate = __dirname + "/" + process.argv[4];
+const tutorialHtmlTemplate = __dirname + "/" + process.argv[5];
+const jsonCommandsFile = process.argv[6];
+const pandocOutputDir = __dirname + "/" + process.argv[7];
 
 const jsdom = require('jsdom');
 const fs = require('fs');
@@ -21,36 +23,55 @@ const jsonData = require(jsonCommandsFile);
 
 mjAPI.start();
 
-jsdom.env(docsHtmlTemplate, function (err, window) {
+buildFAQ(faqHtmlTemplate, __dirname + "/faq.html");
+buildCommands(commandsHtmlTemplate, __dirname + "/commands.html");
+buildIntro(introHtmlTemplate, __dirname + "/intro.html");
+buildTutorial(tutorialHtmlTemplate, __dirname + "/tutorial.html");
+
+function error(message) {
+    console.log(message);
+    process.exit(1);
+}
+
+function loadReq(selector, file, $) {
+    return new Promise(function (resolve, reject) {
+        const s = $(selector);
+        if (s.length == 0) {
+            reject("No elements found for selector " + selector);
+        } else {
+            $(selector).load(file, function (response, status, xhr) {
+                if (status == "error") {
+                    console.log("error when loading file: " + file);
+                    reject(status)
+                } else {
+                    resolve(response)
+                }
+            });
+        }
+    });
+};
+
+function runMathJax(document, callback) {
+    mjAPI.typeset({
+        html: document.body.innerHTML,
+        renderer: "SVG",
+        inputs: ["TeX"],
+        xmlns: "mml"
+     }, function(result) {
+        document.body.innerHTML = result.html;
+        const HTML = "<!DOCTYPE html>\n" + document.documentElement.outerHTML.replace(/^(\n|\s)*/, "");
+        callback(HTML);
+    })
+}
+
+function buildIntro(htmlTemplate, outputFileName) {
+    jsdom.env(htmlTemplate, function (err, window) {
         window.addEventListener("error", function (event) {
           console.error("script error!!", event.error);
           process.exit(1);
         });
 
         const $ = require('jquery')(window);
-
-        function loadReq(selector, file) {
-            return new Promise(function (resolve, reject) {
-                const s = $(selector);
-                if (s.length == 0) {
-                    reject("No elements found for selector " + selector);
-                } else {
-                    $(selector).load(file, function (response, status, xhr) {
-                        if (status == "error") {
-                            console.log("error when loading file: " + file);
-                            reject(status)
-                        } else {
-                            resolve(response)
-                        }
-                    });
-                }
-            });
-        };
-
-        function error(message) {
-            console.log(message);
-            process.exit(1);
-        }
 
         const loadOverviewPromises = ["Representation",
                                     "Importing",
@@ -61,31 +82,100 @@ jsdom.env(docsHtmlTemplate, function (err, window) {
                                     "ExportingData",
                                     "ExportingTSV",
                                     "SQL",
-                                    "GettingStarted",
-                                    "GlobalOptions"]
-                                    .map(name => loadReq("#" + name, pandocOutputDir + name + ".html"));
+                                    "GettingStarted"]
+                                    .map(name => loadReq("#" + name, pandocOutputDir + "intro/" + name + ".html", $));
 
-        const buildCommandPromises = jsonData.commands
-            .filter(command => !command.hidden)
-            .map(command => buildDocs.buildCommand(command, pandocOutputDir, $));
-
-
-        Promise.all(loadOverviewPromises.concat(buildCommandPromises))
-            .then(function() {$("div#GlobalOptions div.options").append(buildDocs.buildGlobalOptions(jsonData.global.options, $))}, error)
+        Promise.all(loadOverviewPromises)
             .then(function() {
                  var document = jsdom.jsdom($('html').html());
-
-                 mjAPI.typeset({
-                    html: document.body.innerHTML,
-                    renderer: "SVG",
-                    inputs: ["TeX"],
-                    xmlns: "mml"
-                 }, function(result) {
-                    document.body.innerHTML = result.html;
-                    const HTML = "<!DOCTYPE html>\n" + document.documentElement.outerHTML.replace(/^(\n|\s)*/, "");
-
-                    fs.writeFile(compiledHTMLOutputFile, HTML);
+                 runMathJax(document, function(html) {
+                    fs.writeFile(outputFileName, html);
                  });
             }, error)
             .catch(error);
-});
+    });
+}
+
+function buildCommands(htmlTemplate, outputFileName) {
+    jsdom.env(htmlTemplate, function (err, window) {
+        window.addEventListener("error", function (event) {
+          console.error("script error!!", event.error);
+          process.exit(1);
+        });
+
+        const $ = require('jquery')(window);
+
+        const buildCommandPromises = jsonData.commands
+            .filter(command => !command.hidden)
+            .map(command => buildDocs.buildCommand(command, pandocOutputDir + "commands/", $));
+
+        Promise.all(buildCommandPromises.concat([loadReq("#GlobalOptions", pandocOutputDir + "commands/" + "GlobalOptions.html", $)]))
+            .then(function() {$("div#GlobalOptions div.options").append(buildDocs.buildGlobalOptions(jsonData.global.options, $))}, error)
+            .then(function() {
+                 var document = jsdom.jsdom($('html').html());
+                 runMathJax(document, function(html) {
+                    fs.writeFile(outputFileName, html);
+                 });
+            }, error)
+            .catch(error);
+    });
+}
+
+function buildFAQ(htmlTemplate, outputFileName) {
+    jsdom.env(htmlTemplate, function (err, window) {
+        window.addEventListener("error", function (event) {
+          console.error("script error!!", event.error);
+          process.exit(1);
+        });
+
+        const $ = require('jquery')(window);
+
+    var loadFaqPromises =  ["Annotations",
+                            "DataRepresentation",
+                            "DevTools",
+                            "ErrorMessages",
+                            "ExportingData",
+                            "ExpressionLanguage",
+                            "FilteringData",
+                            "General",
+                            "ImportingData",
+                            "Installation",
+                            "Methods",
+                            "OptimizePipeline"]
+                            .map(name => loadReq("#" + name, pandocOutputDir + "faq/" + name + ".html", $));
+
+        Promise.all(loadFaqPromises)
+            .then(function () {
+                buildDocs.buildFaqTOC($);
+            }, error)
+            .then(function() {
+                 var document = jsdom.jsdom($('html').html());
+                 runMathJax(document, function(html) {
+                    fs.writeFile(outputFileName, html);
+                 });
+            }, error)
+            .catch(error);
+    });
+}
+
+function buildTutorial(htmlTemplate, outputFileName) {
+    jsdom.env(htmlTemplate, function (err, window) {
+        window.addEventListener("error", function (event) {
+          console.error("script error!!", event.error);
+          process.exit(1);
+        });
+
+        const $ = require('jquery')(window);
+
+        var loadTutorialPromises = [loadReq("#Tutorial", pandocOutputDir + "tutorial/Tutorial.html", $)];
+
+        Promise.all(loadTutorialPromises)
+            .then(function() {
+                 var document = jsdom.jsdom($('html').html());
+                 runMathJax(document, function(html) {
+                    fs.writeFile(outputFileName, html);
+                 });
+            }, error)
+            .catch(error);
+    });
+}

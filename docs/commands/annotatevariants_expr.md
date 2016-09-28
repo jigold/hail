@@ -39,7 +39,7 @@ Identifier | Description
 `v` | Variant
 `va` | Variant annotations
 `global` | global annotation
-`gs` | Genotype row [aggregable](#aggregables)
+`gs` | Genotype row [aggregable](intro.html#aggregables)
 
 </div>
 
