@@ -309,3 +309,5 @@ task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
 
 task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages']) {
 }
+
+task createDocs(dependsOn: createWebsite)
