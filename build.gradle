@@ -254,7 +254,7 @@ task wrapper(type: Wrapper) {
 }
 
 task setupDocsDirs(type: Exec) {
-    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/www/images/'
+    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/docs/images/'
 }
 
 task copyHtml(type: Copy, dependsOn: setupDocsDirs) {
@@ -269,18 +269,18 @@ task copyJavascript(type: Copy, dependsOn: setupDocsDirs) {
 
 task copyTutorialImages(type: Copy, dependsOn: setupDocsDirs) {
     from 'docs/tutorial/'
-    into 'build/www/images'
+    into 'build/docs/images'
     include '**/*.png'
 }
 
 task copyTex(type: Copy, dependsOn: setupDocsDirs) {
     from 'docs/LeveneHaldane.tex'
-    into 'build/www'
+    into 'build/docs'
 }
 
 task copyWebsiteContent(type: Copy, dependsOn: setupDocsDirs) {
     from 'www/'
-    into 'build/www'
+    into 'build/docs'
 }
 
 task runPandoc(type: Exec, dependsOn: setupDocsDirs) {
@@ -304,7 +304,7 @@ task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     from 'build/tmp/docs/commands.html'
     from 'build/tmp/docs/intro.html'
     from 'build/tmp/docs/tutorial.html'
-    into 'build/www'
+    into 'build/docs'
 }
 
 task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages']) {
