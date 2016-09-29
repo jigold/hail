@@ -33,7 +33,13 @@ Sample information (population, super-population, sex) was obtained from the [10
 
  4. **Optional** -- Run the Hail commands listed below in an iPython/Jupyter Notebook
  
-    0. Download the [Hail Tutorial Commands Jupyter Notebook](https://storage.googleapis.com/hail-tutorial/Hail_Tutorial_Commands-v1.ipynb). Make sure it is in the `hail-tutorial` directory.
+    0. Download the [Hail Tutorial Zip File](https://storage.googleapis.com/hail-tutorial/Hail_Tutorial-v1.zip). Make sure it is downloaded to the `hail-tutorial` directory.
+    
+    1. Unzip the file:
+    
+        ```
+        unzip Hail_Tutorial-v1.zip
+        ```
  
     1. Install [Anaconda](https://www.continuum.io/downloads) which includes Jupyter OR use [pip](http://jupyter.readthedocs.io/en/latest/install.html).
   
@@ -56,7 +62,7 @@ Sample information (population, super-population, sex) was obtained from the [10
         jupyter notebook --no-mathjax
         ```
     
-    4. In the Jupyter browser window, click on the file **Hail_Tutorial_Commands-v1.ipynb**. You should then see a notebook loaded with Hail bash commands.    
+    4. In the Jupyter browser window, click on the file **Hail_Tutorial-v1.ipynb**. You should then see a notebook loaded with the tutorial below.    
     
 ## Import Data
 
