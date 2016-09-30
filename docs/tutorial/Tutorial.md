@@ -14,9 +14,17 @@ This tutorial can be done in two different ways:
 
 ### Jupyter/iPython Notebook
  
+1. Make sure [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) and [Java 1.8](https://www.google.com/search?q=download+java+8+jdk) are installed.
+
 1. Install [Jupyter](http://jupyter.readthedocs.io/en/latest/install.html).         
              
 2. Install the [Bash Kernel for Jupyter](https://github.com/takluyver/bash_kernel).
+
+4. Download the Jupyter/iPython Notebook file using wget
+
+    ```
+    wget https://storage.googleapis.com/hail-tutorial/Hail_Tutorial-v1.ipynb
+    ```
     
 3. Open Jupyter from the command line which will open a new browser window    
     
@@ -55,7 +63,7 @@ This tutorial can be done in two different ways:
 4. Unzip the file with the following command:
 
     ```
-    unzip Hail_Tutorial-v1.zip
+    unzip -j Hail_Tutorial-v1.zip
     ```
     
     The contents of the zip file are as follows:
@@ -63,7 +71,6 @@ This tutorial can be done in two different ways:
     - 1000 Genomes Compressed VCF (down-sampled to 10K variants) -- **1000Genomes.ALL.coreExome10K-v1.vcf.bgz**
     - Sample Annotations -- **1000Genomes.ALL.coreExome10K-v1.sample_annotations**
     - LD-pruned SNP List -- **purcell5k.interval_list**
-    - Jupyter Notebook -- **Hail_Tutorial-v1.ipynb**
     - 5 images -- **test.*.png**
 
 
@@ -92,9 +99,9 @@ Two phenotypes were randomly generated: `PurpleHair` is a dichotomous variable (
 Lastly, we [`write`](commands.html#write) the imported data to Hail's VDS format (test.raw.vds) and perform a [`count`](commands.html#count) operation to print out summary statistics about the dataset.
 
 ```
-$ hail importvcf 1000Genomes.ALL.coreExome10K.vcf.bgz \
+$ hail importvcf 1000Genomes.ALL.coreExome10K-v1.vcf.bgz \
     splitmulti \
-    annotatesamples table --root sa.pheno -e Sample --types "Population: String, SuperPopulation: String, isFemale: Boolean, PurpleHair: Boolean, CaffeineConsumption: Double" --input 1000Genomes.ALL.coreExome10K.sample_annotations \
+    annotatesamples table --root sa.pheno -e Sample --types "Population: String, SuperPopulation: String, isFemale: Boolean, PurpleHair: Boolean, CaffeineConsumption: Double" --input 1000Genomes.ALL.coreExome10K-v1.sample_annotations \
     write -o test.raw.vds \
     count -g
 
@@ -192,7 +199,24 @@ $ hail read -i test.filtergeno.vds \
     sampleqc -o test.sampleqc.tsv
 ```
 
-After calculating the sample qc summary statistics, the output text file **test.sampleqc.tsv** can be analyzed further using R. 
+After calculating the sample qc summary statistics, we can look at the output text file **test.sampleqc.tsv**
+
+```
+$ head test.sampleqc.tsv | cut -f 1,2,3,4,5,6,7,8,9,10
+
+Sample	callRate	nCalled	nNotCalled	nHomRef	nHet	nHomVar	nSNP	nInsertion	nDeletion
+HG02970	9.6931e-01	5433	172	3919	822	692	1514	0	0
+NA19089	9.7895e-01	5487	118	4072	729	686	1415	0	0
+NA18861	9.7342e-01	5456	149	3925	855	676	1531	0	0
+HG02122	9.7502e-01	5465	140	4026	730	709	1439	0	0
+NA20759	9.7110e-01	5443	162	4068	748	627	1375	0	0
+HG00139	9.8537e-01	5523	82	4080	833	610	1443	0	0
+NA12878	9.6735e-01	5422	183	4081	694	647	1341	0	0
+HG02635	9.8234e-01	5506	99	3927	927	652	1579	0	0
+NA19660	9.4505e-01	5297	308	3910	685	702	1387	0	0
+```
+ 
+We can also analyze the results further using R. 
 Below is an example of two variables that have been plotted (call rate and  meanGQ). The red lines are cutoffs for filtering samples based on these two variables.
 
 <img src="images/test.sampleqc.png">
