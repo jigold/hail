@@ -41,8 +41,8 @@ This tutorial can be done in two different ways:
  2. Build Hail by entering the following commands: 
 
     ```
-    git clone https://github.com/hail-is/hail.git
-    cd hail/
+    git clone https://github.com/hail-is/hail.git hail-tutorial
+    cd hail-tutorial/
     ./gradlew clean installDist
     alias hail="`pwd`/build/install/hail/bin/hail"
     ```
