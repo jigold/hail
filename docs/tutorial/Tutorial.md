@@ -7,15 +7,36 @@ Sample information (population, super-population, sex) was obtained from the [10
 
 ## Setup
 
- 1. Make sure [Git is installed](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
+This tutorial can be done in two different ways: 
+
+ - [Jupyter/iPython Notebook](http://jupyter.readthedocs.io/en/latest/)
+ - Manually copying commands into a terminal window
+
+### Jupyter/iPython Notebook
+ 
+1. Install [Jupyter](http://jupyter.readthedocs.io/en/latest/install.html).         
+             
+2. Install the [Bash Kernel for Jupyter](https://github.com/takluyver/bash_kernel).
+    
+3. Open Jupyter from the command line which will open a new browser window    
+    
+    ```
+    jupyter notebook --no-mathjax
+    ```
+    
+4. In the Jupyter browser window, click on the file **Hail_Tutorial-v1.ipynb**. You should then see a notebook loaded with the tutorial below.    
+    
+### Run Hail in a Terminal Window    
+
+ 1. Make sure [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) and [Java 1.8](https://www.google.com/search?q=download+java+8+jdk) are installed.
 
  2. Build Hail by entering the following commands: 
 
     ```
-    git clone https://github.com/hail-is/hail.git hail-tutorial
-    cd hail-tutorial/
+    git clone https://github.com/hail-is/hail.git
+    cd hail/
     ./gradlew clean installDist
-    alias hail="./build/install/hail/bin/hail"
+    alias hail="`pwd`/build/install/hail/bin/hail"
     ```
 
     If Hail was built successfully, you should be able to see the following when entering `hail` on the command line:
@@ -25,57 +46,39 @@ Sample information (population, super-population, sex) was obtained from the [10
     hail: fatal: no commands given
     ```
 
- 3. Download the files listed below. Make sure the files are downloaded to the `hail-tutorial/` directory:
-
-    - [1000 Genomes Compressed VCF (down-sampled to 10K variants; 130MB)](https://storage.googleapis.com/hail-tutorial/1000Genomes.ALL.coreExome10K-v1.vcf.bgz)
-    - [1000 Genomes Sample Annotations](https://storage.googleapis.com/hail-tutorial/1000Genomes.ALL.coreExome10K-v1.sample_annotations)
-    - [LD-pruned SNP List for PCA](https://storage.googleapis.com/hail-tutorial/purcell5k.interval_list)
-
- 4. **Optional** -- Run the Hail commands listed below in an iPython/Jupyter Notebook
+ 3. Download the zip file (**Hail_Tutorial-v1.zip**) with [`wget`](https://www.google.com/search?q=install+wget):
  
-    0. Download the [Hail Tutorial Zip File](https://storage.googleapis.com/hail-tutorial/Hail_Tutorial-v1.zip). Make sure it is downloaded to the `hail-tutorial` directory.
+    ```
+    wget https://storage.googleapis.com/hail-tutorial/Hail_Tutorial-v1.zip
+    ```
+
+4. Unzip the file with the following command:
+
+    ```
+    unzip Hail_Tutorial-v1.zip
+    ```
     
-    1. Unzip the file:
+    The contents of the zip file are as follows:
     
-        ```
-        unzip Hail_Tutorial-v1.zip
-        ```
- 
-    1. Install [Anaconda](https://www.continuum.io/downloads) which includes Jupyter OR use [pip](http://jupyter.readthedocs.io/en/latest/install.html).
-  
-        If using pip:
-        
-        ```
-        pip install jupyter
-        ```
-             
-    2. Install the [Bash Kernel for Jupyter](https://github.com/takluyver/bash_kernel)
-    
-        ```
-        pip install bash_kernel
-        python -m bash_kernel.install
-        ```
-    
-    3. Open Jupyter from the command line which will open a new browser window    
-    
-        ```
-        jupyter notebook --no-mathjax
-        ```
-    
-    4. In the Jupyter browser window, click on the file **Hail_Tutorial-v1.ipynb**. You should then see a notebook loaded with the tutorial below.    
-    
+    - 1000 Genomes Compressed VCF (down-sampled to 10K variants) -- **1000Genomes.ALL.coreExome10K-v1.vcf.bgz**
+    - Sample Annotations -- **1000Genomes.ALL.coreExome10K-v1.sample_annotations**
+    - LD-pruned SNP List -- **purcell5k.interval_list**
+    - Jupyter Notebook -- **Hail_Tutorial-v1.ipynb**
+    - 5 images -- **test.*.png**
+
+
 ## Import Data
 
 Hail uses a fast and storage-efficient internal representation called a VDS (variant dataset). 
 In order to use Hail for data analysis, data must first be imported to the VDS format. 
-To do this, use the [`importvcf`](commands.html#importvcf) command to load the downsampled [1000 Genomes VCF](https://storage.googleapis.com/hail-tutorial/1000Genomes.ALL.coreExome10K-v1.vcf.bgz) into Hail. 
+To do this, use the [`importvcf`](commands.html#importvcf) command to load the downsampled 1000 Genomes VCF (**1000Genomes.ALL.coreExome10K-v1.vcf.bgz**) into Hail. 
 The VCF file is block-compressed (`.vcf.bgz`) which enables Hail to read the file in parallel. 
 Reading a file that has not been block-compressed (`.vcf`, `.vcf.gz`) is significantly slower and should be avoided. 
 
 Next, we use the [`splitmulti`](commands.html#splitmulti) command to split multi-allelic variants into separate variants. 
 For example, the variant `1:1000:A:T,C` would become two variants: `1:1000:A:T` and `1:1000:A:C`.
 
-Third, we use the [`annotatesamples table`](commands.html#annotatesamples_table) command to load phenotypic information for each sample from [1000Genomes.ALL.coreExome10K-v1.sample_annotations](https://storage.googleapis.com/hail-tutorial/1000Genomes.ALL.coreExome10K-v1.sample_annotations). 
+Third, we use the [`annotatesamples table`](commands.html#annotatesamples_table) command to load phenotypic information for each sample from the sample annotations file (**1000Genomes.ALL.coreExome10K-v1.sample_annotations**).
 The `--root` flag tells Hail where to put the data read in from the file. 
 When annotating samples, the first part of the root name should be `sa`. 
 The second part can be anything you like. Here we have chosen `sa.pheno`. 
@@ -332,7 +335,7 @@ A high sex check failure rate can indicate sample swaps may have occurred.
 First, we count how many X chromosome variants are in the original dataset and find there are 273.
 
 ```
-hail read -i test.filtersamples.vds filtervariants expr --keep -c 'v.contig == "X"' count
+$ hail read -i test.filtersamples.vds filtervariants expr --keep -c 'v.contig == "X"' count
 
   nSamples             1,646
   nVariants              273
@@ -426,7 +429,7 @@ $ hail read -i test.filtervariants2.vds \
 ## PCA
 
 To account for population stratification in association testing, we use principal component analysis to compute covariates that are proxies for genetic similarity.
-For PCA to work, we need an independent set of SNPs. The text file [purcell5k.interval_list](https://storage.googleapis.com/hail-tutorial/purcell5k.interval_list) contains a list of independent variants.
+For PCA to work, we need an independent set of SNPs. The text file **purcell5k.interval_list** contains a list of independent variants.
 To calculate principal components, we first use the [`filtervariants intervals`](commands.html#filtervariants_intervals) command to only keep SNPs from the **purcell5k.interval_list**. Next, we use the [`pca`](commands.html#pca) command to calculate the first 10 principal components and output those to a text file.
 Lastly, we export sample annotations so that we can plot the principal components and color the points by their population group.
 
