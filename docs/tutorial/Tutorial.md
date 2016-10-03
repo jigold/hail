@@ -14,64 +14,65 @@ This tutorial can be done in two different ways:
 
 ### Jupyter/iPython Notebook
  
-1. Make sure [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) and [Java 1.8](https://www.google.com/search?q=download+java+8+jdk) are installed.
+(1) Make sure [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) and [Java 1.8](https://www.google.com/search?q=download+java+8+jdk) are installed.
 
-1. Install [Jupyter](http://jupyter.readthedocs.io/en/latest/install.html).         
+(2) Install [Jupyter](http://jupyter.readthedocs.io/en/latest/install.html).         
              
-2. Install the [Bash Kernel for Jupyter](https://github.com/takluyver/bash_kernel).
+(3) Install the [Bash Kernel for Jupyter](https://github.com/takluyver/bash_kernel).
 
-4. Download the Jupyter/iPython Notebook file using wget
+(4) Download the Jupyter/iPython Notebook file using wget
 
-    ```
-    wget https://storage.googleapis.com/hail-tutorial/Hail_Tutorial-v1.ipynb
-    ```
+```
+wget https://storage.googleapis.com/hail-tutorial/Hail_Tutorial-v1.ipynb
+```
+
+(5) Open Jupyter from the command line which will open a new browser window    
     
-3. Open Jupyter from the command line which will open a new browser window    
+```
+jupyter notebook --no-mathjax
+```
+
+(6) In the Jupyter browser window, click on the file **Hail_Tutorial-v1.ipynb**. You should then see a notebook loaded with the tutorial below.
     
-    ```
-    jupyter notebook --no-mathjax
-    ```
-    
-4. In the Jupyter browser window, click on the file **Hail_Tutorial-v1.ipynb**. You should then see a notebook loaded with the tutorial below.    
+
     
 ### Run Hail in a Terminal Window    
 
- 1. Make sure [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) and [Java 1.8](https://www.google.com/search?q=download+java+8+jdk) are installed.
+ (1) Make sure [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) and [Java 1.8](https://www.google.com/search?q=download+java+8+jdk) are installed.
 
- 2. Build Hail by entering the following commands: 
+ (2) Build Hail by entering the following commands: 
 
-    ```
-    git clone https://github.com/hail-is/hail.git hail-tutorial
-    cd hail-tutorial/
-    ./gradlew clean installDist
-    alias hail="`pwd`/build/install/hail/bin/hail"
-    ```
+```
+git clone https://github.com/hail-is/hail.git hail-tutorial
+cd hail-tutorial/
+./gradlew clean installDist
+alias hail="`pwd`/build/install/hail/bin/hail"
+```
 
-    If Hail was built successfully, you should be able to see the following when entering `hail` on the command line:
+If Hail was built successfully, you should be able to see the message `hail: fatal: no commands given` when entering `hail` on the command line:
+    
+```
+hail
+```
 
-    ```
-    $ hail
-    hail: fatal: no commands given
-    ```
-
- 3. Download the zip file (**Hail_Tutorial-v1.zip**) with [`wget`](https://www.google.com/search?q=install+wget):
+ (3) Download the zip file (**Hail_Tutorial-v1.zip**) with [`wget`](https://www.google.com/search?q=install+wget):
  
-    ```
-    wget https://storage.googleapis.com/hail-tutorial/Hail_Tutorial-v1.zip
-    ```
+```
+wget https://storage.googleapis.com/hail-tutorial/Hail_Tutorial-v1.zip
+```
 
-4. Unzip the file with the following command:
+ (4) Unzip the file with the following command:
 
-    ```
-    unzip -j Hail_Tutorial-v1.zip
-    ```
-    
-    The contents of the zip file are as follows:
-    
-    - 1000 Genomes Compressed VCF (down-sampled to 10K variants) -- **1000Genomes.ALL.coreExome10K-v1.vcf.bgz**
-    - Sample Annotations -- **1000Genomes.ALL.coreExome10K-v1.sample_annotations**
-    - LD-pruned SNP List -- **purcell5k.interval_list**
-    - 5 images -- **test.*.png**
+```
+unzip -j Hail_Tutorial-v1.zip
+```
+      
+The contents of the zip file are as follows:
+  
+  - 1000 Genomes Compressed VCF (down-sampled to 10K variants) -- **1000Genomes.ALL.coreExome10K-v1.vcf.bgz**
+  - Sample Annotations -- **1000Genomes.ALL.coreExome10K-v1.sample_annotations**
+  - LD-pruned SNP List -- **purcell5k.interval_list**
+  - 5 images -- **test.*.png**
 
 
 ## Import Data
@@ -99,25 +100,28 @@ Two phenotypes were randomly generated: `PurpleHair` is a dichotomous variable (
 Lastly, we [`write`](commands.html#write) the imported data to Hail's VDS format (test.raw.vds) and perform a [`count`](commands.html#count) operation to print out summary statistics about the dataset.
 
 ```
-$ hail importvcf 1000Genomes.ALL.coreExome10K-v1.vcf.bgz \
+hail importvcf 1000Genomes.ALL.coreExome10K-v1.vcf.bgz \
     splitmulti \
     annotatesamples table --root sa.pheno -e Sample --types "Population: String, SuperPopulation: String, isFemale: Boolean, PurpleHair: Boolean, CaffeineConsumption: Double" --input 1000Genomes.ALL.coreExome10K-v1.sample_annotations \
     write -o test.raw.vds \
     count -g
+```
 
+<pre class="tutorial output" style="color: red">
   nSamples             2,535
   nVariants           10,961
   nCalled         27,417,806
   callRate           98.674%
-```
-
+</pre>
 
 We can print the schema of the sample annotations that were loaded above with the [`printschema`](commands.html#printschema) command and the `--sa` flag. 
 Notice how the 6 sample annotation variables we loaded above are nested inside `sa.pheno` as defined by the `--root` flag in the [`annotatesamples table`](commands.html#annotatesamples_table) command.
 
 ```
-$ hail read -i test.raw.vds printschema --sa
+hail read -i test.raw.vds printschema --sa
+```
 
+<pre class="tutorial output" style="color: red">
 Sample annotation schema:
 sa: Struct {
     pheno: Struct {
@@ -129,7 +133,7 @@ sa: Struct {
         CaffeineConsumption: Double
     }
 }
-```
+</pre>
 
 Lastly, we can see which populations are present in our dataset and count the number of samples in the dataset by phenotype using the [`annotateglobal expr`](commands.html#annotateglobal_expr) and [`showglobals`](commands.html#showglobals) commands. 
 The 1000 Genomes Super-Population codings are:
@@ -141,10 +145,12 @@ The 1000 Genomes Super-Population codings are:
   - EAS = East Asian
 
 ```
-$ hail read -i test.raw.vds \
+hail read -i test.raw.vds \
     annotateglobal expr -c 'global.populations = samples.map(s => sa.pheno.Population).collect().toSet, global.superPopulations = samples.map(s => sa.pheno.SuperPopulation).collect().toSet, global.nCases = samples.filter(s => sa.pheno.PurpleHair).count(), global.nControls = samples.filter(s => !sa.pheno.PurpleHair).count(), global.nSamples = samples.count()' \
     showglobals
+```
 
+<pre class="tutorial output" style="color: red">
 Global annotations: `global' = {
   "populations" : [ "MSL", "GIH", "ASW", "JPT", "KHV", "CEU", "STU", "CDX", "BEB", "PUR", "ITU", "CLM", "GWD", "TSI", "ESN", "IBS", "PEL", "ACB", "YRI", "PJL", "CHS", "MXL", "CHB", "LWK", "FIN", "GBR" ],
   "superPopulations" : [ "SAS", "AMR", "EUR", "AFR", "EAS" ],
@@ -152,7 +158,7 @@ Global annotations: `global' = {
   "nControls" : 1235,
   "nSamples" : 2535
 }
-```
+</pre>
 
 ## QC
 
@@ -173,17 +179,19 @@ The resulting comparisons of allele balance per genotype class result in a boole
 Additional methods for [Genotypes](intro.html#genotype) are listed in the documentation.
 
 ```
-$ hail read -i test.raw.vds \
+hail read -i test.raw.vds \
     filtergenotypes --keep -c 'let ab = g.ad[1] / g.ad.sum in ((g.isHomRef && ab <= 0.1) || (g.isHet && ab >= 0.25 && ab <= 0.75) || (g.isHomVar && ab >= 0.9))' \
     write -o test.filtergeno.vds \
     count -g
+```
 
+<pre class="tutorial output" style="color: red">
   nSamples             2,535
   nVariants           10,961
   nCalled         26,404,807
   callRate           95.029%
-```
-
+ </pre>
+  
 Comparing the results of the [`count`](commands.html#count) command before and after filtering genotypes, we filtered out 1,012,999 genotypes that did not meet the allelic balance criteria we specified.
 
 #### Filter Samples
@@ -194,7 +202,7 @@ The call rate was calculated by defining a temporary variable `callRate` with th
 A description of all summary statistics that are calculated by the `sampleqc` command are available in the [documentation](commands.html#sampleqc).
 
 ```
-$ hail read -i test.filtergeno.vds \
+hail read -i test.filtergeno.vds \
     filtervariants expr --keep -c 'let callRate = gs.filter(g => g.isCalled).count() / gs.count() in callRate >= 0.95' \
     sampleqc -o test.sampleqc.tsv
 ```
@@ -202,8 +210,10 @@ $ hail read -i test.filtergeno.vds \
 After calculating the sample qc summary statistics, we can look at the output text file **test.sampleqc.tsv**
 
 ```
-$ head test.sampleqc.tsv | cut -f 1,2,3,4,5,6,7,8,9,10
+head test.sampleqc.tsv | cut -f 1,2,3,4,5,6,7,8,9,10
+```
 
+<pre class="tutorial output" style="color: red"> 
 Sample	callRate	nCalled	nNotCalled	nHomRef	nHet	nHomVar	nSNP	nInsertion	nDeletion
 HG02970	9.6931e-01	5433	172	3919	822	692	1514	0	0
 NA19089	9.7895e-01	5487	118	4072	729	686	1415	0	0
@@ -214,8 +224,8 @@ HG00139	9.8537e-01	5523	82	4080	833	610	1443	0	0
 NA12878	9.6735e-01	5422	183	4081	694	647	1341	0	0
 HG02635	9.8234e-01	5506	99	3927	927	652	1579	0	0
 NA19660	9.4505e-01	5297	308	3910	685	702	1387	0	0
-```
- 
+</pre>
+
 We can also analyze the results further using R. 
 Below is an example of two variables that have been plotted (call rate and  meanGQ). The red lines are cutoffs for filtering samples based on these two variables.
 
@@ -227,24 +237,30 @@ Once the sample qc annotations have been loaded into the VDS, we can use the [`f
 Lastly, we write out the filtered dataset to a new VDS file (**test.filtersamples.vds**). 
 Notice that we didn't add the `-g` flag to [`count`](commands.html#count) this time because counting genotypes takes more time and we weren't filtering genotypes in this set of commands.
 
+
 ```
-$ hail read -i test.filtergeno.vds \
+hail read -i test.filtergeno.vds \
     annotatesamples table -e Sample -r sa.qc --impute -i test.sampleqc.tsv \
     filtersamples expr --keep -c 'sa.qc.callRate >= 0.97 && sa.qc.gqMean >= 20' \
     write -o test.filtersamples.vds \
     count
+```
 
+<pre class="tutorial output" style="color: red">
   nSamples             1,646
   nVariants           10,961
-```
-
+</pre>
+  
 Like we did when we first loaded the dataset, we can use the [`annotateglobal expr`](commands.html#annotateglobal_expr) and [`showglobals`](commands.html#showglobals) commands to count the number of samples by phenotype that remain in the dataset after filtering.
 
+
 ```
-$ hail read -i test.filtersamples.vds \
+hail read -i test.filtersamples.vds \
     annotateglobal expr -c 'global.postQC.nCases = samples.filter(s => sa.pheno.PurpleHair).count(), global.postQC.nControls = samples.filter(s => !sa.pheno.PurpleHair).count(), global.postQC.nSamples = samples.count()' \
     showglobals
+```
 
+<pre class="tutorial output" style="color: red">
 Global annotations: `global' = {
   "postQC" : {
     "nCases" : 840,
@@ -252,7 +268,7 @@ Global annotations: `global' = {
     "nSamples" : 1646
   }
 }
-```    
+</pre>
 
 We have filtered out 889 samples from the original dataset.
 
@@ -262,9 +278,9 @@ Starting from a VDS where both poor-performing genotypes and samples have been r
 The fields in this file are described in the documentation for [`variantqc`](commands.html#variantqc).
 
 ```
-$ hail read -i test.filtersamples.vds \
+hail read -i test.filtersamples.vds \
     variantqc -o test.variantqc.tsv
-```    
+```
 
 We've used R to make histograms of 4 summary statistics (call rate, minor allele frequency, mean GQ, and [Hardy Weinberg Equilibrium P-value](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle)). Notice how the histogram for HWE does not look as one would expect (most variants should have a p-value close to 1). This is because there are 5 populations represented in this dataset and the p-value we calculated includes all populations.
 <img src="images/test.variantqc.png">
@@ -278,15 +294,17 @@ After the filter function, we call the count function [`count()`](intro.html#agg
 The results of [`printschema --va`](commands.html#printschema) shows we have added new fields in the variant annotations for HWE p-values for each population.
 
 ```
-$ hail read -i test.filtersamples.vds \
+hail read -i test.filtersamples.vds \
     annotatevariants expr -c 'va.hweByPop.hweEUR = hwe(gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomRef).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHet).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomVar).count().toInt)' \
     annotatevariants expr -c 'va.hweByPop.hweSAS = hwe(gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomRef).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHet).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomVar).count().toInt)' \
     annotatevariants expr -c 'va.hweByPop.hweAMR = hwe(gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomRef).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHet).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomVar).count().toInt)' \
     annotatevariants expr -c 'va.hweByPop.hweAFR = hwe(gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHomRef).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHet).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHomVar).count().toInt)' \
     annotatevariants expr -c 'va.hweByPop.hweEAS = hwe(gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHomRef).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHet).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHomVar).count().toInt)' \
     printschema --va \
-    write -o test.hwebypop.vds
+    write -o test.hwebypop.vds    
+```
 
+<pre class="tutorial output" style="color: red">
 Variant annotation schema:
 va: Struct {
     hweByPop: Struct {
@@ -311,21 +329,22 @@ va: Struct {
             pHWE: Double
         }
     }
-}    
-``` 
+}
+</pre>
  
 Now that the variant annotations contain a population-specific p-value for HWE, we can filter variants based on passing HWE in each population. The results of the [`count`](commands.html#count) command confirms that by calculating HWE p-values in each population separately, we only filter out 826 variants compared to 7098 variants before.
 
 ```
-$ hail read -i test.hwebypop.vds \
+hail read -i test.hwebypop.vds \
     filtervariants expr --keep -c 'va.hweByPop.hweEUR.pHWE > 1e-6 && va.hweByPop.hweSAS.pHWE > 1e-6 && va.hweByPop.hweAMR.pHWE > 1e-6 && va.hweByPop.hweAFR.pHWE > 1e-6 && va.hweByPop.hweEAS.pHWE > 1e-6' \
     write -o test.hwefilter.vds \
     count 
+```
 
+<pre class="tutorial output" style="color: red">
   nSamples             1,646
   nVariants           10,135
-```    
-
+</pre>
 
 After creating a new VDS with population-specific annotations for HWE p-values, we add as annotations the results from the [`variantqc`](commands.html#variantqc) command.
 We have to tell Hail where to find the variant name in the input text file. 
@@ -339,16 +358,18 @@ Lastly we use the [`filtervariants expr`](commands.html#filtervariants_expr) com
 
 
 ```
-$ hail read -i test.hwefilter.vds \
+hail read -i test.hwefilter.vds \
     annotatevariants table --impute -e 'Variant(Chrom, Pos, Ref, Alt)' -r va.qc -t 'Chrom: String' test.variantqc.tsv \
     filtervariants expr --keep -c 'va.qc.gqMean >= 20' \
     write -o test.filtervariants.vds \
     count 
-
-  nSamples             1,646
-  nVariants            9,949
 ```
 
+<pre class="tutorial output" style="color: red">
+  nSamples             1,646
+  nVariants            9,949
+</pre>
+  
 Using the [`count`](commands.html#count) command, we can see we have filtered out 1,012 variants from the dataset.
 
 #### Sex Check
@@ -359,27 +380,31 @@ A high sex check failure rate can indicate sample swaps may have occurred.
 First, we count how many X chromosome variants are in the original dataset and find there are 273.
 
 ```
-$ hail read -i test.filtersamples.vds filtervariants expr --keep -c 'v.contig == "X"' count
-
-  nSamples             1,646
-  nVariants              273
+hail read -i test.filtersamples.vds filtervariants expr --keep -c 'v.contig == "X"' count
 ```
 
+<pre class="tutorial output" style="color: red">
+  nSamples             1,646
+  nVariants              273
+</pre>
+  
 However, after variant QC, the number of X chromosome variants went from 273 to 10 (not enough for a sex check!)
 
 ```
-$ hail read -i test.filtervariants.vds filtervariants expr --keep -c 'v.contig == "X"' count
-
-  nSamples             1,646
-  nVariants               10
+hail read -i test.filtervariants.vds filtervariants expr --keep -c 'v.contig == "X"' count
 ```
 
+<pre class="tutorial output" style="color: red">
+  nSamples             1,646
+  nVariants               10
+</pre>
+  
 The reason why this happened is the HWE p-values for the X chromosome should not include male samples in the calculation as they only have two possible genotypes (HomRef or HomVar). 
 Therefore, we need to modify how we calculate HWE. 
 We use a conditional expression so that when a variant is on the X chromosome, we only include female samples in the calculation.
 
 ```
-$ hail read -i test.filtersamples.vds \
+hail read -i test.filtersamples.vds \
     annotatevariants expr -c 'va.hweByPop.hweEUR = if (v.contig != "X") hwe(gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomRef).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHet).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomVar).count().toInt) else hwe(gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomRef && sa.pheno.isFemale).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHet && sa.pheno.isFemale).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomVar && sa.pheno.isFemale).count().toInt)' \
     annotatevariants expr -c 'va.hweByPop.hweSAS = if (v.contig != "X") hwe(gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomRef).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHet).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomVar).count().toInt) else hwe(gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomRef && sa.pheno.isFemale).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHet && sa.pheno.isFemale).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomVar && sa.pheno.isFemale).count().toInt)' \
     annotatevariants expr -c 'va.hweByPop.hweAMR = if (v.contig != "X") hwe(gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomRef).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHet).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomVar).count().toInt) else hwe(gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomRef && sa.pheno.isFemale).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHet && sa.pheno.isFemale).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomVar && sa.pheno.isFemale).count().toInt)' \
@@ -390,65 +415,74 @@ $ hail read -i test.filtersamples.vds \
     filtervariants expr --keep -c 'va.qc.gqMean >= 20' \
     write -o test.filtervariants2.vds \
     count 
+```
 
+<pre class="tutorial output" style="color: red">
   nSamples             1,646
   nVariants           10,160
-```
+</pre>
 
 Now, when we count how many X chromosome variants there are, we get 221 variants.
 
 ```
-$ hail read -i test.filtervariants2.vds filtervariants expr --keep -c 'v.contig == "X"' count
-
-  nSamples             1,646
-  nVariants              221
+hail read -i test.filtervariants2.vds filtervariants expr --keep -c 'v.contig == "X"' count
 ```
 
+<pre class="tutorial output" style="color: red">
+  nSamples             1,646
+  nVariants              221
+</pre>
+  
 To do a sex check, first we use the [`imputesex`](commands.html#imputesex) command with a minimum minor allele frequency threshold of 0.05 to determine the genetic sex of a sample based on the inbreeding coefficient.
 The [`imputesex`](commands.html#imputesex) command adds new sample annotations for whether a sample is a female to `sa.imputesex.isFemale`. 
 We can then create a new annotation (`sa.sexcheck`) which compares whether the imputed sex (`sa.imputesex.isFemale`) is the same as the reported sex (`sa.pheno.isFemale`).
 
 ```
-$ hail read -i test.filtervariants2.vds \
+hail read -i test.filtervariants2.vds \
     imputesex --maf-threshold 0.05 \
     annotatesamples expr -c 'sa.sexcheck = sa.pheno.isFemale == sa.imputesex.isFemale' \
     exportsamples -c 'Sample = s, ReportedSex = sa.pheno.isFemale, ImputedSex = sa.imputesex.isFemale, SexAgree = sa.sexcheck' -o test.sexcheck.tsv \
     filtersamples expr --keep -c 'sa.sexcheck' \
     count
-
-  nSamples             1,079
-  nVariants           10,160
 ```
 
+<pre class="tutorial output" style="color: red">
+  nSamples             1,079
+  nVariants           10,160
+</pre>
+  
 We removed 567 samples where the genetic sex does not match the reported sex. This is an extremely high sex check failure rate! 
 To figure out why this happened, we used the [`exportsamples`](commands.html#exportsamples) command to print out the sample annotations to a text file that we could analyze quickly with awk.
 
 ```
-$ awk '{print $4}' test.sexcheck.tsv | sort | uniq -c
+awk '{print $4}' test.sexcheck.tsv | sort | uniq -c
+```
 
+<pre class="tutorial output" style="color: red">
  564 NA
    1 SexAgree
    3 false
 1079 true
-```
+</pre>
 
 We found that the majority of the sex check failures were not true failures because the genetic sex could not be determined. There were 3 samples with sex check failures.
 If we had more X-chromosome variants, we could get a better estimate of the inbreeding coefficient on the X chromosome and have more accurate sex check results.
 To filter out samples where the imputed sex does not match the reported sex, we modify our [`filtersamples`](commands.html#filtersamples) expression to include samples where `sa.sexcheck` is True or `sa.sexcheck` is Undefined (`isMissing(sa.sexcheck)`).
 
 ```
-$ hail read -i test.filtervariants2.vds \
-   imputesex --maf-threshold 0.05 \
+hail read -i test.filtervariants2.vds \
+    imputesex --maf-threshold 0.05 \
     annotatesamples expr -c 'sa.sexcheck = sa.pheno.isFemale == sa.imputesex.isFemale' \
     exportsamples -c 'Sample = s, ReportedSex = sa.pheno.isFemale, ImputedSex = sa.imputesex.isFemale, SexAgree = sa.sexcheck' -o test.sexcheck.tsv \
     filtersamples expr --keep -c 'sa.sexcheck || isMissing(sa.sexcheck)' \
     write -o test.sexcheck.vds \
-    count
-
-  nSamples             1,643
-  nVariants           10,160    
+    count    
 ```
 
+<pre class="tutorial output" style="color: red">
+  nSamples             1,643
+  nVariants           10,160
+</pre>
 
 ## PCA
 
@@ -458,7 +492,7 @@ To calculate principal components, we first use the [`filtervariants intervals`]
 Lastly, we export sample annotations so that we can plot the principal components and color the points by their population group.
 
 ```
-$ hail read -i test.sexcheck.vds \
+hail read -i test.sexcheck.vds \
     filtervariants intervals --keep -i purcell5k.interval_list \
     pca -o test.pca.tsv \
     annotatesamples table -e Sample -r sa.pca -i test.pca.tsv --impute \
@@ -472,11 +506,13 @@ Lastly, we add the principal components computed above to the QC'd dataset where
 We have printed out all three schemas (global, sample annotations, variant annotations) so you can see all of the annotations we have added to the dataset. 
 
 ```
-$ hail read -i test.sexcheck.vds \
+hail read -i test.sexcheck.vds \
     annotatesamples table -e Sample -r sa.pca -i test.pca.tsv --impute \
     write -o test.qc.vds \
     printschema
+```
 
+<pre class="tutorial output" style="color: red">
 Global annotation schema:
 global: Empty
 
@@ -611,7 +647,7 @@ va: Struct {
         pHWE: Double
     }
 }
-```
+</pre>
 
 ## Association Testing
 
@@ -625,7 +661,7 @@ The results of the [`linreg`](commands.html#linreg) command are put into the var
 Lastly we use the [`exportvariants`](commands.html#exportvariants) command to export the results of the linear regression to a text file for making a Q-Q plot in R.
 
 ```
-$ hail read -i test.qc.vds \
+hail read -i test.qc.vds \
     filtervariants expr --keep -c 'va.qc.AF > 0.05 && va.qc.AF < 0.95' \
     linreg -y sa.pheno.CaffeineConsumption -c 'sa.pca.PC1, sa.pca.PC2, sa.pca.PC3, sa.pheno.isFemale' \
     exportvariants -c 'Variant = v, Beta = va.linreg.beta, SE = va.linreg.se, T = va.linreg.tstat, PVAL = va.linreg.pval' -o test.linreg.tsv
@@ -642,7 +678,7 @@ The results of the [`logreg`](commands.html#logreg) command are put into the var
 Lastly we use the [`exportvariants`](commands.html#exportvariants) command to export the results of the logistic regression to a text file for making a Q-Q plot in R.
 
 ```
-$ hail read -i test.qc.vds \
+hail read -i test.qc.vds \
     filtervariants expr --keep -c 'va.qc.AF > 0.05 && va.qc.AF < 0.95' \
     logreg -y 'sa.pheno.PurpleHair' -t wald -c 'sa.pca.PC1, sa.pca.PC2, sa.pca.PC3, sa.pheno.isFemale' \
     exportvariants -c 'Variant = v, PVAL = va.logreg.wald.pval' -o test.logreg.tsv
@@ -659,7 +695,7 @@ These new variant annotations can be used as inputs to the `fet` function which 
 Lastly, we export the results to a text file for further analysis.
 
 ```
-$ hail read -i test.qc.vds filtervariants expr --keep -c 'va.qc.AF <= 0.05 && va.qc.AF >= 0.95' \
+hail read -i test.qc.vds filtervariants expr --keep -c 'va.qc.AF <= 0.05 && va.qc.AF >= 0.95' \
     annotatevariants expr -c 'va.minorCase = gs.filter(g => sa.pheno.PurpleHair && g.isHet).count() + 2 * gs.filter(g => sa.pheno.PurpleHair && g.isHomVar).count()' \
     annotatevariants expr -c 'va.minorControl = gs.filter(g => !sa.pheno.PurpleHair && g.isHet).count() + 2 * gs.filter(g => !sa.pheno.PurpleHair && g.isHomVar).count()' \
     annotatevariants expr -c 'va.majorCase = gs.filter(g => sa.pheno.PurpleHair && g.isHet).count() + 2 * gs.filter(g => sa.pheno.PurpleHair && g.isHomRef).count()' \
@@ -673,22 +709,22 @@ $ hail read -i test.qc.vds filtervariants expr --keep -c 'va.qc.AF <= 0.05 && va
 Most concise way to write this analysis:
 
 ```
-$ hail importvcf 1000Genomes.ALL.coreExome10K.vcf.bgz \
+hail importvcf 1000Genomes.ALL.coreExome10K.vcf.bgz \
     splitmulti \
     annotatesamples table --root sa.pheno -e Sample --types "Population: String, SuperPopulation: String, isFemale: Boolean, PurpleHair: Boolean, CaffeineConsumption: Double" --input 1000Genomes.ALL.coreExome10K.sample_annotations \
     filtergenotypes --keep -c 'let ab = g.ad[1] / g.ad.sum in ((g.isHomRef && ab <= 0.1) || (g.isHet && ab >= 0.25 && ab <= 0.75) || (g.isHomVar && ab >= 0.9))' \
     write -o test.filtergeno.vds
 
-$ hail read -i test.filtergeno.vds \
+hail read -i test.filtergeno.vds \
     filtervariants expr --keep -c 'let callRate = gs.filter(g => g.isCalled).count() / gs.count() in callRate >= 0.95' \
     sampleqc -o test.sampleqc.tsv
 
-$ hail read -i test.filtergeno.vds \
+hail read -i test.filtergeno.vds \
     annotatesamples table -e Sample -r sa.qc --impute -i test.sampleqc.tsv \
     filtersamples expr --keep -c 'sa.qc.callRate >= 0.97 && sa.qc.gqMean >= 20' \
     write -o test.filtersamples.vds
 
-$ hail read -i test.filtersamples.vds \
+hail read -i test.filtersamples.vds \
     variantqc -o test.variantqc.tsv \
     annotatevariants expr -c 'va.hweByPop.hweEUR = if (v.contig != "X") hwe(gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomRef).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHet).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomVar).count().toInt) else hwe(gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomRef && sa.pheno.isFemale).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHet && sa.pheno.isFemale).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomVar && sa.pheno.isFemale).count().toInt)' \
     annotatevariants expr -c 'va.hweByPop.hweSAS = if (v.contig != "X") hwe(gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomRef).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHet).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomVar).count().toInt) else hwe(gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomRef && sa.pheno.isFemale).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHet && sa.pheno.isFemale).count().toInt, gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomVar && sa.pheno.isFemale).count().toInt)' \
@@ -699,38 +735,36 @@ $ hail read -i test.filtersamples.vds \
     filtervariants expr --keep -c 'va.qc.gqMean >= 20' \
     write -o test.filtervariants.vds
 
-$ hail read -i test.filtervariants.vds \
-   imputesex --maf-threshold 0.05 \
+hail read -i test.filtervariants.vds \
+    imputesex --maf-threshold 0.05 \
     annotatesamples expr -c 'sa.sexcheck = sa.pheno.isFemale == sa.imputesex.isFemale' \
     exportsamples -c 'Sample = s, ReportedSex = sa.pheno.isFemale, ImputedSex = sa.imputesex.isFemale, SexAgree = sa.sexcheck' -o test.sexcheck.tsv \
     filtersamples expr --keep -c 'sa.sexcheck || isMissing(sa.sexcheck)' \
     write -o test.sexcheck.vds
 
-$ hail read -i test.sexcheck.vds \
+hail read -i test.sexcheck.vds \
     filtervariants intervals --keep -i purcell5k.interval_list \
     pca -o test.pca.tsv
 
-$ hail read -i test.sexcheck.vds \
+hail read -i test.sexcheck.vds \
     annotatesamples table -e Sample -r sa.pca -i test.pca.tsv --impute \
     write -o test.qc.vds
 
-$ hail read -i test.qc.vds \
+hail read -i test.qc.vds \
     filtervariants expr --keep -c 'va.qc.AF > 0.05' \
     linreg -y sa.pheno.CaffeineConsumption -c 'sa.pca.PC1, sa.pca.PC2, sa.pca.PC3, sa.pheno.isFemale' \
     exportvariants -c 'Variant = v, Beta = va.linreg.beta, SE = va.linreg.se, T = va.linreg.tstat, PVAL = va.linreg.pval' -o test.linreg.tsv
 
-$ hail read -i test.qc.vds \
+hail read -i test.qc.vds \
     filtervariants expr --keep -c 'va.qc.AF > 0.05' \
     logreg -y 'sa.pheno.PurpleHair' -t wald -c 'sa.pca.PC1, sa.pca.PC2, sa.pca.PC3, sa.pheno.isFemale' \
     exportvariants -c 'Variant = v, PVAL = va.logreg.wald.pval' -o test.logreg.tsv
 
- $ hail read -i test.qc.vds filtervariants expr --keep -c 'va.qc.AF <= 0.05' \
+hail read -i test.qc.vds filtervariants expr --keep -c 'va.qc.AF <= 0.05' \
     annotatevariants expr -c 'va.minorCase = gs.filter(g => sa.pheno.PurpleHair && g.isHet).count() + 2 * gs.filter(g => sa.pheno.PurpleHair && g.isHomVar).count()' \
     annotatevariants expr -c 'va.minorControl = gs.filter(g => !sa.pheno.PurpleHair && g.isHet).count() + 2 * gs.filter(g => !sa.pheno.PurpleHair && g.isHomVar).count()' \
     annotatevariants expr -c 'va.majorCase = gs.filter(g => sa.pheno.PurpleHair && g.isHet).count() + 2 * gs.filter(g => sa.pheno.PurpleHair && g.isHomRef).count()' \
     annotatevariants expr -c 'va.majorControl = gs.filter(g => !sa.pheno.PurpleHair && g.isHet).count() + 2 * gs.filter(g => !sa.pheno.PurpleHair && g.isHomRef).count()' \
     annotatevariants expr -c 'va.fet = fet(va.minorCase.toInt, va.minorControl.toInt, va.majorCase.toInt, va.majorControl.toInt)' \
-    exportvariants -c 'Variant = v, MinorCase = va.minorCase, MinorControl = va.minorControl, MajorCase = va.majorCase, majorControl = va.majorControl, PVAL = va.fet.pValue, OR = va.fet.oddsRatio, ciLower = va.fet.ci95Lower, ciUpper = va.fet.ci95Upper' -o test.fet.tsv       
-
+    exportvariants -c 'Variant = v, MinorCase = va.minorCase, MinorControl = va.minorControl, MajorCase = va.majorCase, majorControl = va.majorControl, PVAL = va.fet.pValue, OR = va.fet.oddsRatio, ciLower = va.fet.ci95Lower, ciUpper = va.fet.ci95Upper' -o test.fet.tsv
 ```
-
