@@ -126,6 +126,7 @@ pre > code {
   line-height: 1.1;
   display: block;
   padding: .5em .5em;
+  white-space: pre;
 }
 
 pre {
@@ -374,12 +375,12 @@ pre {
     overflow-x: auto;
 }
 
-pre code not:(.synopsis) {
+pre:not:(.synopsis) < code  {
     overflow-wrap: normal;
     white-space: pre;
 }
 
-pre not:(.synopsis) {
+pre:not:(.synopsis) < code  {
     padding: 10px;
 }
 

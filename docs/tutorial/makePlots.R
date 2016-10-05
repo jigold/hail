@@ -2,9 +2,10 @@
 
 sampleqc <- read.table("test.sampleqc.tsv", header=TRUE)
 variantqc <- read.table("test.variantqc.tsv", header=TRUE)
-linreg <- read.table("test.linreg.tsv", header=TRUE)
-logreg <- read.table("test.logreg.tsv", header=TRUE)
+linreg <- na.omit(read.table("test.linreg.tsv", header=TRUE))
+logreg <- na.omit(read.table("test.logreg.tsv", header=TRUE))
 pcs <- read.table("test.pcaPlusPop.tsv", header=TRUE)
+fet <- na.omit(read.table("test.fet.tsv", header=TRUE))
 
 ## Sample QC
 png("test.sampleqc.png", width=800, height = 400)
@@ -45,3 +46,9 @@ exp <- -log(seq(1, length(logreg$PVAL)) / length(logreg$PVAL), 10)
 plot(exp, obs, pch=20, cex=1); abline(a=0, b=1, col="red", lwd=2)
 dev.off()
 
+## Fisher Exact Test
+png("test.fet.qq.png")
+obs <- -1*log(sort(fet$PVAL), 10)
+exp <- -log(seq(1, length(fet$PVAL)) / length(fet$PVAL), 10)
+plot(exp, obs, pch=20, cex=1); abline(a=0, b=1, col="red", lwd=2)
+dev.off()

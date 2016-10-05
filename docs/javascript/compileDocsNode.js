@@ -11,8 +11,9 @@ const introHtmlTemplate = __dirname + "/" + process.argv[2];
 const commandsHtmlTemplate = __dirname + "/" + process.argv[3];
 const faqHtmlTemplate = __dirname + "/" + process.argv[4];
 const tutorialHtmlTemplate = __dirname + "/" + process.argv[5];
-const jsonCommandsFile = process.argv[6];
-const pandocOutputDir = __dirname + "/" + process.argv[7];
+const overviewHtmlTemplate = __dirname + "/" + process.argv[6];
+const jsonCommandsFile = process.argv[7];
+const pandocOutputDir = __dirname + "/" + process.argv[8];
 
 const jsdom = require('jsdom');
 const fs = require('fs');
@@ -26,7 +27,9 @@ mjAPI.start();
 buildFAQ(faqHtmlTemplate, __dirname + "/faq.html");
 buildCommands(commandsHtmlTemplate, __dirname + "/commands.html");
 buildIntro(introHtmlTemplate, __dirname + "/intro.html");
-buildTutorial(tutorialHtmlTemplate, __dirname + "/tutorial.html");
+buildSinglePage(tutorialHtmlTemplate, "#Tutorial", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html");
+buildSinglePage(overviewHtmlTemplate, "#Overview", pandocOutputDir + "overview/Overview.html",  __dirname + "/overview.html");
+
 
 function error(message) {
     console.log(message);
@@ -158,7 +161,7 @@ function buildFAQ(htmlTemplate, outputFileName) {
     });
 }
 
-function buildTutorial(htmlTemplate, outputFileName) {
+function buildSinglePage(htmlTemplate, selector, pandocInput, outputFileName) {
     jsdom.env(htmlTemplate, function (err, window) {
         window.addEventListener("error", function (event) {
           console.error("script error!!", event.error);
@@ -167,7 +170,7 @@ function buildTutorial(htmlTemplate, outputFileName) {
 
         const $ = require('jquery')(window);
 
-        var loadTutorialPromises = [loadReq("#Tutorial", pandocOutputDir + "tutorial/Tutorial.html", $)];
+        var loadTutorialPromises = [loadReq(selector, pandocInput, $)];
 
         Promise.all(loadTutorialPromises)
             .then(function() {
