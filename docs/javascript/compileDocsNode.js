@@ -12,8 +12,9 @@ const commandsHtmlTemplate = __dirname + "/" + process.argv[3];
 const faqHtmlTemplate = __dirname + "/" + process.argv[4];
 const tutorialHtmlTemplate = __dirname + "/" + process.argv[5];
 const overviewHtmlTemplate = __dirname + "/" + process.argv[6];
-const jsonCommandsFile = process.argv[7];
-const pandocOutputDir = __dirname + "/" + process.argv[8];
+const gettingStartedHtmlTemplate = __dirname + "/" + process.argv[7];
+const jsonCommandsFile = process.argv[8];
+const pandocOutputDir = __dirname + "/" + process.argv[9];
 
 const jsdom = require('jsdom');
 const fs = require('fs');
@@ -29,6 +30,7 @@ buildCommands(commandsHtmlTemplate, __dirname + "/commands.html");
 buildIntro(introHtmlTemplate, __dirname + "/intro.html");
 buildSinglePage(tutorialHtmlTemplate, "#Tutorial", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html");
 buildSinglePage(overviewHtmlTemplate, "#Overview", pandocOutputDir + "overview/Overview.html",  __dirname + "/overview.html");
+buildSinglePage(gettingStartedHtmlTemplate, "#GettingStarted", pandocOutputDir + "intro/GettingStarted.html", __dirname + "/getting_started.html");
 
 
 function error(message) {
@@ -84,8 +86,7 @@ function buildIntro(htmlTemplate, outputFileName) {
                                     "Filtering",
                                     "ExportingData",
                                     "ExportingTSV",
-                                    "SQL",
-                                    "GettingStarted"]
+                                    "SQL"]
                                     .map(name => loadReq("#" + name, pandocOutputDir + "intro/" + name + ".html", $));
 
         Promise.all(loadOverviewPromises)

@@ -38,11 +38,11 @@ To access the pHWE and the rExpectedHetFrequency variables which are nested insi
 
 ## <a class="jumptarget" name="expressions"></a> Expressions
 
-Expressions are snippets of code written in Hail's Domain Language referencing elements of a VDS that are used for the following operations: 
+Expressions are snippets of code written in [Hail's Domain Language](intro.html#HailExpressionLanguage) referencing elements of a VDS that are used for the following operations: 
 
  - [Define Variables to Export](#export)
  - [Input Variables to Methods](#input)
- - [Filtering](#filter)
+ - [Filter Data](#filter)
  - [Add New Annotations](#add)
 
 

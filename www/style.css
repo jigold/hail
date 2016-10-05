@@ -122,19 +122,6 @@ code, samp, kbd {
   padding: .15625em .25em;  /* 5/32, 1/4 */
 }
 
-pre > code {
-  line-height: 1.1;
-  display: block;
-  padding: .5em .5em;
-  white-space: pre;
-}
-
-pre {
-  white-space: pre;
-  word-wrap: normal;
-  background: #eee;
-}
-
 b, strong {
   font-weight: bold;
 }
@@ -373,15 +360,30 @@ pre {
     border-radius: 3px;
     border: 1px solid black;
     overflow-x: auto;
+    white-space: pre;
+    word-wrap: normal;
+    background: #eee;
 }
 
-pre:not:(.synopsis) < code  {
+pre:not(.synopsis) > code  {
     overflow-wrap: normal;
     white-space: pre;
 }
 
-pre:not:(.synopsis) < code  {
+pre:not(.synopsis) > code  {
     padding: 10px;
+}
+
+pre.synopsis {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: normal;
+}
+
+pre > code {
+  line-height: 1.1;
+  display: block;
+  padding: .5em .5em;
 }
 
 #HailExpressionLanguage li {
