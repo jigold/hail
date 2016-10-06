@@ -44,7 +44,7 @@ $ hail importgen -s /path/to/file.sample /path/to/file.gen write -o /path/to/out
   
 <h4 class="example">Load multiple files at the same time</h4>
 
-To specify multiple files, use [Hadoop glob patterns](intro.html#hadoopglob)
+To specify multiple files, use [Hadoop glob patterns](reference.html#hadoopglob)
 ``` 
 $ hail importgen -s /path/to/file.sample /path/to/file.chr*.gen write -o /path/to/output.vds
 ```

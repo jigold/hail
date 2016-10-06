@@ -350,12 +350,6 @@ body > div:not(.command) > *:not(h1):not(h2) {
     margin-left: 50px;
 }
 
-pre.synopsis {
-    padding: 0 0 0 2em;
-    text-indent: -2em;
-    white-space: pre-wrap;
-}
-
 pre {
     border-radius: 3px;
     border: 1px solid black;
@@ -365,16 +359,9 @@ pre {
     background: #eee;
 }
 
-pre:not(.synopsis) > code  {
-    overflow-wrap: normal;
-    white-space: pre;
-}
-
-pre:not(.synopsis) > code  {
-    padding: 10px;
-}
-
 pre.synopsis {
+    padding: 0 0 0 2em;
+    text-indent: -2em;
     white-space: pre-wrap;
     word-wrap: break-word;
     word-break: normal;
@@ -384,6 +371,12 @@ pre > code {
   line-height: 1.1;
   display: block;
   padding: .5em .5em;
+}
+
+pre:not(.synopsis) > code  {
+    overflow-wrap: normal;
+    white-space: pre;
+    padding: 10px;
 }
 
 #HailExpressionLanguage li {
@@ -436,54 +429,17 @@ pre > code {
     color: #2a388f;
 }
 
-#hail-navbar #hail-navbar-collapse:not(.in) .active.nav-item:not(:hover) {
+#hail-navbar #hail-navbar-collapse .active.nav-item:not(:hover) {
     border-bottom: 2px solid #555555;
 }
 
-#hail-navbar #hail-navbar-collapse:not(.in) .active.nav-item:hover {
+#hail-navbar #hail-navbar-collapse .active.nav-item:hover {
     border-bottom: 2px solid #2a388f;
-}
-
-#hail-navbar #hail-navbar-collapse.in .active.nav-item {
-    text-decoration: underline;
-}
-
-#hail-navbar #hail-navbar-collapse .dropdown-item {
-    background-color: green;
 }
 
 #hail-navbar #hail-navbar-collapse .dropdown-item.active {
     text-decoration: underline;
 }
-
-
-#hail-navbar #hail-navbar-header .navbar-toggle {
-  margin-top: 3px;
-  margin-bottom: 3px; /* this has to be nav height - 34 */
-}
-
-@media (max-width: 480px) {
-  #hail-navbar #hail-navbar-header {
-      float: left;
-/*      padding: 5px;*/
-      text-align: center;
-      width: 100%;
-      margin-left: 0px;
-  }
-
-  #hail-navbar-brand {
-    float:none;
-  }
-}
-
-#hail-navbar #hail-navbar-collapse.in .nav-item a {
-    padding-top: 5px;
-    padding-bottom: 5px;
-  }
-
-/*#hail-navbar #hail-navbar-collapse.in .nav-item a.active {
-  text-decoration: underline;
-}*/
 
 #hail-navbar #hail-navbar-collapse .dropdown-menu {
   background-color: #ffffff;

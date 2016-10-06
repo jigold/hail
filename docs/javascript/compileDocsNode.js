@@ -7,7 +7,7 @@ process.on('uncaughtException', function (err) {
   process.exit(1);
 });
 
-const introHtmlTemplate = __dirname + "/" + process.argv[2];
+const referenceHtmlTemplate = __dirname + "/" + process.argv[2];
 const commandsHtmlTemplate = __dirname + "/" + process.argv[3];
 const faqHtmlTemplate = __dirname + "/" + process.argv[4];
 const tutorialHtmlTemplate = __dirname + "/" + process.argv[5];
@@ -27,10 +27,10 @@ mjAPI.start();
 
 buildFAQ(faqHtmlTemplate, __dirname + "/faq.html");
 buildCommands(commandsHtmlTemplate, __dirname + "/commands.html");
-buildIntro(introHtmlTemplate, __dirname + "/intro.html");
+buildReference(referenceHtmlTemplate, __dirname + "/reference.html");
 buildSinglePage(tutorialHtmlTemplate, "#Tutorial", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html");
 buildSinglePage(overviewHtmlTemplate, "#Overview", pandocOutputDir + "overview/Overview.html",  __dirname + "/overview.html");
-buildSinglePage(gettingStartedHtmlTemplate, "#GettingStarted", pandocOutputDir + "intro/GettingStarted.html", __dirname + "/getting_started.html");
+buildSinglePage(gettingStartedHtmlTemplate, "#GettingStarted", pandocOutputDir + "reference/GettingStarted.html", __dirname + "/getting_started.html");
 
 
 function error(message) {
@@ -69,7 +69,7 @@ function runMathJax(document, callback) {
     })
 }
 
-function buildIntro(htmlTemplate, outputFileName) {
+function buildReference(htmlTemplate, outputFileName) {
     jsdom.env(htmlTemplate, function (err, window) {
         window.addEventListener("error", function (event) {
           console.error("script error!!", event.error);
@@ -87,7 +87,7 @@ function buildIntro(htmlTemplate, outputFileName) {
                                     "ExportingData",
                                     "ExportingTSV",
                                     "SQL"]
-                                    .map(name => loadReq("#" + name, pandocOutputDir + "intro/" + name + ".html", $));
+                                    .map(name => loadReq("#" + name, pandocOutputDir + "reference/" + name + ".html", $));
 
         Promise.all(loadOverviewPromises)
             .then(function() {

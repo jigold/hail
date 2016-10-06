@@ -9,10 +9,10 @@ Lastly, data is **exported** to a variety of file formats.
 
 ## <a class="jumptarget" name="vds"></a> Variant Dataset (VDS)
 
-<img src="">
+<img src="hail-vds-rep.png">
 
 Hail represents a genetic dataset as a matrix where the rows are keyed by **Variants**, the columns are keyed by **Samples**, and each cell is a **Genotype**.
-Variants, Samples, and Genotypes each have [methods](intro.html#HailObjectProperties) to access attributes such as chromosome name, sample ID, and genotype call.
+Variants, Samples, and Genotypes each have [methods](reference.html#HailObjectProperties) to access attributes such as chromosome name, sample ID, and genotype call.
 Although this representation is similar to the VCF format, Hail uses a fast and storage-efficient internal representation called a Variant Dataset (**VDS**).
 
 In addition to information about Samples, Variants, and Genotypes, Hail stores meta-data as annotations that can be attached to each variant (**variant annotations**), 
@@ -38,7 +38,7 @@ To access the pHWE and the rExpectedHetFrequency variables which are nested insi
 
 ## <a class="jumptarget" name="expressions"></a> Expressions
 
-Expressions are snippets of code written in [Hail's Domain Language](intro.html#HailExpressionLanguage) referencing elements of a VDS that are used for the following operations: 
+Expressions are snippets of code written in [Hail's Domain Language](reference.html#HailExpressionLanguage) referencing elements of a VDS that are used for the following operations: 
 
  - [Define Variables to Export](#export)
  - [Input Variables to Methods](#input)

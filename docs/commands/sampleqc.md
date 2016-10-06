@@ -9,7 +9,7 @@
 <div class="cmdsubsection">
 ### Notes:
 
- - These modules compute a variety of statistics from the genotype data, collapsing across samples.  The output from these modes can be written to TSV files, or stored within sample annotations for later use in [filtering](intro.html#Filtering) and [export](intro.html#ExportingTSV). These can be accessed with `sa.qc.<identifier>`.  The statistics, their types, and brief descriptions of how they are calculated are listed below.
+ - These modules compute a variety of statistics from the genotype data, collapsing across samples.  The output from these modes can be written to TSV files, or stored within sample annotations for later use in [filtering](reference.html#Filtering) and [export](reference.html#ExportingTSV). These can be accessed with `sa.qc.<identifier>`.  The statistics, their types, and brief descriptions of how they are calculated are listed below.
 
  - All standard deviations are calculated with zero degrees of freedom.
 

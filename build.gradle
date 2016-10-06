@@ -254,7 +254,7 @@ task wrapper(type: Wrapper) {
 }
 
 task setupDocsDirs(type: Exec) {
-    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/docs/images/'
+    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/docs/', 'build/tmp/tutorial/'
 }
 
 task copyHtml(type: Copy, dependsOn: setupDocsDirs) {
@@ -269,7 +269,7 @@ task copyJavascript(type: Copy, dependsOn: setupDocsDirs) {
 
 task copyTutorialImages(type: Copy, dependsOn: setupDocsDirs) {
     from 'docs/tutorial/'
-    into 'build/docs/images'
+    into 'build/docs'
     include '**/*.png'
 }
 
@@ -289,8 +289,8 @@ task runPandoc(type: Exec, dependsOn: setupDocsDirs) {
 }
 
 task makeTutorial(type: Exec, dependsOn: setupDocsDirs) {
-    args('-c', 'notedown docs/tutorial/Tutorial.md > build/tmp/docs/Hail_Tutorial-v1.ipynb; sed \'s/"metadata": {},/"metadata": {"anaconda-cloud": {}, "kernelspec": {"display_name": "Bash", "language": "bash", "name": "bash" }},/g\' build/tmp/docs/Hail_Tutorial-v1.ipynb > build/docs/Hail_Tutorial-v1.ipynb')
-    executable 'bash'
+    args('docs/tutorial/Tutorial.md','docs/tutorial/', 'build/tmp/tutorial/', 'build/docs/')
+    executable 'docs/tutorial/packageTutorial.sh'
 }
 
 task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
@@ -300,14 +300,14 @@ task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
 }
 
 task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJavascript', 'copyHtml']) {
-    args('introTemplate.html', 'commandsTemplate.html', 'faqTemplate.html', 'tutorialTemplate.html', 'overviewTemplate.html', 'gettingStartedTemplate.html', './commandOptions.json', 'docs/')
+    args('referenceTemplate.html', 'commandsTemplate.html', 'faqTemplate.html', 'tutorialTemplate.html', 'overviewTemplate.html', 'gettingStartedTemplate.html', './commandOptions.json', 'docs/')
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
 task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     from 'build/tmp/docs/faq.html'
     from 'build/tmp/docs/commands.html'
-    from 'build/tmp/docs/intro.html'
+    from 'build/tmp/docs/reference.html'
     from 'build/tmp/docs/tutorial.html'
     from 'build/tmp/docs/overview.html'
     from 'build/tmp/docs/getting_started.html'

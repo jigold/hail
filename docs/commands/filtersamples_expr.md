@@ -17,10 +17,10 @@ Exposed Name | Description
  `s`  | sample
  `sa` | sample annotation
  `global` | global annotation
- `gs` | genotype column [aggregable](intro.html#aggregables)
+ `gs` | genotype column [aggregable](reference.html#aggregables)
 
    
-For more information about these exposed objects and how to use them, see the documentation on [representation](intro.html#Representation) and the [Hail expression language](intro.html#HailExpressionLanguage).
+For more information about these exposed objects and how to use them, see the documentation on [representation](reference.html#Representation) and the [Hail expression language](reference.html#HailExpressionLanguage).
    
 ```
 $ hail read -i file.vds

@@ -1,6 +1,6 @@
 ## <a class="jumptarget" name="filtering"></a> Filtering Data
 
-Hail provides a number of commands to filter data. See the [Hail documentation on Filtering](intro.html#Filtering) for an overview of available commands.
+Hail provides a number of commands to filter data. See the [Hail documentation on Filtering](reference.html#Filtering) for an overview of available commands.
 
 #### How do I create a sites-only VCF (all genotype data removed)?
 
@@ -44,7 +44,7 @@ filtervariants expr --keep -c 'v.contig == "1"'
 
 #### How do I filter the VDS to a subset of chromosomes?
 
-To subset on multiple chromosomes, use the `let` function in the [Hail Expression Language](intro.html#HailExpressionLanguage) to create a set containing the desired chromosome values and then check whether `v.contig` is in the set. 
+To subset on multiple chromosomes, use the `let` function in the [Hail Expression Language](reference.html#HailExpressionLanguage) to create a set containing the desired chromosome values and then check whether `v.contig` is in the set. 
 Equivalent to `--chr 1, 2, 3` in PLINK
 
 ```
@@ -125,8 +125,8 @@ See the [documentation for `variantqc`](commands.html#variantqc) for additional 
 
 Use the [`filtergenotypes`](commands.html#filtergenotypes) command which takes a boolean expression as input and either a `--keep` or `--remove` flag. 
 The PL and DP fields can be accessed with `g.pl` and `g.dp` respectively. 
-Other available fields can be found in the [Documentation for the Genotype object](intro.html#genotype).
-See the documentation of the [Hail Expression Language](intro.html#HailExpressionLanguage) for additional information on creating expressions.
+Other available fields can be found in the [Documentation for the Genotype object](reference.html#genotype).
+See the documentation of the [Hail Expression Language](reference.html#HailExpressionLanguage) for additional information on creating expressions.
 
 ``` 
 filtergenotypes --remove -c 'g.dp < 10 || 
