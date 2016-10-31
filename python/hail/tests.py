@@ -265,6 +265,8 @@ class ContextTests(unittest.TestCase):
 
         sample2.filter_alleles('pcoin(0.5)')
 
+        sample_split.ld_prune()
+
     def test_keytable(self):
         test_resources = 'src/test/resources'
         

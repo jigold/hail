@@ -1173,5 +1173,4 @@ class RichVDS(vds: VariantDataset) {
 
     vds.filterVariants(p)
   }
-
 }
