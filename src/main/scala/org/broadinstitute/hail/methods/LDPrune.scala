@@ -17,11 +17,27 @@ case class LocalPruneResult(rdd: OrderedRDD[Locus, Variant, BVector[Double]],
 
 object LDPrune {
   val variantByteOverhead = 50
-  val fractionMemoryToUse = 0.5
+  val fractionMemoryToUse = 0.25
 
   def toNormalizedGtArray(gs: Iterable[Genotype], nSamples: Int): Option[Array[Double]] = {
-    val (nPresent, gtSum, gtSumSq) = gs.foldLeft((0, 0, 0)) { (acc, g) =>
-      g.gt.map(gt => (acc._1 + 1, acc._2 + gt, acc._3 + gt * gt)).getOrElse(acc)
+    val a = new Array[Double](nSamples)
+    val gts = new Array[Int](nSamples)
+    val it = gs.iterator
+
+    var nPresent = 0
+    var gtSum = 0
+    var gtSumSq = 0
+
+    var i = 0
+    while (i < nSamples) {
+      val gt = it.next().unboxedGT
+      gts.update(i, gt)
+      if (gt >= 0) {
+        nPresent += 1
+        gtSum += gt
+        gtSumSq += gt * gt
+      }
+      i += 1
     }
 
     val nMissing = nSamples - nPresent
@@ -37,7 +53,15 @@ object LDPrune {
       val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
       val gtStdDevRec = 1d / math.sqrt((gtMeanSqAll - gtMeanAll * gtMeanAll) * nSamples)
 
-      Some(gs.map(_.gt.map(g => (g - gtMean) * gtStdDevRec).getOrElse(0d)).toArray)
+      var i = 0
+      while (i < nSamples) {
+        val gt = gts(i)
+        if (gt >= 0)
+          a.update(i, (gt - gtMean) * gtStdDevRec)
+        i += 1
+      }
+
+      Some(a)
     }
   }
 
@@ -73,7 +97,6 @@ object LDPrune {
           queueSize.foreach { qs =>
             if (queue.size() > qs) {
               queue.pop()
-//              println(s"queueSize=${ queue.size() }")
             }
           }
         }
@@ -81,9 +104,7 @@ object LDPrune {
         keep
       }
     }, preservesPartitioning = true).asOrderedRDD.persist(StorageLevel.MEMORY_AND_DISK)
-
-
-
+    
     val numVariantsOld = prevResult.numVariants
     val numVariantsNew = prunedRDD.count()
 
@@ -103,6 +124,7 @@ object LDPrune {
       if (coalesce && numPartitionsOld != numPartitionsNew && fractionPruned > localPruneThreshold) {
         info(s"coalesced data")
         val result = prunedRDD.coalesce(numPartitionsNew, shuffle = true)(null).asOrderedRDD
+        result.count()
         prunedRDD.unpersist()
         result
       }
@@ -254,14 +276,10 @@ object LDPrune {
     var oldResult = LocalPruneResult(standardizedRDD, 0.0, 0, nVariantsInitial)
 
     var (newResult, duration) =
-      if (nPartitionsRequired > nPartitionsInitial) {
         time({
           val x = pruneLocal(oldResult, window, r2Threshold, localPruneThreshold, Option(maxQueueSize), coalesce = false)
           x.copy(rdd = x.rdd.repartition(nPartitionsRequired)(null).asOrderedRDD)
         })
-      }
-      else
-        time(pruneLocal(oldResult, window, r2Threshold, localPruneThreshold, queueSize = None, coalesce = true))
 
     require(newResult.fractionPruned != 1.0)
     info(s"Local Prune ${ newResult.index }: fractionPruned = ${ newResult.fractionPruned } numVariantsRemaining = ${ newResult.numVariants } time=${ formatTime(duration) }")
