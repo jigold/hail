@@ -206,7 +206,7 @@ class LDPruneSuite extends SparkSuite {
     var s = State(sc, sqlContext, null)
     s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz"))
     s = SplitMulti.run(s, Array.empty[String])
-    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000, 0.1, 20000))
+    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000, 0.1, 200000))
     assert(uncorrelated(s.vds, "va.ldprune.prune", 0.2, 1000))
   }
 

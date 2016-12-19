@@ -9,7 +9,7 @@ import org.broadinstitute.hail.driver.{configureAndCreateSparkContext, createSQL
 
 object SparkSuite {
   lazy val sc: SparkContext = configureAndCreateSparkContext("Hail.TestNG",
-    Option(System.getProperty("hail.master")), local = "local[2]", quiet = true)
+    Option(System.getProperty("hail.master")), local = "local[1]", quiet = true)
 
   lazy val sqlContext: SQLContext = createSQLContext(sc)
 }
