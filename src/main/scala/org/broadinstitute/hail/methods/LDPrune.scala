@@ -277,14 +277,23 @@ object LDPrune {
       }
     }
 
-    val prunedRDDs = mutable.HashMap.empty[Int, (RDD[(Variant, BVector[Double])], Int)] //partitionIndices.map{ i => (rdd, i)}
+    val prunedRDDs = mutable.HashMap.empty[Int, (RDD[(Variant, BVector[Double])], Int)]
     partitionIndices.foreach{ i => prunedRDDs(i) = (rdd, i)}
 
     val sc = rdd.sparkContext
+    val testInputs = prunedRDDs.map{ case (pnum, (prunedRDD, i)) =>
+      PartitionInput2[(Variant, BVector[Double])](pnum, Array(ParentInput(prunedRDD, i)), pruneF)
+    }.toArray
+
+    val testRDD = new GeneralRDD2(sc, testInputs)
+    testRDD.count()
+
+
 
     for (pnum <- partitionIndices) {
-      println(s"partitionNumber=$pnum")
-      println(s"prunedRDDs=${prunedRDDs.mkString(",")}")
+//      println(s"partitionNumber=$pnum")
+//      println(s"prunedRDDs=${prunedRDDs.mkString(",")}")
+//      println(s"dependencies=${computeDependencies(pnum).mkString(",")}")
       val partitionInputs = Array(PartitionInput2[(Variant, BVector[Double])](
         pnum,
         computeDependencies(pnum).map{ i =>
@@ -292,19 +301,19 @@ object LDPrune {
         },
         pruneF)
       )
-      println(partitionInputs.map{pi => pi.parentInputs.mkString(",")}.mkString("\n"))
+//      println(partitionInputs.map{pi => pi.parentInputs.mkString(",")}.mkString("\n"))
       val newRDD = new GeneralRDD2(sc, partitionInputs).persist(StorageLevel.MEMORY_AND_DISK)
       newRDD.count()
       prunedRDDs(pnum) = (newRDD, 0)
     }
 
-    println(s"prunedRDDfinal=${prunedRDDs.mkString(",")}")
+//    println(s"prunedRDDfinal=${prunedRDDs.mkString(",")}")
 
     val partitionInputs = prunedRDDs.map{ case (pnum, (prunedRDD, i)) =>
-      PartitionInput2[(Variant, BVector[Double])](i, Array(ParentInput(prunedRDD, i)), pruneF)
+      PartitionInput2[(Variant, BVector[Double])](pnum, Array(ParentInput(prunedRDD, i)), pruneF)
     }.toArray
 
-    val newRDD = new GeneralRDD2(sc, partitionInputs).persist(StorageLevel.MEMORY_AND_DISK)
+    val newRDD = new GeneralRDD2(sc, partitionInputs)//.persist(StorageLevel.MEMORY_AND_DISK)
     rdd.unpersist()
     newRDD
 
@@ -392,7 +401,7 @@ object LDPrune {
       require(newResult.fractionPruned != 1.0)
     }
 
-    val (finalPrunedRDD, globalDuration) = time(pruneGlobal2(newResult.rdd, r2Threshold, window))
+    val (finalPrunedRDD, globalDuration) = time(pruneGlobal2(newResult.rdd.repartition(10)(null).asOrderedRDD, r2Threshold, window))
     info(s"Global Prune: numVariantsRemaining = ${ finalPrunedRDD.count() } time=${ formatTime(globalDuration) }")
 
     val annotatedRDD = finalPrunedRDD.mapValues(_ => Annotation(true))

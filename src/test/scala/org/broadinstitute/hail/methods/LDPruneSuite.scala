@@ -109,6 +109,8 @@ class LDPruneSuite extends SparkSuite {
     s = SplitMulti.run(s, Array.empty[String])
     s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", r2, window, localPruneThreshold, bytesPerCore))
 
+    while (true) {}
+
     assert(uncorrelated(s.vds, "va.ldprune.prune", r2, window))
   }
 
@@ -206,13 +208,16 @@ class LDPruneSuite extends SparkSuite {
     var s = State(sc, sqlContext, null)
     s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz"))
     s = SplitMulti.run(s, Array.empty[String])
-    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000, 0.1, 200000))
+    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 100000, 0.1, 200000))
+
+    while (true) {}
     assert(uncorrelated(s.vds, "va.ldprune.prune", 0.2, 1000))
   }
 
-//  @Test def test100K() {
-//    var s = State(sc, sqlContext, null)
-//    s = Read.run(s, Array("1000Genomes.ALL.coreExome100K.updated.vds"))
-//    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000, 0.1, 32 * 1024 * 1024))
-//  }
+  @Test def test100K() {
+    var s = State(sc, sqlContext, null)
+    s = Read.run(s, Array("1000Genomes.ALL.coreExome100K.updated.vds"))
+    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000, 0.1, 1024 * 1024 * 1024))
+    while (true) {}
+  }
 }

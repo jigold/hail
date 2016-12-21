@@ -138,6 +138,7 @@ package object driver {
     }")
 
     val sc = new SparkContext(conf)
+    info(s"SparkUI: ${sc.uiWebUrl}")
     ProgressBarBuilder.build(sc)
     sc
   }
