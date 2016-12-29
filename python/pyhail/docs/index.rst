@@ -3,40 +3,23 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Python API
-==========
+
+========
+Contents
+========
 
 .. toctree::
-   :maxdepth: 2
+    :maxdepth: 1
 
-HailContext
------------
+    Getting Started <getting_started>
+    Python API <api>
 
-.. autoclass:: pyhail.HailContext
-   :members:
-
-VariantDataset
---------------
-
-.. autoclass:: pyhail.VariantDataset
-   :members:
-
-KeyTable
---------
-
-.. autoclass:: pyhail.KeyTable
-   :members:
-
-
-TextTableConfig
----------------
-
-.. autoclass:: pyhail.TextTableConfig
-   :members:
-
+==================
 Indices and tables
 ==================
 
 * :ref:`genindex`
 * :ref:`search`
+
+
 
