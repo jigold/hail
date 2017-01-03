@@ -3,15 +3,18 @@
 
 .. currentmodule:: {{ module }}
 
+
+
 .. autoclass:: {{ objname }}
 
     {% block methods %}
+
     {% if methods %}
+
     .. rubric:: Methods
 
     .. autosummary::
         :nosignatures:
-        :toctree: stubs
 
     {% for item in methods %}
         ~{{ name }}.{{ item }}
@@ -25,9 +28,13 @@
 
     .. autosummary::
         :nosignatures:
-        :toctree: stubs
+
     {% for item in attributes %}
         ~{{ name }}.{{ item }}
     {%- endfor %}
     {% endif %}
     {% endblock %}
+
+    .. automethod:: __init__
+
+

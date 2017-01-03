@@ -39,7 +39,8 @@ extensions = [
 ]
 
 autosummary_generate = True
-autoclass_content = "class"
+# autoclass_content = "both"
+autodoc_default_flags = ['members', 'undoc-members']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates', '_templates/_autosummary']
@@ -140,7 +141,7 @@ html_theme = 'sphinx_rtd_theme'
 #}
 html_theme_options = {
     'collapse_navigation': True,
-    'display_version': False,
+    'display_version': True,
     'navigation_depth': 4,
 }
 
@@ -193,7 +194,7 @@ html_extra_path = ['_static/navbar_pyhail.html']
 # Custom sidebar templates, maps document names to template names.
 #
 html_sidebars = {
-    '**': [ 'localtoc.html', 'searchbox.html']
+    '**': [ 'globaltoc.html', 'localtoc.html', 'searchbox.html']
 }
 
 # Additional templates that should be rendered to pages, maps page names to

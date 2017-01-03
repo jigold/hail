@@ -4,18 +4,19 @@
 Getting Started
 ===============
 
-**Add spark installation**
+All you'll need is the `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_, `the latest version of Spark 2 <http://spark.apache.org/downloads.html>`_ and the Hail source code.
 
-All you'll need is the `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_ and the Hail source code. To clone the `Hail repository <https://github.com/broadinstitute/hail>`_ using `Git <https://git-scm.com/>`_, run
+To clone the `Hail repository <https://github.com/broadinstitute/hail>`_ using `Git <https://git-scm.com/>`_, run
 
     ::
 
     $ git clone https://github.com/broadinstitute/hail.git
     $ cd hail
 
-The following commands are relative to the ``hail`` directory.
 
 You can also download the source code directly from `Github <https://github.com/broadinstitute/hail/archive/master.zip>`_.
+
+The following commands are relative to the ``hail`` directory.
 
 -------------------------
 Building and running Hail
@@ -33,24 +34,28 @@ The single command::
 
 creates a Hail JAR file at ``build/libs/hail-all-spark.jar``. The initial build takes time as `Gradle <https://gradle.org/>`_ installs all Hail dependencies.
 
-The executable is ``build/install/hail/bin/hail`` (to run using ``hail`` add ``build/install/hail/bin`` to your path).
+Add the following environmental variables and make an alias for Hail by filling in the paths to **SPARK_HOME** and **HAIL_HOME** below::
 
-**Make an alias for hail**
+    $ SPARK_HOME=/path/to/spark
+    $ HAIL_HOME=/path/to/hail
+    $ alias hail="PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$HAIL_HOME/python SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar python"
 
-``PYTHONPATH=/Users/jigold/spark-2.0.2-bin-hadoop2.7/python:/Users/jigold/spark-2.0.2-bin-hadoop2.7/python/lib/py4j-0.10.3-src.zip:/Users/jigold/hail/python SPARK_HOME=/Users/jigold/spark-2.0.2-bin-hadoop2.7 SPARK_CLASSPATH=/Users/jigold/hail/build/libs/hail-all-spark.jar python``
-
-
+Running ``hail`` on the command line will open an interactive python shell.
 
 Here are a few simple things to try in order. To list all commands, run::
 
     >>> import pyhail
     >>> hc = pyhail.HailContext()
 
-To `~pyhail.HailContext.import_vcf` the included *sample.vcf* into Hail's *.vds* format, run::
+To :func:`import <pyhail.HailContext.import_vcf>` the included **sample.vcf** into Hail's **.vds** format, run
+
+    ::
 
     >>> hc.import_vcf('src/test/resources/sample.vcf').write('~/sample.vds')
 
-To `split <https://hail.is/commands.html#splitmulti>`_ multi-allelic variants, compute a panel of `sample <https://hail.is/commands.html#sampleqc>`_ and `variant <https://hail.is/commands.html#variantqc>`_ quality control statistics, write these statistics to files, and save an annotated version of the vds, run::
+To :func:`split <pyhail.VariantDataset.split_multi>` multi-allelic variants, compute a panel of :func:`sample <pyhail.VariantDataset.sample_qc>` and :func:`variant <pyhail.VariantDataset.sample_qc>` quality control statistics, write these statistics to files, and save an annotated version of the vds, run::
+
+    ::
 
     >>> vds = (hc.read('~/sample.vds`)
     >>>     .split_multi()
@@ -59,11 +64,12 @@ To `split <https://hail.is/commands.html#splitmulti>`_ multi-allelic variants, c
     >>>     .export_variants('~/variantqc.tsv', 'Variant = v, va.qc.*')
     >>>     .write('~/sample.qc.vds'))
 
-To count the number of samples, variants, and genotypes, run::
+
+To :func:`count <pyhail.VariantDataset.count>` the number of samples, variants, and genotypes, run::
 
     >>> vds.count(genotypes=True)
 
-Now let's get a feel for Hail's powerful `object methods <https://hail.is/reference.html#HailObjectProperties>`_, `annotation system <https://hail.is/reference.html#Annotations>`_, and `expression language <https://hail.is/reference.html#HailExpressionLanguage>`_. To `print <https://hail.is/commands.html#printschema>`_ the current annotation schema and use these annotations to `filter <https://hail.is/reference.html#Filtering>`_ variants, samples, and genotypes, run::
+Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotation system <https://hail.is/reference.html#Annotations>`_, and `expression language <https://hail.is/reference.html#HailExpressionLanguage>`_. To :func:`print <pyhail.VariantDataset.print_schema>` the current annotation schema and use these annotations to `filter <https://hail.is/reference.html#Filtering>`_ variants, samples, and genotypes, run::
 
     >>> (vds.print_schema('~/schema.txt')
     >>>     .filter_variants_expr('v.altAllele.isSNP && va.qc.gqMean >= 20')
@@ -83,8 +89,8 @@ Running on a Spark cluster and in the cloud
 
 In order to run Hail on a Spark cluster, we must first create a Hail JAR. A Hail JAR is specialized to a version of Spark. The Hail Team currently builds against and supports Spark versions `1.5` and `1.6`. The following builds a Hail JAR for use on a cluster with Spark version `1.6.2`::
 
-    patch -p0 < spark1.patch
-    ./gradlew -Dspark.version=1.6.2 shadowJar
+    $ patch -p0 < spark1.patch
+    $ ./gradlew -Dspark.version=1.6.2 shadowJar
 
 
 Note that this modifies the local repository so that it compiles for Spark ``1.x``. If you later want to build for Spark ``2.x``, you must remove this patch, for example, by ``git reset --hard master``.
@@ -121,9 +127,9 @@ Several Hail tests have additional dependencies:
 
  - `R 3.3.1 <http://www.r-project.org/](http://www.r-project.org/>`_ with packages ``jsonlite`` and ``logistf``, which depends on ``mice`` and ``Rcpp``.
 
-Other recent versions of QCTOOL and R should suffice, but PLINK 1.0 will not.
+Other recent versions of QCTOOL and R should suffice, but PLINK 1.7 will not.
 
 To execute all Hail tests, run::
 
-    $ ./gradlew test
+    $ ./gradlew -Dspark.home=$SPARK_HOME test
 

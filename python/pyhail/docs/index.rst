@@ -12,6 +12,9 @@ Contents
     :maxdepth: 1
 
     Getting Started <getting_started>
+    Overview <overview>
+    Expression Language <exprlang>
+    Hail Objects <hail_objects>
     Python API <api>
 
 ==================

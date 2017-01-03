@@ -11,7 +11,6 @@ introduction to using this API to analyze genetic data.
 .. toctree::
     :maxdepth: 2
 
-
 .. rubric:: Classes
 
 .. autosummary::
