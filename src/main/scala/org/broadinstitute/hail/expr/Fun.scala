@@ -6,6 +6,8 @@ sealed trait Fun {
   def subst(): Fun
 
   def convertArgs(transformations: Array[UnaryFun[Any, Any]]): Fun
+
+  def docstring: Option[String] = None
 }
 
 case class Arity0Aggregator[T, U](retType: Type, ctor: () => TypedAggregator[U]) extends Fun {

@@ -97,6 +97,12 @@ object FunctionRegistry {
     registry.updateValue(name, Seq.empty, (typ, f) +: _)
   }
 
+  def generateDocumentation(file: String) = {
+    registry.foreach{ case (name, funs) =>
+      funs.foreach{ case (tt, fun) => println(name, tt.toString, fun.retType.toPrettyString(), fun.getClass)}
+    }
+  }
+
   def lookupMethodReturnType(typ: Type, typs: Seq[Type], name: String): Err[Type] =
     lookup(name, MethodType(typ +: typs: _*)).map(_.retType)
 
