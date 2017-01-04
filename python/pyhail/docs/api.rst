@@ -15,7 +15,7 @@ introduction to using this API to analyze genetic data.
 
 .. autosummary::
     :nosignatures:
-    :toctree: stubs
+    :toctree: ./
     :template: class.rst
 
     pyhail.HailContext

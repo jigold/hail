@@ -145,6 +145,11 @@ html_theme_options = {
     'navigation_depth': 4,
 }
 
+html_context = {
+    'css_files': ['_static/navbar.css', '_static/rtd_modifications.css'],
+    'script_files': ['../jquery-3.1.1.min.js', '../bootstrap.min.js']
+}
+
 # Add any paths that contain custom themes here, relative to this directory.
 #html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 html_theme_path = ["_themes",]
@@ -178,7 +183,7 @@ html_static_path = ['_static']
 # .htaccess) here, relative to this directory. These files are copied
 # directly to the root of the documentation.
 #
-html_extra_path = ['_static/navbar_pyhail.html']
+html_extra_path = ['_static/navbar_pyhail.html', '../../../www/hail-logo-cropped.png']
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
 # bottom, using the given strftime format.

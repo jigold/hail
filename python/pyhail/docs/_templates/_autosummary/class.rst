@@ -3,8 +3,6 @@
 
 .. currentmodule:: {{ module }}
 
-
-
 .. autoclass:: {{ objname }}
 
     {% block methods %}
