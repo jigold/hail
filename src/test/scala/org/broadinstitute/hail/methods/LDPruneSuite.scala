@@ -217,7 +217,7 @@ class LDPruneSuite extends SparkSuite {
   @Test def test100K() {
     var s = State(sc, sqlContext, null)
     s = Read.run(s, Array("1000Genomes.ALL.coreExome100K.updated.vds"))
-    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000, 0.1, 1024 * 1024 * 1024))
+    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000000, 0.1, 1024 * 1024 * 1024))
     while (true) {}
   }
 }
