@@ -303,82 +303,35 @@ object LDPrune {
         partitionIndices.filter(idx => idx >= startPartition && idx <= endPartition)
       }
 
-    val nStages = contigPartitions.map(p => p.length).max
-
-    val prunedRDDs = Array.fill[(RDD[(Variant, BVector[Double])], Int)](nPartitions)(null)
+    val prunedRDDs = Array.fill[(RDD[(Variant, BVector[Double])], Int, Boolean)](nPartitions)(null)
 
     def inputs(partitionId: Int) = {
-      computeDependencies(partitionId).zipWithIndex.map{ case (depId, index) =>
+      computeDependencies(partitionId).zipWithIndex.map { case (depId, index) =>
         if (depId == partitionId || contigStartPartitions.contains(depId))
           (rdd, (index, depId))
         else {
           val pruned = prunedRDDs(depId)
+          prunedRDDs(depId) = pruned.copy(_3 = true)
           (pruned._1, (index, pruned._2))
         }
       }.unzip
     }
 
-    def generalRDDInput(partitionIds: Array[Int]) = {
-      val rdds = new ArrayBuffer[RDD[(Variant, BVector[Double])]]
-      val inputs = partitionIds.map { partId =>
-        println(s"pnum=$partId dependencies=${computeDependencies(partId).mkString(",")}")
-        computeDependencies(partId).map { depId =>
-          if (depId == partId || contigStartPartitions.contains(depId)) {
-            rdds += rdd
-            (rdds.length - 1, depId)
-          } else {
-            val pruned = prunedRDDs(depId)
-            rdds += pruned._1
-            (rdds.length - 1, pruned._2)
-          }
-        }
-      }
-      (rdds.result().toArray, inputs)
-    }
-//
-//      computeDependencies(partitionId).zipWithIndex.map{ case (depId, index) =>
-//        if (depId == partitionId || contigStartPartitions.contains(depId))
-//          (rdd, (index, depId))
-//        else {
-//          val pruned = prunedRDDs(depId)
-//          (pruned._1, (index, pruned._2))
-//        }
-//      }.unzip
-//    }
-
     val sc = rdd.sparkContext
 
-    val stages = for (stageNum <- 0 until nStages) yield
-      Stage(stageNum, contigPartitions.flatMap { p =>
-        if (stageNum < p.length)
-          Some(p(stageNum))
-        else
-          None
-      })
-
-    for (stageId <- 0 until nStages) {
-      val prunePartitions = stages(stageId).prunePartitions
-      val (rdds, inputs) = generalRDDInput(prunePartitions)
-      val newRDD = new GeneralRDD2(sc, rdds, inputs.map{ (_, pruneF)}).persist(StorageLevel.MEMORY_AND_DISK)
-      println(s"rdds=${rdds.map(_.id).mkString(",")} inputs=${inputs.map(_.mkString(",")).mkString(" ")}")
-      newRDD.count()
-      prunePartitions.zipWithIndex.foreach{ case (partId, index) => prunedRDDs(partId) = (newRDD, index)}
+    for (pnum <- partitionIndices) {
+      println(s"pnum=$pnum dependencies=${ computeDependencies(pnum).mkString(",") }")
+      val (rdds, indices) = inputs(pnum)
+      println(s"rdds=${ rdds.map(_.id).mkString(",") } inputs=${ indices.mkString(",") }")
+      val newRDD = new GeneralRDD2(sc, rdds, Array((indices, pruneF)))//.persist(StorageLevel.MEMORY_AND_DISK)
+      prunedRDDs(pnum) = (newRDD, 0, false)
     }
 
-//    println(s"contigStarts=${contigStartPartitions.mkString(",")}")
-//    for (pnum <- partitionIndices) {
-//      println(s"pnum=$pnum dependencies=${computeDependencies(pnum).mkString(",")}")
-//      val (rdds, indices) = inputs(pnum)
-//      println(s"rdds=${rdds.map(_.id).mkString(",")} inputs=${indices.mkString(",")}")
-//      val newRDD = new GeneralRDD2(sc, rdds, Array((indices, pruneF))).persist(StorageLevel.MEMORY_AND_DISK)
-//      newRDD.count()
-//      prunedRDDs(pnum) = newRDD
-//    }
+    prunedRDDs.foreach{ case (prunedRDD, _, persist) => if (persist) prunedRDD.persist(StorageLevel.MEMORY_AND_DISK)}
 
-
-    val newRDD = new GeneralRDD2(sc, prunedRDDs.map(_._1), prunedRDDs.zipWithIndex.map{ case ((_, partNum), i) => (Array((i, partNum)), pruneF)})
-    rdd.unpersist()
-    newRDD
+    val newRDD = new GeneralRDD2(sc, prunedRDDs.map(_._1), prunedRDDs.zipWithIndex.map { case ((_, partNum, _), i) => (Array((i, partNum)), pruneF) }).persist(StorageLevel.MEMORY_AND_DISK)
+//    rdd.unpersist()
+    (newRDD, prunedRDDs)
   }
 
   def estimateMemoryRequirements(nVariants: Long, nSamples: Int, memoryPerCore: Long) = {
@@ -406,7 +359,7 @@ object LDPrune {
     val minMemoryPerCore = math.ceil((1 / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
     val (maxQueueSize, nPartitionsRequired) = estimateMemoryRequirements(nVariantsInitial, nSamples, memoryPerCore)
 
-    info(s"minMemoryPerCore=${minMemoryPerCore / (1024 * 1024)}MB maxQueueSize=$maxQueueSize nPartitionsRequired=$nPartitionsRequired")
+    info(s"minMemoryPerCore=${ minMemoryPerCore / (1024 * 1024) }MB maxQueueSize=$maxQueueSize nPartitionsRequired=$nPartitionsRequired")
 
     if (localPruneThreshold < 0 || localPruneThreshold > 1)
       fatal(s"Local prune threshold must be in the range [0,1]. Found `$localPruneThreshold'.")
@@ -440,14 +393,20 @@ object LDPrune {
       require(newResult.fractionPruned != 1.0)
     }
 
-    val (finalPrunedRDD, globalDuration) = time(pruneGlobal2(newResult.rdd, r2Threshold, window))
-    info(s"Global Prune: numVariantsRemaining = ${ finalPrunedRDD.count() } time=${ formatTime(globalDuration) }")
+    val (finalPrunedRDD, intermediateRDDs) = pruneGlobal2(newResult.rdd, r2Threshold, window)
+//    val finalPrunedRDD = pruneGlobal(newResult.rdd, r2Threshold, window)
+    val (nVariantsGlobal, globalDuration) = time(finalPrunedRDD.count())
+    info(s"Global Prune: numVariantsRemaining = $nVariantsGlobal time=${ formatTime(globalDuration) }")
 
     val annotatedRDD = finalPrunedRDD.mapValues(_ => Annotation(true))
     val schema = TStruct("prune" -> TBoolean)
 
     val result = vds.annotateVariants(annotatedRDD.orderedRepartitionBy(vds.rdd.orderedPartitioner), schema, dest)
+
+    newResult.rdd.unpersist()
+    intermediateRDDs.foreach{ case (intRDD, _, _) => intRDD.unpersist()}
     finalPrunedRDD.unpersist()
+
     result
   }
 }
