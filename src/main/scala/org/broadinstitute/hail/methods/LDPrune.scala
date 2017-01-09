@@ -12,20 +12,18 @@ import org.broadinstitute.hail.variant.{Genotype, Locus, Variant, VariantDataset
 import org.broadinstitute.hail.utils._
 
 case class LocalPruneResult(rdd: OrderedRDD[Locus, Variant, BVector[Double]],
-  fractionPruned: Double, index: Int, partitionSizes: Array[Long]) {
+  fractionPruned: Double, index: Int, partitionSizes: Array[Long], pruneDone: Boolean) {
+
   def nVariants = partitionSizes.sum
+
   def nPartitions = partitionSizes.length
 }
-
-case class LocalPruneParameters(window: Int, r2Threshold: Double, localPruneThreshold: Double,
-  maxQueueSize: Option[Int], nPartitionsRequired: Option[Int])
 
 case class GlobalPruneIntermediate(rdd: GeneralRDD[(Variant, BVector[Double])], index: Int, persist: Boolean)
 
 object LDPrune {
   val variantByteOverhead = 50
   val fractionMemoryToUse = 0.25
-  val variantBuffer = 1.2
 
   def toNormalizedGtArray(gs: Iterable[Genotype], nSamples: Int): Option[Array[Double]] = {
     val a = new Array[Double](nSamples)
@@ -139,10 +137,10 @@ object LDPrune {
 
     for (i <- partitionIndices) {
       val (rdds, inputs) = generalRDDInputs(i)
-      pruneIntermediates(i) = GlobalPruneIntermediate(rdd = new GeneralRDD(sc, rdds, Array((inputs, pruneF))), index = 0, persist = false) // creating single partition RDDs
+      pruneIntermediates(i) = GlobalPruneIntermediate(rdd = new GeneralRDD(sc, rdds, Array((inputs, pruneF))), index = 0, persist = false) // creating single partition RDDs with partition index = 0
     }
 
-    pruneIntermediates.foreach{ gpi =>
+    pruneIntermediates.foreach { gpi =>
       if (gpi.persist) gpi.rdd.persist(StorageLevel.MEMORY_AND_DISK)
     }
 
@@ -159,7 +157,7 @@ object LDPrune {
     val memoryAvailPerCore = memoryPerCore * fractionMemoryToUse
 
     val maxQueueSize = math.max(1, math.ceil(memoryAvailPerCore / numBytesPerVariant).toInt)
-    val numPartitionsRequired = math.max(1, math.ceil(variantBuffer * nVariants / maxQueueSize).toInt)
+    val numPartitionsRequired = math.max(1, math.ceil(nVariants.toDouble / maxQueueSize).toInt)
 
     assert(maxQueueSize > 0 && numPartitionsRequired > 0)
 
@@ -174,12 +172,10 @@ object LDPrune {
     val partitionSizesInitial = vds.sparkContext.runJob(vds.rdd, getIteratorSize _)
     val nVariantsInitial = partitionSizesInitial.sum
 
-    info(s"InputData: nSamples=$nSamples nVariants=$nVariantsInitial nPartitions=${partitionSizesInitial.length}")
+    info(s"InputData: nSamples=$nSamples nVariants=$nVariantsInitial nPartitions=${ partitionSizesInitial.length }")
 
     val minMemoryPerCore = math.ceil((1 / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
     val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, memoryPerCore)
-
-//    info(s"minMemoryPerCore=${ minMemoryPerCore / (1024 * 1024) }MB maxQueueSize=$maxQueueSize")
 
     if (localPruneThreshold < 0 || localPruneThreshold > 1)
       fatal(s"Local prune threshold must be in the range [0,1]. Found `$localPruneThreshold'.")
@@ -193,11 +189,15 @@ object LDPrune {
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"Memory per core must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB")
 
-    def pruneLocal(input: LocalPruneResult): LocalPruneResult = {
-      val repartitionRequired = input.partitionSizes.exists(_ > maxQueueSize)
+    def pruneLocal(input: LocalPruneResult, queueSize: Option[Int]): LocalPruneResult = {
+
+      val repartitionRequired = queueSize.isDefined && input.partitionSizes.exists(_ > maxQueueSize)
 
       val prunedRDD = input.rdd.mapPartitions({ it =>
-        val queue = new util.ArrayDeque[(Variant, BVector[Double])](maxQueueSize)
+        val queue = queueSize match {
+          case Some(qs) => new util.ArrayDeque[(Variant, BVector[Double])](qs)
+          case None => new util.ArrayDeque[(Variant, BVector[Double])]
+        }
 
         it.filter { case (v, sgs) =>
           var keepVariant = true
@@ -219,8 +219,10 @@ object LDPrune {
 
           if (keepVariant) {
             queue.addLast((v, sgs))
-            if (queue.size() > maxQueueSize) {
-              queue.pop()
+            queueSize.foreach { qs =>
+              if (queue.size() > qs) {
+                queue.pop()
+              }
             }
           }
 
@@ -228,59 +230,49 @@ object LDPrune {
         }
       }, preservesPartitioning = true).asOrderedRDD.persist(StorageLevel.MEMORY_AND_DISK)
 
-      var partitionSizes = prunedRDD.sparkContext.runJob(prunedRDD, getIteratorSize _)
+      val partitionSizes = prunedRDD.sparkContext.runJob(prunedRDD, getIteratorSize _)
       prunedRDD.count()
-
       val nVariantsKept = partitionSizes.sum
+
       input.rdd.unpersist()
 
       val fractionPruned = 1.0 - nVariantsKept.toDouble / input.nVariants
       assert(fractionPruned >= 0.0 && fractionPruned < 1.0)
 
-      val (_, nPartitionsReq) = estimateMemoryRequirements(nVariantsKept, nSamples, memoryPerCore)
+      val result = LocalPruneResult(prunedRDD, fractionPruned, input.index + 1, partitionSizes, pruneDone = true)
 
-      val newRDD =
-        if (repartitionRequired || fractionPruned > localPruneThreshold) {
-          val nPartitions =
-            if (repartitionRequired)
-              estimateMemoryRequirements(nVariantsKept, nSamples, memoryPerCore)._2
-            else
-              math.max(1, math.ceil(input.nPartitions * (1.0 - fractionPruned)).toInt)
+      if (repartitionRequired || fractionPruned > localPruneThreshold) {
+        val nPartitions = estimateMemoryRequirements(nVariantsKept, nSamples, memoryPerCore)._2
+        val repartRDD = prunedRDD.repartition(nPartitions)(null).asOrderedRDD
+        repartRDD.persist(StorageLevel.MEMORY_AND_DISK)
+        repartRDD.count()
+        val partitionSizesRepart = repartRDD.sparkContext.runJob(repartRDD, getIteratorSize _)
+        prunedRDD.unpersist()
 
-          val repartRDD = prunedRDD.repartition(nPartitions)(null).asOrderedRDD
-          repartRDD.persist(StorageLevel.MEMORY_AND_DISK)
-          partitionSizes = repartRDD.sparkContext.runJob(repartRDD, getIteratorSize _)
-          prunedRDD.unpersist()
-          repartRDD
-        }
-        else
-          prunedRDD
-
-      LocalPruneResult(newRDD,
-        fractionPruned,
-        input.index + 1,
-        partitionSizes)
+        result.copy(rdd = repartRDD, partitionSizes = partitionSizesRepart, pruneDone = false)
+      } else
+        result
     }
 
     val standardizedRDD = vds.rdd.flatMapValues { case (va, gs) =>
       toNormalizedGtArray(gs, nSamples).map(BVector(_))
     }.asOrderedRDD
 
-    var oldResult = LocalPruneResult(standardizedRDD, 0.0, 0, partitionSizesInitial)
-    var (newResult, duration) = time(pruneLocal(oldResult))
+    var oldResult = LocalPruneResult(standardizedRDD, 0.0, 0, partitionSizesInitial, pruneDone = false)
+    var (newResult, duration) = time(pruneLocal(oldResult, Option(maxQueueSize)))
 
-    info(s"Local Prune ${ newResult.index }: fractionPruned = ${ newResult.fractionPruned } numVariantsRemaining = ${ newResult.nVariants } time=${ formatTime(duration) }")
+    info(s"Local Prune ${ newResult.index }: fractionPruned=${ newResult.fractionPruned } nVariantsRemaining=${ newResult.nVariants } nPartitions=${newResult.nPartitions} time=${ formatTime(duration) }")
 
-    while (newResult.index == 1 || newResult.fractionPruned > localPruneThreshold) {
+    while (!newResult.pruneDone) {
       oldResult = newResult
-      val (result, duration) = time(pruneLocal(oldResult))
+      val (result, duration) = time(pruneLocal(oldResult, None))
       newResult = result
-      info(s"Local Prune ${ newResult.index }: fractionPruned = ${ newResult.fractionPruned } numVariantsRemaining = ${ newResult.nVariants } time=${ formatTime(duration) }")
+      info(s"Local Prune ${ newResult.index }: fractionPruned=${ newResult.fractionPruned } nVariantsRemaining=${ newResult.nVariants } nPartitions=${newResult.nPartitions} time=${ formatTime(duration) }")
     }
 
     val (finalPrunedRDD, globalPruneIntermediates) = pruneGlobal(newResult.rdd, r2Threshold, window)
     val (nVariantsGlobal, globalDuration) = time(finalPrunedRDD.count())
-    info(s"Global Prune: numVariantsRemaining = $nVariantsGlobal time=${ formatTime(globalDuration) }")
+    info(s"Global Prune: nVariantsRemaining=$nVariantsGlobal time=${ formatTime(globalDuration) }")
 
     val annotatedRDD = finalPrunedRDD.mapValues(_ => Annotation(true))
     val schema = TStruct("prune" -> TBoolean)
@@ -288,7 +280,7 @@ object LDPrune {
     val result = vds.annotateVariants(annotatedRDD.orderedRepartitionBy(vds.rdd.orderedPartitioner), schema, dest)
 
     newResult.rdd.unpersist()
-    globalPruneIntermediates.foreach{ gpi => gpi.rdd.unpersist()}
+    globalPruneIntermediates.foreach { gpi => gpi.rdd.unpersist() }
     finalPrunedRDD.unpersist()
 
     result

@@ -109,8 +109,6 @@ class LDPruneSuite extends SparkSuite {
     s = SplitMulti.run(s, Array.empty[String])
     s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", r2, window, localPruneThreshold, bytesPerCore))
 
-    while (true) {}
-
     assert(uncorrelated(s.vds, "va.ldprune.prune", r2, window))
   }
 
@@ -122,6 +120,7 @@ class LDPruneSuite extends SparkSuite {
 
     property("uncorrelated") =
       forAll(compGen) { case (r2: Double, window: Int, localPruneThreshold: Double, numPartitions: Int) =>
+//        println(s"r2=$r2 window=$window localPruneThreshold=$localPruneThreshold numPartitions=$numPartitions")
         var s = State(sc, sqlContext, null)
         s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz", "-n", s"$numPartitions"))
         s = SplitMulti.run(s, Array.empty[String])
@@ -191,7 +190,7 @@ class LDPruneSuite extends SparkSuite {
 
     for (i <- 1 to nVariants) {
       val y = LDPrune.estimateMemoryRequirements(nVariants, nSamples, memoryPerCore * i)
-      assert(y._1 == i && y._2 == math.ceil(LDPrune.variantBuffer * nVariants.toDouble / i).toInt)
+      assert(y._1 == i && y._2 == math.ceil(nVariants.toDouble / i).toInt)
     }
   }
 
@@ -211,11 +210,10 @@ class LDPruneSuite extends SparkSuite {
     s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 100000, 0.1, 200000))
     assert(uncorrelated(s.vds, "va.ldprune.prune", 0.2, 1000))
   }
-//
+
 //  @Test def test100K() {
 //    var s = State(sc, sqlContext, null)
 //    s = Read.run(s, Array("1000Genomes.ALL.coreExome100K.updated.vds"))
-//    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000000, 0.1, 1024 * 1024 * 1024))
-//    while (true) {}
+//    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000000, 0.1, 256 * 1024 * 1024))
 //  }
 }
