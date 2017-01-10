@@ -121,8 +121,8 @@ object LDPrune {
 
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)
 
-    def generalRDDInputs(partitionIndex: Int) = {
-      computeDependencies(partitionIndex).zipWithIndex.map { case (depIndex, i) =>
+    def generalRDDInputs(partitionIndex: Int): (Array[RDD[(Variant, BVector[Double])]], Array[(Int, Int)]) = {
+      val (rdds, inputs) = computeDependencies(partitionIndex).zipWithIndex.map { case (depIndex, i) =>
         if (depIndex == partitionIndex || contigStartPartitions.contains(depIndex))
           (rdd, (i, depIndex))
         else {
@@ -131,6 +131,7 @@ object LDPrune {
           (gpi.rdd, (i, gpi.index))
         }
       }.unzip
+      (rdds.toArray, inputs.toArray)
     }
 
     val sc = rdd.sparkContext
