@@ -10,7 +10,111 @@ import scala.collection.mutable
 import org.broadinstitute.hail.utils.EitherIsAMonad._
 import org.json4s.jackson.JsonMethods
 
-import scala.language.higherKinds
+case class FunctionMetadata(docstring: Option[String] = None, category: Option[String] = None,
+  argNames: Array[String] = Array.empty[String])
+
+case class AnnotationMetadata(desc: String)
+
+object FunctionDocumentation {
+  def headerRst(title: String, topChar: Option[String], botChar: Option[String]) = {
+    val sb = new StringBuilder
+
+    topChar.foreach { ch =>
+      require(ch.length == 1)
+      sb.append(ch * title.length + "\n")
+    }
+
+    sb.append(title + "\n")
+
+    botChar.foreach { ch =>
+      require(ch.length == 1)
+      sb.append(ch * title.length + "\n")
+    }
+
+    sb.result()
+  }
+
+  def header1Rst(title: String) = headerRst(title, Some("="), Some("="))
+  def header2Rst(title: String) = headerRst(title, Some("-"), Some("-"))
+  def header3Rst(title: String) = headerRst(title, None, Some("="))
+
+  def header1Md(title: String) = "# " + title
+  def header2Md(title: String) = "## " + title
+  def header3Md(title: String) = "### " + title
+  def header4Md(title: String) = "#### " + title
+
+  def methodToRst(name: String, tt: TypeTag, fun: Fun, md: FunctionMetadata): String = {
+    val sb = new StringBuilder
+    sb.append(s" - **$name")
+
+    val argsType = tt.xs.drop(1).map(_.toString.replaceAll("\\?", "")).zip(md.argNames)
+    val retType = fun.retType.toString.replaceAll("\\?", "")
+
+    if (argsType.nonEmpty) {
+      sb.append("(")
+      sb.append(argsType.map{case (t, n) => s"$n: $t"}.mkString(", "))
+      sb.append(")")
+    }
+
+    sb.append(s"**: *$retType*")
+
+    md.docstring match {
+      case Some(s) =>
+        sb.append("\n")
+        sb.append(s)
+      case None =>
+    }
+
+    sb.append("\n")
+    sb.result()
+
+  }
+
+  def functionToRst(name: String, tt: TypeTag, md: FunctionMetadata): String = ???
+
+  def annotationToRst = ???
+
+
+//    registry.foreach{ case (name, funs) =>
+//      funs.foreach { case (tt, fun, md) => println {
+//        fun match {
+//          case f: OptionUnaryFun[_, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: UnaryFun[_, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: Arity0Aggregator[_, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: Arity1Aggregator[_, _, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: Arity3Aggregator[_, _, _, _, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: UnaryLambdaAggregator[_, _, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: BinaryLambdaAggregator[_, _, _, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: UnarySpecial[_, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: BinaryFun[_, _, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: BinarySpecial[_, _, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: BinaryLambdaSpecial[_, _, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: Arity3LambdaFun[_, _, _, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: BinaryLambdaSpecial[_, _, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: Arity3Fun[_, _, _, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case f: Arity4Fun[_, _, _, _, _] =>
+//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
+//          case _ => ("not found", tt.xs, name, fun, md)
+//        }
+//      }
+//      }
+//    }
+//  }
+}
 
 object FunctionRegistry {
 
@@ -27,82 +131,22 @@ object FunctionRegistry {
       s"""found ${ alternates.size } ambiguous matches for $typ:
           |  ${ alternates.map(_._2._1).mkString("\n  ") }""".stripMargin
   }
-  
-  sealed case class FunctionMetadata(docstring: Option[String] = None, category: Option[String] = None,
-    argNames: Array[String] = Array.empty[String])
 
   type Err[T] = Either[LookupError, T]
-
-  def generateDocumentation(file: String) = {
-
-    def methodToRst(name: String, tt: TypeTag, fun: Fun, metaData: FunctionMetadata) = {
-      val sb = new StringBuilder
-      sb.append(s" - **$name")
-
-      val argsType = tt.xs.drop(1).map(_.toString.replaceAll("\\?T", "T")).zip(metaData.argNames)
-      val retType = fun.retType.toString.replaceAll("\\?T", "T")
-
-      if (argsType.nonEmpty) {
-        sb.append("(")
-        sb.append(argsType.map{case (n, t) => s"$n: $t"}.mkString(", "))
-        sb.append(")")
-      }
-
-      sb.append(s"**: *$retType*")
-
-      metaData.docstring match {
-        case Some(s) => sb.append(s" -- $s")
-        case None =>
-      }
-
-      sb.result()
-    }
-
-    def functionToRst = ???
-
-    registry.foreach{ case (name, funs) =>
-      funs.foreach { case (tt, fun, md) => println {
-        fun match {
-          case f: OptionUnaryFun[_, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: UnaryFun[_, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: Arity0Aggregator[_, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: Arity1Aggregator[_, _, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: Arity3Aggregator[_, _, _, _, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: UnaryLambdaAggregator[_, _, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: BinaryLambdaAggregator[_, _, _, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: UnarySpecial[_, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: BinaryFun[_, _, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: BinarySpecial[_, _, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: BinaryLambdaSpecial[_, _, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: Arity3LambdaFun[_, _, _, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: BinaryLambdaSpecial[_, _, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: Arity3Fun[_, _, _, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case f: Arity4Fun[_, _, _, _, _] =>
-            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-          case _ => ("not found", tt.xs, name, fun, md)
-        }
-      }
-      }
-    }
-  }
 
   private val registry = mutable.HashMap[String, Seq[(TypeTag, Fun, FunctionMetadata)]]().withDefaultValue(Seq.empty)
 
   private val conversions = new mutable.HashMap[(Type, Type), (Int, UnaryFun[Any, Any])]
+
+  def generateDocumentation(file: String) = {
+    registry.foreach { case (name, funs) =>
+      funs.foreach { case (tt, fun, md) => println {
+        s"$name $tt $fun $md"
+        FunctionDocumentation.methodToRst(name, tt, fun, md)
+      }
+      }
+    }
+  }
 
   private def lookupConversion(from: Type, to: Type): Option[(Int, UnaryFun[Any, Any])] = conversions.get(from -> to)
 
@@ -784,15 +828,15 @@ object FunctionRegistry {
   )(setHr(TTHr), unaryHr(TTHr, boolHr), TTHr)
 
   registerLambdaMethod("map", (a: IndexedSeq[Any], f: (Any) => Any) =>
-    a.map(f), FunctionMetadata(argNames = Array("", "x => expr"))
+    a.map(f), FunctionMetadata(argNames = Array("f"))
   )(arrayHr(TTHr), unaryHr(TTHr, TUHr), arrayHr(TUHr))
 
   registerLambdaMethod("map", (s: Set[Any], f: (Any) => Any) =>
-    s.map(f), FunctionMetadata()
+    s.map(f), FunctionMetadata(argNames = Array("f"))
   )(setHr(TTHr), unaryHr(TTHr, TUHr), setHr(TUHr))
 
   registerLambdaMethod("mapValues", (a: Map[String, Any], f: (Any) => Any) =>
-    a.map { case (k, v) => (k, f(v)) }, FunctionMetadata()
+    a.map { case (k, v) => (k, f(v)) }, FunctionMetadata(argNames = Array("f"))
   )(dictHr(TTHr), unaryHr(TTHr, TUHr), dictHr(TUHr))
 
   registerLambdaMethod("flatMap", (a: IndexedSeq[Any], f: (Any) => Any) =>
