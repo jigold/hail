@@ -13,7 +13,7 @@ Contents
 
     Getting Started <getting_started>
     Overview <overview>
-    Expression Language <exprlang>
+    Functions <functions>
     Hail Objects <hail_objects>
     Python API <api>
 

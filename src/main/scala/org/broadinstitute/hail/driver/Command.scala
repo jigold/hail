@@ -74,6 +74,7 @@ object ToplevelCommands {
   register(Filtermulti)
   register(FilterSamples)
   register(FilterVariants)
+  register(FunctionRegistryDocs)
   register(GenDataset)
   register(Get)
   register(Grep)

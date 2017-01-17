@@ -6,6 +6,6 @@ import org.broadinstitute.hail.SparkSuite
 
 class FunctionRegistryDocumentation extends SparkSuite {
   @Test def test() = {
-    FunctionRegistry.generateDocumentation("test_documentation.txt")
+    FunctionRegistry.generateDocumentation(sc, "test_documentation.rst")
   }
 }

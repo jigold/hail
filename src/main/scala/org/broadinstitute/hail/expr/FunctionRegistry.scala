@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.expr
 
+import org.apache.spark.SparkContext
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.stats._
 import org.broadinstitute.hail.utils._
@@ -17,7 +18,7 @@ case class AnnotationMetadata(desc: String)
 
 object FunctionDocumentation {
   def headerRst(title: String, topChar: Option[String], botChar: Option[String]) = {
-    val sb = new StringBuilder
+    val sb = new StringBuilder()
 
     topChar.foreach { ch =>
       require(ch.length == 1)
@@ -35,85 +36,60 @@ object FunctionDocumentation {
   }
 
   def header1Rst(title: String) = headerRst(title, Some("="), Some("="))
+
   def header2Rst(title: String) = headerRst(title, Some("-"), Some("-"))
+
   def header3Rst(title: String) = headerRst(title, None, Some("="))
 
   def header1Md(title: String) = "# " + title
+
   def header2Md(title: String) = "## " + title
+
   def header3Md(title: String) = "### " + title
+
   def header4Md(title: String) = "#### " + title
 
   def methodToRst(name: String, tt: TypeTag, fun: Fun, md: FunctionMetadata): String = {
-    val sb = new StringBuilder
+    val sb = new StringBuilder()
     sb.append(s" - **$name")
 
-    val argsType = tt.xs.drop(1).map(_.toString.replaceAll("\\?", "")).zip(md.argNames)
+    val argsNames = md.argNames
+    val argsType = tt.xs.drop(1).map(_.toString.replaceAll("\\?", ""))
+    //    require(argsNames.length == argsType.length)
+
+    val args = argsNames.zip(argsType)
     val retType = fun.retType.toString.replaceAll("\\?", "")
 
-    if (argsType.nonEmpty) {
+    if (args.nonEmpty) {
       sb.append("(")
-      sb.append(argsType.map{case (t, n) => s"$n: $t"}.mkString(", "))
+      sb.append(args.map { case (n, t) => s"$n: $t" }.mkString(", "))
       sb.append(")")
     }
 
-    sb.append(s"**: *$retType*")
+    sb.append(s"**: *$retType*\n")
 
     md.docstring match {
       case Some(s) =>
-        sb.append("\n")
         sb.append(s)
       case None =>
     }
 
     sb.append("\n")
     sb.result()
-
   }
 
   def functionToRst(name: String, tt: TypeTag, md: FunctionMetadata): String = ???
 
-  def annotationToRst = ???
-
-
-//    registry.foreach{ case (name, funs) =>
-//      funs.foreach { case (tt, fun, md) => println {
-//        fun match {
-//          case f: OptionUnaryFun[_, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: UnaryFun[_, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: Arity0Aggregator[_, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: Arity1Aggregator[_, _, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: Arity3Aggregator[_, _, _, _, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: UnaryLambdaAggregator[_, _, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: BinaryLambdaAggregator[_, _, _, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: UnarySpecial[_, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: BinaryFun[_, _, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: BinarySpecial[_, _, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: BinaryLambdaSpecial[_, _, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: Arity3LambdaFun[_, _, _, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: BinaryLambdaSpecial[_, _, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: Arity3Fun[_, _, _, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case f: Arity4Fun[_, _, _, _, _] =>
-//            ("method", tt.xs(0).toString.replaceAll("\\?T", "T"), methodToRst(name, tt, fun, md))
-//          case _ => ("not found", tt.xs, name, fun, md)
-//        }
-//      }
-//      }
-//    }
-//  }
+  def annotationToRst(fun: Fun): String = {
+    val sb = new StringBuilder()
+    fun.retType match {
+      case rt: TStruct =>
+        sb.append("**Annotations**\n\n")
+        sb.append(rt.pretty(sb, indent = 4, printAttrs = true))
+      case _ =>
+    }
+    sb.result()
+  }
 }
 
 object FunctionRegistry {
@@ -138,14 +114,10 @@ object FunctionRegistry {
 
   private val conversions = new mutable.HashMap[(Type, Type), (Int, UnaryFun[Any, Any])]
 
-  def generateDocumentation(file: String) = {
-    registry.foreach { case (name, funs) =>
-      funs.foreach { case (tt, fun, md) => println {
-        s"$name $tt $fun $md"
-        FunctionDocumentation.methodToRst(name, tt, fun, md)
-      }
-      }
-    }
+  def generateDocumentation() = {
+      registry.flatMap { case (name, funs) =>
+        funs.map { case (tt, fun, md) => FunctionDocumentation.methodToRst(name, tt, fun, md) }
+      }.mkString("\n")
   }
 
   private def lookupConversion(from: Type, to: Type): Option[(Int, UnaryFun[Any, Any])] = conversions.get(from -> to)
@@ -675,7 +647,11 @@ object FunctionRegistry {
     val LH = LeveneHaldane(n, nA)
     Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
   }, FunctionMetadata())
-  registerAnn("fet", TStruct(("pValue", TDouble), ("oddsRatio", TDouble), ("ci95Lower", TDouble), ("ci95Upper", TDouble)), { (c1: Int, c2: Int, c3: Int, c4: Int) =>
+  registerAnn("fet", TStruct(
+    ("pValue", TDouble),
+    ("oddsRatio", TDouble),
+    ("ci95Lower", TDouble),
+    ("ci95Upper", TDouble)), { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
       fatal(s"got invalid argument to function `fet': fet($c1, $c2, $c3, $c4)")
     val fet = FisherExactTest(c1, c2, c3, c4)
@@ -1117,9 +1093,13 @@ object FunctionRegistry {
   registerMethod("//", (x: Double, y: Double) => math.floor(x / y), FunctionMetadata())
 
   register("%", (x: Int, y: Int) => java.lang.Math.floorMod(x, y), FunctionMetadata())
-  register("%", (x: Long, y: Long) => java.lang.Math.floorMod(x,y), FunctionMetadata())
-  register("%", (x: Float, y: Float) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y }, FunctionMetadata())
-  register("%", (x: Double, y: Double) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y }, FunctionMetadata())
+  register("%", (x: Long, y: Long) => java.lang.Math.floorMod(x, y), FunctionMetadata())
+  register("%", (x: Float, y: Float) => {
+    val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
+  }, FunctionMetadata())
+  register("%", (x: Double, y: Double) => {
+    val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
+  }, FunctionMetadata())
 
   register("+", (x: String, y: Any) => x + y, FunctionMetadata())(stringHr, TTHr, stringHr)
 

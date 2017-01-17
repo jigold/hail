@@ -385,6 +385,12 @@ task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
     classpath sourceSets.main.runtimeClasspath
 }
 
+task makeFunctionsRst(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
+    main 'org.broadinstitute.hail.driver.Main'
+    args ('docfunctions', '-o', 'python/pyhail/docs/functions.rst')
+    classpath sourceSets.main.runtimeClasspath
+}
+
 task prepareJavascript(type: Exec, dependsOn: 'copyJavascript') {
     workingDir 'build/tmp/docs'
     commandLine 'npm', 'install'
@@ -406,7 +412,7 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepar
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
-task makePyHailDocs(type: Exec, dependsOn: 'runSass') {
+task makePyHailDocs(type: Exec, dependsOn: ['runSass', 'makeFunctionsRst']) {
      workingDir 'python/pyhail/docs'
 
      commandLine 'make', 'html'
