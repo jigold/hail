@@ -9,6 +9,7 @@ import is.hail.check.Prop._
 import is.hail.driver._
 import is.hail.expr._
 import is.hail.io.vcf.LoadVCF
+import is.hail.keytable.KeyTable
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.sparkextras.OrderedRDD
@@ -365,5 +366,15 @@ class VSMSuite extends SparkSuite {
     TestUtils.interceptFatal("""File already exists""") {
       Write.run(s, "-o", out)
     }
+  }
+
+  @Test def testAnnotateVariantsKeyTable() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+
+    val kt = s.vds.variantsKT()
+    val kt2 = KeyTable.importTextTable(sc, Array("src/test/resources/sampleAnnotations.tsv"), "Sample", 2, TextTableConfiguration())
+    s.vds.annotateVariantsKT(kt, null, "va.foo = table.va")
+    ExportVCF.run(s, Array("-o", "foo"))
   }
 }
