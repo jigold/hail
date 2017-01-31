@@ -1980,7 +1980,7 @@ class VariantDataset(object):
         :py:meth:`.ld_prune` is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``. The results will be different because Hail mean-imputes missing values and the order in which variant pairs are tested is not the same as PLINK.
 
         Be sure to provide enough disk space per worker. :py:meth:`.ld_prune` `persists <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ up to 3 copies of the data to both memory and disk.
-        The amount of disk space required will depend on the size and minor allele frequency of the input data and the prune parameters ``r2`` and ``window``.
+        The amount of disk space required will depend on the size and minor allele frequency of the input data and the prune parameters ``r2`` and ``window``. The number of bytes stored in memory per variant is estimated to be ``nSamples / 4 + 50``.
 
         .. warning::
 
@@ -1994,7 +1994,7 @@ class VariantDataset(object):
 
         :param float memory_per_core: Total amount of memory available for each core in MB. We strongly recommend using the default value.
 
-        :return: A filtered dataset with variants that are independent.
+        :return: A filtered dataset with variants that have been pruned.
 
         :rtype: VariantDataset
         """

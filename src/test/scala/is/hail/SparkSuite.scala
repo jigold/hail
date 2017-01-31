@@ -12,7 +12,7 @@ object SparkSuite {
     configureHail()
     configureLogging(quiet = true)
     configureAndCreateSparkContext("Hail.TestNG",
-      Option(System.getProperty("hail.master")), local = "local[8]")
+      Option(System.getProperty("hail.master")), local = "local[2]")
   }
 
   lazy val sqlContext: SQLContext = createSQLContext(sc)
