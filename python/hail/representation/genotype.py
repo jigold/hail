@@ -1,5 +1,6 @@
 from hail.java import *
 from hail.typecheck import *
+from hail.history import *
 
 class Genotype(object):
     """
@@ -22,6 +23,7 @@ class Genotype(object):
     """
 
     @handle_py4j
+    @record_init
     def __init__(self, gt, ad=None, dp=None, gq=None, pl=None):
         """Initialize a Genotype object."""
 
@@ -47,6 +49,8 @@ class Genotype(object):
         self._pl = pl
         self._init_from_java(jrep)
 
+        self._history = None
+
     def __str__(self):
         return self._jrep.toString()
 
@@ -67,6 +71,9 @@ class Genotype(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
+
+    def _set_history(self, history):
+        self._history = history
 
     @classmethod
     def _from_java(cls, jrep):
@@ -335,6 +342,7 @@ class Call(object):
     _call_jobject = None
 
     @handle_py4j
+    @record_init
     def __init__(self, call):
         """Initialize a Call object."""
 
@@ -343,6 +351,7 @@ class Call(object):
 
         jrep = Call._call_jobject.apply(call)
         self._init_from_java(jrep)
+        self._history = None
 
     def __str__(self):
         return self._jrep.toString()
@@ -359,6 +368,9 @@ class Call(object):
     def _init_from_java(self, jrep):
         self._jcall = Call._call_jobject
         self._jrep = jrep
+
+    def _set_history(self, history):
+        self._history = history
 
     @classmethod
     def _from_java(cls, jrep):

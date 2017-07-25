@@ -10,6 +10,7 @@ from hail.java import *
 from hail.keytable import KeyTable
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
 from hail.utils import wrap_to_list
+from hail.history import *
 
 
 class HailContext(object):
@@ -57,6 +58,7 @@ class HailContext(object):
                       min_block_size=integral,
                       branching_factor=integral,
                       tmp_dir=strlike)
+    @record_init
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='snappy',
                  min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
@@ -87,8 +89,13 @@ class HailContext(object):
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
 
+        self._history = None
+
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
+
+    def _set_history(self, history):
+        self._history = history.set_varid("hc")
 
     @staticmethod
     def get_running():
@@ -150,6 +157,7 @@ class HailContext(object):
         self._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       tolerance=numeric,
                       sample_file=nullable(strlike),
@@ -217,6 +225,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       sample_file=nullable(strlike),
                       tolerance=numeric,
@@ -281,6 +290,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(paths=oneof(strlike, listof(strlike)),
                       key=oneof(strlike, listof(strlike)),
                       min_partitions=nullable(int),
@@ -442,9 +452,11 @@ class HailContext(object):
 
         jkt = self._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
                                     no_header, impute, quote)
+
         return KeyTable(self, jkt)
 
     @handle_py4j
+    @record_method
     @typecheck_method(bed=strlike,
                       bim=strlike,
                       fam=strlike,
@@ -522,6 +534,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       drop_samples=bool,
                       drop_variants=bool)
@@ -561,6 +574,7 @@ class HailContext(object):
         self._jhc.writePartitioning(path)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       force=bool,
                       force_bgz=bool,
@@ -730,6 +744,7 @@ class HailContext(object):
         self._jhc.indexBgen(jindexed_seq_args(path))
 
     @handle_py4j
+    @record_method
     @typecheck_method(populations=integral,
                       samples=integral,
                       variants=integral,
@@ -890,6 +905,7 @@ class HailContext(object):
         Env._hc = None
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=strlike)
     def read_table(self, path):
         """Read a KT file as key table.

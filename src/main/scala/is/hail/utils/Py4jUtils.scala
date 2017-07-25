@@ -67,6 +67,10 @@ trait Py4jUtils {
   def copyFile(from: String, to: String, hc: HailContext) {
     hc.hadoopConf.copy(from, to)
   }
+
+  def isDir(path: String, hc: HailContext): Boolean = {
+    hc.hadoopConf.isDir(path)
+  }
 }
 
 class HadoopPyReader(in: InputStream) {
