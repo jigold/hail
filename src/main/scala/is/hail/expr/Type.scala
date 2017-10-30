@@ -21,7 +21,7 @@ import scala.reflect.classTag
 
 object Type {
   val genScalar: Gen[Type] = Gen.oneOf[Type](TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
-    TVariant(GenomeReference.GRCh37), TAltAllele, TGenotype, TLocus(GenomeReference.GRCh37), TInterval(GenomeReference.GRCh37), TCall)
+    TVariant(GenomeReference.defaultReference), TAltAllele, TGenotype, TLocus(GenomeReference.defaultReference), TInterval(GenomeReference.defaultReference), TCall)
 
   def genSized(size: Int): Gen[Type] = {
     if (size < 1)

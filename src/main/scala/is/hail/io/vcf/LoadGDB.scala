@@ -58,7 +58,8 @@ object LoadGDB {
                callsets_mapping_file: String,
                vcfHeaderPath: Option[String],
                nPartitions: Option[Int] = None,
-               dropSamples: Boolean = false): VariantSampleMatrix[Locus, Variant, Annotation] = {
+               dropSamples: Boolean = false,
+               gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val sc = hc.sc
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
@@ -115,7 +116,7 @@ object LoadGDB {
       }
 
     val rowType = TStruct(
-      "v" -> TVariant(GenomeReference.GRCh37),
+      "v" -> TVariant(gr),
       "va" -> variantAnnotationSignatures,
       "gs" -> TArray(genotypeSignature))
 
@@ -151,7 +152,7 @@ object LoadGDB {
     new VariantSampleMatrix(hc, VSMMetadata(
       TString,
       TStruct.empty,
-      TVariant(GenomeReference.GRCh37),
+      TVariant(gr),
       variantAnnotationSignatures,
       TStruct.empty,
       genotypeSignature),

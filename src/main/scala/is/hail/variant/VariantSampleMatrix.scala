@@ -273,7 +273,7 @@ object VSMSubgen {
   val random = VSMSubgen[Locus, Variant, Genotype](
     sSigGen = Gen.const(TString),
     saSigGen = Type.genArb,
-    vSigGen = Gen.const(TVariant(GenomeReference.GRCh37)),
+    vSigGen = Gen.const(TVariant(GenomeReference.defaultReference)),
     vaSigGen = Type.genArb,
     globalSigGen = Type.genArb,
     tSigGen = Gen.const(TGenotype),
@@ -293,7 +293,7 @@ object VSMSubgen {
   val dosage = VSMSubgen[Locus, Variant, Annotation](
     sSigGen = Gen.const(TString),
     saSigGen = Type.genArb,
-    vSigGen = Gen.const(TVariant(GenomeReference.GRCh37)),
+    vSigGen = Gen.const(TVariant(GenomeReference.defaultReference)),
     vaSigGen = Type.genArb,
     globalSigGen = Type.genArb,
     tSigGen = Gen.const(TStruct(
@@ -828,7 +828,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
           annotateLoci(ord, finalType, inserter, product = product)
 
-        case Array(TInterval(_)) if vSignature == TVariant(GenomeReference.GRCh37) =>
+        case Array(TInterval(_)) if vSignature.isInstanceOf[TVariant] =>
           val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
           val partitionKeyedIntervals = keyedRDD
             .flatMap { case (k, v) =>
@@ -1159,7 +1159,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           .map { case (_, ((v, vags), _)) => (v, vags) },
           rdd.orderedPartitioner)
 
-      case Array(TInterval(_)) if vSignature == TVariant(GenomeReference.GRCh37) =>
+      case Array(TInterval(_)) if vSignature.isInstanceOf[TVariant] =>
         val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
         val intRDD = kt.keyedRDD()
           .map { case (k, _) => k.getAs[Interval[Locus]](0) }
