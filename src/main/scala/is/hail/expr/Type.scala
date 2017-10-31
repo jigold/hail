@@ -20,8 +20,10 @@ import scala.reflect.ClassTag
 import scala.reflect.classTag
 
 object Type {
-  val genScalar: Gen[Type] = Gen.oneOf[Type](TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
-    TVariant(GenomeReference.defaultReference), TAltAllele, TGenotype, TLocus(GenomeReference.defaultReference), TInterval(GenomeReference.defaultReference), TCall)
+  val types = Array(TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
+    TAltAllele, TGenotype, TCall) ++ GenomeReference.references.flatMap { case (_, gr) => Array[Type](TVariant(gr), TLocus(gr), TInterval(gr)) }
+
+  val genScalar: Gen[Type] = Gen.oneOfSeq[Type](types)
 
   def genSized(size: Int): Gen[Type] = {
     if (size < 1)

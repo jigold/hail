@@ -4,7 +4,6 @@ from hail.java import *
 from hail.typ import *
 from hail.representation import *
 
-
 def to_expr(arg):
     if isinstance(arg, Column):
         return arg._expr
@@ -21,15 +20,19 @@ def to_expr(arg):
     elif isinstance(arg, set):
         uid = Env.hc()._get_unique_id()
         return "let {uid} = [{args}] in {uid}.toSet()".format(uid=uid, args=", ".join([to_expr(a) for a in arg]))
+    elif isinstance(arg, GenomeReference):
+        return arg
     elif isinstance(arg, Variant):
-        return "Variant(\"" + str(arg) + "\")"
+        return "Variant(" + arg._rg.name + ")(\"" + str(arg) + "\")"
     elif isinstance(arg, Locus):
-        return "Locus(\"" + str(arg) + "\")"
+        return "Locus(" + arg._rg.name + ")(\"" + str(arg) + "\")"
     elif isinstance(arg, Interval):
-        return "Interval(\"" + str(arg) + "\")"
+        return "Interval(" + arg._rg.name + ")(\"" + str(arg) + "\")"
     elif isinstance(arg, Struct):
         return "{" + ", ".join([k + ":" + to_expr(v) for k, v in arg._attrs.iteritems()]) + "}"  # FIXME: Struct constructor should take kwargs (ordered in Python 3.6)
     elif callable(arg):
+        return arg
+    elif not arg: # None
         return arg
     else:
         raise NotImplementedError("Cannot convert arg `{}' with type `{}' to an expr.".format(arg, arg.__class__))
@@ -80,11 +83,11 @@ def get_typ(x):
     if isinstance(x, Column):
         return x._typ
     elif isinstance(x, Variant):
-        return TVariant()
+        return TVariant(x._rg)
     elif isinstance(x, Locus):
-        return TLocus()
+        return TLocus(x._rg)
     elif isinstance(x, Interval):
-        return TInterval()
+        return TInterval(x._rg)
     elif isinstance(x, AltAllele):
         return TAltAllele()
     elif isinstance(x, Genotype):
@@ -1032,46 +1035,52 @@ class IntervalColumn(Column):
     @staticmethod
     @args_to_expr
     def from_args(contig, start, end):
-        expr = "Interval({}, {}, {})".format(contig, start, end)
-        return IntervalColumn(expr, TInterval())
+        rg = reference_genome if reference_genome else Env.hc().default_reference
+        expr = "Interval({})({}, {}, {})".format(rg.name, contig, start, end)
+        return IntervalColumn(expr, TInterval(rg))
 
     @staticmethod
     @args_to_expr
-    def parse(s):
-        expr = "Interval({})".format(s)
-        return IntervalColumn(expr, TInterval())
+    def parse(s, reference_genome=None):
+        rg = reference_genome if reference_genome else Env.hc().default_reference
+        expr = "Interval({})({})".format(rg.name, s)
+        return IntervalColumn(expr, TInterval(rg))
 
     @staticmethod
     @args_to_expr
     def from_loci(l1, l2):
-        expr = "Interval({}, {})".format(l1, l2)
-        return IntervalColumn(expr, TInterval())
+        if l1._rg.name != l2._rg.name:
+            raise TypeError("`l1' and `l2' must have the same reference genome. Found (%s, %s)" % (l1._rg.name, l2._rg.name))
+        expr = "Interval({})({}, {})".format(rg.name, l1, l2)
+        return IntervalColumn(expr, TInterval(l1._rg))
 
     def contains(self, locus):
         return self._method("contains", TBoolean(), locus)
 
     @property
     def end(self):
-        return self._field("end", TLocus())
+        return self._field("end", TLocus(self._typ._rg))
 
     @property
     def start(self):
-        return self._field("start", TLocus())
+        return self._field("start", TLocus(self._typ._rg))
 
 
 class LocusColumn(Column):
 
     @staticmethod
     @args_to_expr
-    def from_args(contig, pos):
-        expr = "Locus({}, {})".format(contig, pos)
-        return LocusColumn(expr, TLocus())
+    def from_args(contig, pos, reference_genome=None):
+        rg = reference_genome if reference_genome else Env.hc().default_reference
+        expr = "Locus({})({}, {})".format(rg.name, contig, pos)
+        return LocusColumn(expr, TLocus(rg))
 
     @staticmethod
     @args_to_expr
-    def parse(s):
-        expr = "Locus({})".format(s)
-        return LocusColumn(expr, TLocus())
+    def parse(s, reference_genome=None):
+        rg = reference_genome if reference_genome else Env.hc().default_reference
+        expr = "Locus({})({})".format(rg.name, s)
+        return LocusColumn(expr, TLocus(rg))
 
     @property
     def contig(self):
@@ -1127,15 +1136,17 @@ class VariantColumn(Column):
 
     @staticmethod
     @args_to_expr
-    def from_args(contig, pos, ref, alts):
-        expr = "Variant({}, {}, {}, {})".format(contig, pos, ref, alts)
-        return VariantColumn(expr, TVariant())
+    def from_args(contig, pos, ref, alts, reference_genome=None):
+        rg = reference_genome if reference_genome else Env.hc().default_reference
+        expr = "Variant({})({}, {}, {}, {})".format(rg.name, contig, pos, ref, alts)
+        return VariantColumn(expr, TVariant(rg))
 
     @staticmethod
     @args_to_expr
-    def parse(s):
-        expr = "Variant({})".format(s)
-        return VariantColumn(expr, TVariant())
+    def parse(s, reference_genome=None):
+        rg = reference_genome if reference_genome else Env.hc().default_reference
+        expr = "Variant({})({})".format(rg.name, s)
+        return VariantColumn(expr, TVariant(rg))
 
     def alt(self):
         return self._method("alt", TString())
@@ -1170,7 +1181,7 @@ class VariantColumn(Column):
         return self._method("isBiallelic", TBoolean())
 
     def locus(self):
-        return self._method("locus", TLocus())
+        return self._method("locus", TLocus(self._typ._gr))
 
     def num_alleles(self):
         return self._method("nAlleles", TInt32())

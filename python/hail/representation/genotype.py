@@ -64,7 +64,7 @@ class Genotype(HistoryMixin):
             (self.gt, self.ad, self.dp, self.gq, self.pl, fake_ref)
 
     def __eq__(self, other):
-        return self._jrep.equals(other._jrep)
+        return isinstance(other, Genotype) and self._jrep.equals(other._jrep)
 
     def __hash__(self):
         return self._jrep.hashCode()
@@ -344,7 +344,7 @@ class Call(HistoryMixin):
         return 'Call(gt=%s)' % self._jrep
 
     def __eq__(self, other):
-        return self._jrep.equals(other._jrep)
+        return isinstance(other, Call) and self._jrep.equals(other._jrep)
 
     def __hash__(self):
         return self._jrep.hashCode()

@@ -587,8 +587,8 @@ class TVariant(Type):
 
     @typecheck_method(reference_genome=nullable(GenomeReference))
     def __init__(self, reference_genome=None):
-        rg = reference_genome if reference_genome else Env.hc().default_reference
-        jtype = scala_object(Env.hail().expr, 'TVariant').apply(rg._jrep)
+        self._rg = reference_genome if reference_genome else Env.hc().default_reference
+        jtype = scala_object(Env.hail().expr, 'TVariant').apply(self._rg._jrep)
         super(TVariant, self).__init__(jtype)
 
     @classmethod
@@ -615,7 +615,7 @@ class TVariant(Type):
                                  type(annotation))
 
     def __repr__(self):
-        return "TVariant()"
+        return "TVariant({})".format(self._rg.name)
 
 
 class TAltAllele(Type):
@@ -742,8 +742,8 @@ class TLocus(Type):
 
     @typecheck_method(reference_genome=nullable(GenomeReference))
     def __init__(self, reference_genome=None):
-        rg = reference_genome if reference_genome else Env.hc().default_reference
-        jtype = scala_object(Env.hail().expr, 'TLocus').apply(rg._jrep)
+        self._rg = reference_genome if reference_genome else Env.hc().default_reference
+        jtype = scala_object(Env.hail().expr, 'TLocus').apply(self._rg._jrep)
         super(TLocus, self).__init__(jtype)
 
     @classmethod
@@ -770,7 +770,7 @@ class TLocus(Type):
                                  type(annotation))
 
     def __repr__(self):
-        return "TLocus()"
+        return "TLocus({})".format(self._rg.name)
 
 
 class TInterval(Type):
@@ -788,8 +788,8 @@ class TInterval(Type):
 
     @typecheck_method(reference_genome=nullable(GenomeReference))
     def __init__(self, reference_genome=None):
-        rg = reference_genome if reference_genome else Env.hc().default_reference
-        jtype = scala_object(Env.hail().expr, 'TInterval').apply(rg._jrep)
+        self._rg = reference_genome if reference_genome else Env.hc().default_reference
+        jtype = scala_object(Env.hail().expr, 'TInterval').apply(self._rg._jrep)
         super(TInterval, self).__init__(jtype)
 
     @classmethod
@@ -816,7 +816,7 @@ class TInterval(Type):
                                  type(annotation))
 
     def __repr__(self):
-        return "TInterval()"
+        return "TInterval({})".format(self._rg.name)
 
 
 class TAggregable(Type):

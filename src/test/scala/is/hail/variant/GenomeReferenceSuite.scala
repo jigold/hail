@@ -2,7 +2,7 @@ package is.hail.variant
 
 import is.hail.expr.{TInterval, TLocus, TStruct, TVariant}
 import is.hail.keytable.KeyTable
-import is.hail.utils.Interval
+import is.hail.utils.{HailException, Interval}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -144,5 +144,11 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(ktann.forall("v1.inXPar() && v2.inXPar() && v3.isAutosomal() &&" +
       "l1.position == 100 && l2.position == 100 &&" +
       """i1.start == Locus(GRCh37)("1", 5) && !i2.contains(l1)"""))
+
+    val gr = GenomeReference("foo", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]])
+    GenomeReference.addReference(gr)
+    GenomeReference.setDefaultReference(gr)
+    assert(kt.annotate("""v1 = Variant("chrX:156030895:A:T")""").signature.field("v1").typ == gr.variant)
   }
 }
