@@ -8,7 +8,7 @@ import is.hail.check.{Gen, _}
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils
 import is.hail.utils.{Interval, StringEscapeUtils, _}
-import is.hail.variant.{AltAllele, Call, Contig, GRBase, GenomeReference, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, Contig, GRBase, GenomeReference, Genotype, Locus, Variant, VariantSubgen}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataType
 import org.json4s._
@@ -1357,7 +1357,7 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Variant]
 
-  override def genNonmissingValue: Gen[Annotation] = Variant.gen
+  override def genNonmissingValue: Gen[Annotation] = VariantSubgen.fromGenomeRef(gr.asInstanceOf[GenomeReference]).gen
 
   override def desc: String =
     """
@@ -1463,7 +1463,7 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
 
-  override def genNonmissingValue: Gen[Annotation] = Locus.gen
+  override def genNonmissingValue: Gen[Annotation] = Locus.gen(gr.asInstanceOf[GenomeReference])
 
   override def desc: String = "A ``Locus(GR)`` is a Hail data type representing a specific genomic location in the Variant Dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38."
 
@@ -1526,7 +1526,7 @@ case class TInterval(gr: GRBase, override val required: Boolean = false) extends
 
   override def genNonmissingValue: Gen[Annotation] = {
     implicit val locusOrdering = gr.locusOrdering
-    Interval.gen(Locus.gen)
+    Interval.gen(Locus.gen(gr.asInstanceOf[GenomeReference]))
   }
 
   override def desc: String = "An ``Interval(GR)`` is a Hail data type representing a range of genomic locations in the dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38."

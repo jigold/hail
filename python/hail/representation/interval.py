@@ -54,6 +54,7 @@ class Interval(HistoryMixin):
         interval = Interval.__new__(cls)
         interval._init_from_java(jrep)
         interval._rg = reference_genome
+        reference_genome._check_interval(jrep)
         super(Interval, interval).__init__()
         return interval
 

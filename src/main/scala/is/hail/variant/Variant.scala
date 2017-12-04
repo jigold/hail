@@ -33,25 +33,45 @@ object Variant {
   def apply(contig: String,
     start: Int,
     ref: String,
-    alt: String): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)))
+    alt: String): Variant = {
+    Variant(contig, start, ref, Array(AltAllele(ref, alt)))
+  }
 
   def apply(contig: String,
     start: Int,
     ref: String,
-    alts: Array[String]): Variant =
-    Variant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
+    alt: String,
+    gr: GRBase): Variant = {
+    gr.checkVariant(contig, start, ref, alt)
+    Variant(contig, start, ref, alt)
+  }
 
   def apply(contig: String,
     start: Int,
     ref: String,
-    alts: java.util.ArrayList[String]): Variant = Variant(contig, start, ref, alts.asScala.toArray)
+    alts: Array[String]): Variant = Variant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
 
-  def parse(str: String): Variant = {
+  def apply(contig: String,
+    start: Int,
+    ref: String,
+    alts: Array[String],
+    gr: GRBase): Variant = {
+    gr.checkVariant(contig, start, ref, alts)
+    Variant(contig, start, ref, alts)
+  }
+
+  def apply(contig: String,
+    start: Int,
+    ref: String,
+    alts: java.util.ArrayList[String],
+    gr: GRBase): Variant = Variant(contig, start, ref, alts.asScala.toArray, gr)
+
+  def parse(str: String, gr: GRBase): Variant = {
     val colonSplit = str.split(":")
     if (colonSplit.length != 4)
       fatal(s"invalid variant, expected 4 colon-delimited fields, found ${ colonSplit.length }: $str")
     val Array(contig, start, ref, alts) = colonSplit
-    Variant(contig, start.toInt, ref, alts.split(","))
+    Variant(contig, start.toInt, ref, alts.split(","), gr)
   }
 
   def fromRegionValue(r: MemoryBuffer, offset: Long): Variant = {

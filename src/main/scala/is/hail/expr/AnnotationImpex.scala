@@ -430,9 +430,9 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case _: TFloat32 => a.toFloat
       case _: TFloat64 => if (a == "nan") Double.NaN else a.toDouble
       case _: TBoolean => a.toBoolean
-      case _: TLocus => Locus.parse(a)
-      case t: TInterval => Locus.parseInterval(a, t.gr)
-      case _: TVariant => Variant.parse(a)
+      case tl: TLocus => Locus.parse(a, tl.gr)
+      case ti: TInterval => Locus.parseInterval(a, ti.gr)
+      case tv: TVariant => Variant.parse(a, tv.gr)
       case _: TAltAllele => a.split("/") match {
         case Array(ref, alt) => AltAllele(ref, alt)
       }

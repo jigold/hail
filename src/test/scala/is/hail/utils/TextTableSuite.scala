@@ -95,12 +95,16 @@ class TextTableSuite extends SparkSuite {
     val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)
       .filter(vds => vds.countVariants > 0 && !vds.vaSignature.isOfType(TFloat64()))) { vds: VariantDataset =>
 
+      GenomeReference.addReference(vds.genomeReference)
       vds.variantsKT().export(outPath, typesFile = outPath + ".types")
 
       val types = Type.parseMap(hadoopConf.readFile(outPath + ".types")(Source.fromInputStream(_).mkString))
 
       val kt = hc.importTable(outPath, types = types).keyBy("v")
-      vds.annotateVariantsTable(kt, root = "va").same(vds)
+      val isSame = vds.annotateVariantsTable(kt, root = "va").same(vds)
+
+      GenomeReference.deleteReference(vds.genomeReference.name)
+      isSame
     }
 
     p.check()

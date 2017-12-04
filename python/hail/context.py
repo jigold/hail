@@ -223,7 +223,7 @@ class HailContext(HistoryMixin):
 
         Importing a BGEN file as a VDS.
 
-        >>> vds = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
+        >>> vds = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample", contig_recoding={"01": "1"})
 
         **Notes**
 

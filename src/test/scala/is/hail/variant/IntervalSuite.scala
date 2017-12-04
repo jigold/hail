@@ -193,18 +193,23 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testParser() {
+    val gr = GenomeReference.GRCh37
+    val xMax = gr.contigLength("X")
+    val yMax = gr.contigLength("Y")
+    val chr22Max = gr.contigLength("22")
+
     assert(Locus.parseInterval("1:100-1:101", gr) == Interval(Locus("1", 100), Locus("1", 101)))
     assert(Locus.parseInterval("1:100-101", gr) == Interval(Locus("1", 100), Locus("1", 101)))
     assert(Locus.parseInterval("X:100-101", gr) == Interval(Locus("X", 100), Locus("X", 101)))
-    assert(Locus.parseInterval("X:100-end", gr) == Interval(Locus("X", 100), Locus("X", Int.MaxValue)))
-    assert(Locus.parseInterval("X:100-End", gr) == Interval(Locus("X", 100), Locus("X", Int.MaxValue)))
-    assert(Locus.parseInterval("X:100-END", gr) == Interval(Locus("X", 100), Locus("X", Int.MaxValue)))
-    assert(Locus.parseInterval("X:start-101", gr) == Interval(Locus("X", 0), Locus("X", 101)))
-    assert(Locus.parseInterval("X:Start-101", gr) == Interval(Locus("X", 0), Locus("X", 101)))
-    assert(Locus.parseInterval("X:START-101", gr) == Interval(Locus("X", 0), Locus("X", 101)))
-    assert(Locus.parseInterval("X:START-Y:END", gr) == Interval(Locus("X", 0), Locus("Y", Int.MaxValue)))
-    assert(Locus.parseInterval("X-Y", gr) == Interval(Locus("X", 0), Locus("Y", Int.MaxValue)))
-    assert(Locus.parseInterval("1-22", gr) == Interval(Locus("1", 0), Locus("22", Int.MaxValue)))
+    assert(Locus.parseInterval("X:100-end", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
+    assert(Locus.parseInterval("X:100-End", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
+    assert(Locus.parseInterval("X:100-END", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
+    assert(Locus.parseInterval("X:start-101", gr) == Interval(Locus("X", 1), Locus("X", 101)))
+    assert(Locus.parseInterval("X:Start-101", gr) == Interval(Locus("X", 1), Locus("X", 101)))
+    assert(Locus.parseInterval("X:START-101", gr) == Interval(Locus("X", 1), Locus("X", 101)))
+    assert(Locus.parseInterval("X:START-Y:END", gr) == Interval(Locus("X", 1), Locus("Y", yMax)))
+    assert(Locus.parseInterval("X-Y", gr) == Interval(Locus("X", 1), Locus("Y", yMax)))
+    assert(Locus.parseInterval("1-22", gr) == Interval(Locus("1", 1), Locus("22", chr22Max)))
 
     assert(Locus.parseInterval("16:29500000-30200000", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000)))
     assert(Locus.parseInterval("16:29.5M-30.2M", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000)))

@@ -1375,7 +1375,7 @@ class VariantDataset(HistoryMixin):
 
         Import genotype probability data, filter variants based on INFO score, and export data to a GEN and SAMPLE file:
 
-        >>> vds3 = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
+        >>> vds3 = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample", contig_recoding={"01": "1"})
 
         >>> (vds3.filter_variants_expr('gs.map(g => g.GP).infoScore().score >= 0.9')
         ...      .export_gen('output/infoscore_filtered'))
