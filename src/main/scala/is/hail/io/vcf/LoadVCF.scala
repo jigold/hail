@@ -320,8 +320,8 @@ final class VCFLine(val line: String) {
       if (mj)
         rvb.setMissing()
       else
-        rvb.addInt(
-          Genotype.gtIndex(j, j))
+        rvb.addInt(Call.encode(j, j, phased = false, ploidy = 2))
+//        rvb.addInt(Genotype.gtIndex(j, j))
       return
     }
 
@@ -348,7 +348,8 @@ final class VCFLine(val line: String) {
     if (mj || mk)
       rvb.setMissing()
     else {
-      rvb.addInt(Genotype.gtIndexWithSwap(j, k))
+      rvb.addInt(Call.encode(j, k, phased = false, ploidy = 2))
+//      rvb.addInt(Genotype.gtIndexWithSwap(j, k))
     }
   }
 

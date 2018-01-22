@@ -86,28 +86,28 @@ class ImportVCFSuite extends SparkSuite {
     val s2 = "C1046::HG02025"
 
     assert(r(v1, s1) == Genotype(
-      0,
+      Call.encode(0),
       Array(10, 0),
       10,
       44,
       Array(0, 44, 180)
     ))
     assert(r(v1, s2) == Genotype(
-      2,
+      Call.encode(2),
       Array(0, 6),
       7,
       70,
       Array(70, 0)
     ))
     assert(r(v2, s1) == Genotype(
-      5,
+      Call.encode(5),
       Array(0, 0, 11),
       11,
       33,
       Array(396, 402, 411, 33, 33, 0)
     ))
     assert(r(v2, s2) == Genotype(
-      5,
+      Call.encode(5),
       Array(0, 0, 9),
       9,
       24,
@@ -143,10 +143,10 @@ class ImportVCFSuite extends SparkSuite {
       .map { case (v, s, g) => ((v, s), (querierGT(g), querierGTA(g), querierGTZ(g))) }
       .toMap
 
-    assert(r2(v1, s1) == (0, null, 1))
-    assert(r2(v1, s2) == (2, null, 0))
-    assert(r2(v2, s1) == (5, 4, 2))
-    assert(r2(v2, s2) == (5, null, 2))
+    assert(r2(v1, s1) == (Call.encode(0), null, Call.encode(1)))
+    assert(r2(v1, s2) == (Call.encode(2), null, Call.encode(0)))
+    assert(r2(v2, s1) == (Call.encode(5), Call.encode(4), Call.encode(2)))
+    assert(r2(v2, s2) == (Call.encode(5), null, Call.encode(2)))
 
     import is.hail.io.vcf.HtsjdkRecordReader._
     assert(parseCall("0/0", 2) == Call(0))

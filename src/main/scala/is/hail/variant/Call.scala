@@ -13,17 +13,60 @@ object Call extends Serializable {
     call
   }
 
+  def encode(j: Int, k: Int, phased: Boolean, ploidy: Int): Int = {
+    val gt =
+      if (phased)
+        ???
+      else
+        Genotype.gtIndexWithSwap(j, k)
+
+    encode(gt, phased, ploidy)
+  }
+
+  def encode(i: Int, phased: Boolean = false, ploidy: Int = 2): Int = {
+    require(ploidy >= 0, s"invalid ploidy: $ploidy")
+
+    var call = 0
+    call |= phased.toInt
+
+    if (ploidy > 2)
+      call |= (3 << 1)
+    else
+      call |= (ploidy << 1)
+
+    require((i >>> 29) == 0, s"invalid gt: $i. Max value is 2^29 - 1")
+    call |= i << 3
+
+    call
+  }
+
+  def isPhased(call: Call): Boolean = call != null && (call & 0x01) == 1
+
+  def ploidy(call: Call): java.lang.Integer = {
+    if (call == null)
+      null
+    else
+      (call >>> 1) & 0x03
+  }
+
+  def gtIndex(call: Call): java.lang.Integer = {
+    if (call == null)
+      null
+    else
+      call >>> 3
+  }
+
   def toString(call: Call): String =
     if (call == null)
       "./."
     else {
-      val p = Genotype.gtPair(call)
+      val p = Genotype.gtPair(gtIndex(call))
       s"${ p.j }/${ p.k }"
     }
 
   def check(call: Call, nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
-    assert(call == null || (call >= 0 && call < nGenotypes), s"Invalid genotype found `$call' for number of alleles equal to `$nAlleles'.")
+    assert(call == null || (gtIndex(call) >= 0 && gtIndex(call) < nGenotypes), s"Invalid genotype found `$call' for number of alleles equal to `$nAlleles'.")
   }
 
   def genArb: Gen[Call] =
@@ -50,27 +93,27 @@ object Call extends Serializable {
       call
     }
 
-  def isHomRef(call: Call): Boolean = call != null && call == 0
+  def isHomRef(call: Call): Boolean = call != null && gtIndex(call) == 0
 
-  def isHet(call: Call): Boolean = call != null && call > 0 && {
+  def isHet(call: Call): Boolean = call != null && gtIndex(call) > 0 && {
     val p = Genotype.gtPair(call)
     p.j != p.k
   }
 
-  def isHomVar(call: Call): Boolean = call != null && call > 0 && {
-    val p = Genotype.gtPair(call)
+  def isHomVar(call: Call): Boolean = call != null && gtIndex(call) > 0 && {
+    val p = Genotype.gtPair(gtIndex(call))
     p.j == p.k
   }
 
-  def isNonRef(call: Call): Boolean = call != null && call > 0
+  def isNonRef(call: Call): Boolean = call != null && gtIndex(call) > 0
 
-  def isHetNonRef(call: Call): Boolean = call != null && call > 0 && {
-    val p = Genotype.gtPair(call)
+  def isHetNonRef(call: Call): Boolean = call != null && gtIndex(call) > 0 && {
+    val p = Genotype.gtPair(gtIndex(call))
     p.j > 0 && p.j != p.k
   }
 
-  def isHetRef(call: Call): Boolean = call != null && call > 0 && {
-    val p = Genotype.gtPair(call)
+  def isHetRef(call: Call): Boolean = call != null && gtIndex(call) > 0 && {
+    val p = Genotype.gtPair(gtIndex(call))
     p.j == 0 && p.k > 0
   }
 
@@ -90,23 +133,23 @@ object Call extends Serializable {
     if (call == null)
       null
     else
-      box(Genotype.gtPair(call).j)
+      box(Genotype.gtPair(gtIndex(call)).j)
 
   def gtk(call: Call): java.lang.Integer =
     if (call == null)
       null
     else
-      box(Genotype.gtPair(call).k)
+      box(Genotype.gtPair(gtIndex(call)).k)
 
   def nNonRefAlleles(call: Call): java.lang.Integer =
     if (call != null)
-      Genotype.gtPair(call).nNonRefAlleles
+      Genotype.gtPair(gtIndex(call)).nNonRefAlleles
     else
       null
 
   def oneHotAlleles(call: Call, nAlleles: Int): IndexedSeq[Int] = {
     if (call != null) {
-      val gtPair = Genotype.gtPair(call)
+      val gtPair = Genotype.gtPair(gtIndex(call))
       val j = gtPair.j
       val k = gtPair.k
       new IndexedSeq[Int] with Serializable {
@@ -134,7 +177,7 @@ object Call extends Serializable {
         def apply(idx: Int): Int = {
           if (idx < 0 || idx >= nGenotypes)
             throw new ArrayIndexOutOfBoundsException(idx)
-          if (idx == call)
+          if (idx == gtIndex(call))
             1
           else
             0

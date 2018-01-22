@@ -6,7 +6,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
-import is.hail.variant.{Genotype, MatrixTable, Variant}
+import is.hail.variant.{Call, Genotype, MatrixTable, Variant}
 
 import scala.io.Source
 
@@ -44,7 +44,7 @@ object ExportVCF {
       case TString(_) =>
         sb.append(TString.loadString(m, offset))
       case TCall(_) =>
-        val p = Genotype.gtPair(m.loadInt(offset))
+        val p = Genotype.gtPair(Call.gtIndex(m.loadInt(offset)))
         sb.append(p.j)
         sb += '/'
         sb.append(p.k)
