@@ -303,8 +303,8 @@ Lastly, if both `t1` and `t2` have the same schema, but different rows, the rows
 of the two tables can be combined with `union`.
 
 
-Interacting with Tables
-=======================
+Interacting with Tables Locally
+===============================
 
 Hail has many useful methods for interacting with tables locally such as in an
 iPython notebook. Use the `show` method to see the first 10 rows of a table.
@@ -378,18 +378,29 @@ section.
 -----------
 MatrixTable
 -----------
-  - imports
-  - schema / rows table / entries table / matrix / cols table
-  - keys
-  - basic operations
+
+Import
+======
+
+Common Operations
+=================
+
     - select / drop
     - filter
     - annotate
-    - explode
-  - grouped vs ungrouped
-    - group by
-    - aggregate
-  - joins
+
+Grouped Aggregations
+====================
+
+Joins
+=====
+
+Interacting with MatrixTables Locally
+=====================================
+
+Export
+======
+
   - rows, entries, cols tables
   - exporting
     - write, rows_table etc.
