@@ -126,8 +126,7 @@ Keys
 ====
 
 Row fields can be specified to be the keys of the table with the method `key_by`.
-Keys are important for joining tables together (discussed below). Important table
-attributes are `columns`, `schema`, `global_schema`, `key`, and `num_columns`.
+Keys are important for joining tables together (discussed below).
 
 Referencing Fields
 ==================
@@ -430,16 +429,17 @@ Hail does not store the data in this format as it is inefficient when computing
 results and the on-disk representation would be massive as constant values are
 repeated per entry in the dataset.
 
-
-
 Keys
 ====
 
+Analogous to tables, matrix tables also have keys. However, instead of one key, matrix
+tables have two keys: one for the rows table and the other for the columns table. These
+can be accessed with the attributes `row_key` and `col_key` and set with the methods
+`key_rows_by` and `key_cols_by`. Keys are used for joining tables together (discussed below).
 
-rowkey_schema
-colkey_schema
-
-ordering
+In addition, each matrix table has a `partition_key`. This key is used for specifying
+the ordering of the matrix table along the row dimension, which is important for
+performance.
 
 
 Referencing Fields
@@ -509,6 +509,9 @@ Functions
     - call stats, inbreeding, hwe aggregators
     - alternate alleles
 
+--------------------------
+Other Hail Data Structures
+--------------------------
 
 ---------------------
 Where's the Genetics?
