@@ -327,7 +327,7 @@ Note that both `t1` and `t2` have been keyed by the column `Sample` with the sam
 type TString. This syntax for joining can be extended to add new row fields
 from many tables simultaneously.
 
-Lastly, if both `t1` and `t2` have the same schema, but different rows, the rows
+If both `t1` and `t2` have the same schema, but different rows, the rows
 of the two tables can be combined with `union`.
 
 
@@ -400,19 +400,57 @@ Hail provides multiple functions to export data to other formats. Tables
 can be exported to TSV files with the `export` method or written to disk in Hail's
 on-disk format with `write`. Tables can also be exported to Pandas tables with
 `to_pandas` or to Spark Dataframes with `to_spark`. Lastly, tables can be converted
-to a Hail MatrixTable with `to_matrix_table`, which is the subject of the next
+to a Hail :class:`.MatrixTable` with `to_matrix_table`, which is the subject of the next
 section.
 
 -----------
 MatrixTable
 -----------
 
+A :class:`.MatrixTable` is a distributed two-dimensional dataset consisting of
+four components: a two-dimensional matrix where each entry is indexed by row
+key(s) and column key(s), a corresponding rows table that stores all of the row
+fields which are constant for every column in the dataset, a corresponding
+columns table that stores all of the column fields that are constant for every
+row in the dataset, and a set of global fields that are constant for every entry
+in the dataset.
+
+Unlike a :class:`.Table` which has two schemas, a matrix table has four schemas
+that define the structure of the dataset. The rows table has a `row_schema`, the
+columns table has a `col_schema`, each entry in the matrix follows the schema
+defined by `entry_schema`, and the global fields have a `global_schema`.
+
+In addition, there are different operations on the matrix for each dimension
+of the data. For example, instead of just `filter` for tables, matrix tables
+have `filter_rows`, `filter_cols`, and `filter_entries`.
+
+One equivalent way of representing this data is in one combined table encompassing
+all row, column, and global fields with one row in the table per entry in the matrix (coordinate form).
+Hail does not store the data in this format as it is inefficient when computing
+results and the on-disk representation would be massive as constant values are
+repeated per entry in the dataset.
+
+
+
 Keys
 ====
+
+
+rowkey_schema
+colkey_schema
+
+ordering
+
 
 Referencing Fields
 ==================
 
+All fields (row, column, global, entry)
+are top-level and exposed as attributes on the :class:`.MatrixTable` object.
+For example, if the matrix table `mt1` had a row field `locus`, this field
+could be referenced with either ``mt1.locus`` or ``mt1['locus']``. The former
+access pattern doesn't work with field names with special characters or periods
+in it.
 
 Import
 ======
@@ -433,6 +471,8 @@ Joins
 
 Interacting with MatrixTables Locally
 =====================================
+
+
 
 Export
 ======
