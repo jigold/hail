@@ -79,9 +79,13 @@ It's schema is
 
     TStruct(Sample=TString, Status=TString, qPhen = TInt32)
 
-In addition, Hail tables also have global variables. You can think of globals as
+
+Global Fields
+=============
+
+In addition to row fields, Hail tables also have global fields. You can think of globals as
 extra fields in the table whose values are identical for every row. For example,
-the same table above with the global variable ``X = 5`` can be thought of as
+the same table above with the global field ``X = 5`` can be thought of as
 
 +---------+---------+-------+-------+
 | Sample  | Status  | qPhen |     X |
@@ -101,7 +105,7 @@ the same table above with the global variable ``X = 5`` can be thought of as
 +---------+---------+-------+-------+
 
 but the value ``5`` is only stored once for the entire dataset and NOT once per
-row of the table. The output of `describe` lists what all of the top level row
+row of the table. The output of `describe` lists what all of the row
 fields and global fields are.
 
 .. code-block::text
@@ -115,9 +119,24 @@ fields and global fields are.
         'qPhen': Int32
 
 
+Keys
+====
+
 Row fields can be specified to be the keys of the table with the method `key_by`.
 Keys are important for joining tables together (discussed below). Important table
 attributes are `columns`, `schema`, `global_schema`, `key`, and `num_columns`.
+
+Referencing Fields
+==================
+
+Each :class:`.Table` object has all of its row fields and global fields as
+attributes in its namespace. This means that the row field `Sample` can be accessed
+from table `t` with ``t.Sample`` or ``t['Sample']``. If `t` also had a global field `X`,
+then it could be accessed by either ``t.X`` or ``t['X']``. Both row fields and global
+fields are top level fields. Be aware that accessing a field with the `dot` notation will not work
+if the field name has special characters or periods in it. The Python type of each
+attribute is an :class:`.Expression`. A more detailed discussion of expressions
+is <below>.
 
 Import
 ======
@@ -212,7 +231,7 @@ over the aggregated rows.
 .. doctest::
 
     t_agg = (t.group_by('Status')
-              .aggregate(mean = agg.mean(t.qPhen)))
+              .aggregate(mean = agg.mean(t['qPhen'])))
     t_agg.show()
 
 
@@ -294,6 +313,12 @@ using Python's bracket notation. For example, below we add the column `qPhen2` f
     | HG00234 | CTRL   | 18268 |          NA |
     | HG00111 | CASE   | 30065 | 6.01300e+03 |
     +---------+--------+-------+-------------+
+
+The general format of the key word argument to `annotate` is
+
+.. code-block:: text
+
+    new_field_name = <other table> [<this table's keys >].<field to insert>
 
 Note that both `t1` and `t2` have been keyed by the column `Sample` with the same
 type TString. This syntax for joining can be extended to add new row fields
@@ -379,6 +404,7 @@ section.
 MatrixTable
 -----------
 
+
 Import
 ======
 
@@ -417,6 +443,7 @@ Expressions
   - propogation of missingness
   - debugging methods
   - How are these different than Hail objects?
+  - StructExpression is splattable
 
 ---------
 Functions
@@ -431,6 +458,11 @@ Functions
     - export vcf, gen, etc.
     - call stats, inbreeding, hwe aggregators
     - alternate alleles
+
+
+---------------------
+Where's the Genetics?
+---------------------
 
 ---------------------
 Python Considerations
