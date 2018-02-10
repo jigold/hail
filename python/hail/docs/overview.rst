@@ -221,12 +221,27 @@ with the following schema:
         'qPhen': Int32
         'bar': Int32
 
-Grouped Aggregations
-====================
+Aggregations
+============
 
-One operation we might want to do is group by the row field `Status` and then
-compute the mean of `qPhen` for each unique value of `Status`. To do this,
-we need to first create a :class:`.GroupedTable` using the `group_by` method. This
+A commonly used operation is to compute an aggregate statistic over the rows of
+the dataset. Hail provides an `aggregate`
+method along with many aggregator functions to return the result of a query.
+For example, to compute the fraction of rows with ``Status == "CASE"`` and the
+mean value for `qPhen`, we can run the following command:
+
+.. doctest::
+
+    result = t.aggregate(frac_case = agg.fraction(t.Status == "CASE"),
+                         mean_qPhen = agg.mean(t.qPhen))
+    result
+
+.. code-block:: text
+
+    Struct(frac_case=0.41, mean_qPhen=17594.625)
+
+We also might want to compute the mean value of `qPhen` for each unique value of `Status`.
+To do this, we need to first create a :class:`.GroupedTable` using the `group_by` method. This
 will expose the method `aggregate` which can be used to compute new row fields
 over the aggregated rows.
 
@@ -372,32 +387,12 @@ The row fields that are keys can be accessed with `key`. Lastly, the `num_column
 attribute returns the number of row fields and the `count` method returns the
 number of rows in the table.
 
-It is often useful to return a result as a local value in Python. Use the `aggregate`
-method along with many aggregator functions to return the result of a query.
-For example, to compute the fraction of rows with ``Status == "CASE"`` and the
-mean value for `qPhen`, we can run the following command:
-
-.. doctest::
-
-    result = t.aggregate(frac_case = agg.fraction(t.Status == "CASE"),
-                         mean_qPhen = agg.mean(t.qPhen))
-    result
-    result['frac_case']
-    result['mean_qPhen']
-
-.. code-block:: text
-
-    Struct(frac_case=0.41, mean_qPhen=17594.625)
-    0.41
-    17594.625
-
-
 Export
 ======
 
 Hail provides multiple functions to export data to other formats. Tables
 can be exported to TSV files with the `export` method or written to disk in Hail's
-on-disk format with `write`. Tables can also be exported to Pandas tables with
+on-disk format with `write` and read back in with `read_table`. Tables can also be exported to Pandas tables with
 `to_pandas` or to Spark Dataframes with `to_spark`. Lastly, tables can be converted
 to a Hail :class:`.MatrixTable` with `to_matrix_table`, which is the subject of the next
 section.
@@ -455,10 +450,23 @@ in it.
 Import
 ======
 
+Hail provides four functions to import genetic datasets as matrix tables from a
+variety of file formats: `import_vcf`, `import_plink`, `import_bgen`, and
+`import_gen`. We will be adding a function to import a matrix table from a TSV
+file in the future.
 
 Common Operations
 =================
 
+Like tables, Hail provides a number of useful methods for manipulating data in a
+matrix table. For each operation, there is a method for operating on rows, columns,
+and sometimes globals.
+
+**Select / Drop**
+
+**Filter**
+
+**Annotate**
     - select / drop
     - filter
     - annotate
@@ -480,6 +488,7 @@ Export
   - rows, entries, cols tables
   - exporting
     - write, rows_table etc.
+`read_matrix_table`
 
 -----------
 Expressions
