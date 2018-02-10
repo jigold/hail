@@ -444,7 +444,7 @@ All fields (row, column, global, entry)
 are top-level and exposed as attributes on the :class:`.MatrixTable` object.
 For example, if the matrix table `mt1` had a row field `locus`, this field
 could be referenced with either ``mt1.locus`` or ``mt1['locus']``. The former
-access pattern doesn't work with field names with special characters or periods
+access pattern does not work with field names with special characters or periods
 in it.
 
 Import
@@ -452,7 +452,19 @@ Import
 
 Hail provides four functions to import genetic datasets as matrix tables from a
 variety of file formats: `import_vcf`, `import_plink`, `import_bgen`, and
-`import_gen`. We will be adding a function to import a matrix table from a TSV
+`import_gen`.
+
+For example, to import a VCF file as a matrix table, we can do the following:
+
+.. doctest::
+
+    mt = methods.import_vcf('data/example2.vcf.bgz')
+
+    mt.describe()
+
+.. code-block:: text
+
+We will be adding a function to import a matrix table from a TSV
 file in the future.
 
 Common Operations
