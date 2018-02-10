@@ -7,6 +7,9 @@ Overview
 -------------
 Why use Hail?
 -------------
+
+Hail is...
+
   - what problems can Hail solve
   - what problems can't Hail solve
 
@@ -404,9 +407,16 @@ section.
 MatrixTable
 -----------
 
+Keys
+====
+
+Referencing Fields
+==================
+
 
 Import
 ======
+
 
 Common Operations
 =================
