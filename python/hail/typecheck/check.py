@@ -1,8 +1,9 @@
 from decorator import decorator, getargspec
-from types import ClassType, NoneType, InstanceType
+from types import ClassType # NoneType, InstanceType
 import re
 import inspect
 
+NoneType = type(None)
 
 class TypecheckFailure(Exception):
     pass

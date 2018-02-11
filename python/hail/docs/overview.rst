@@ -49,6 +49,27 @@ A valid Python object for this type is ``{"a": {"foo": 3, "baz": "hello"}, "b":
 TStructs are used throughout Hail to create complex schemas representing
 the structure of data.
 
+-----------
+Expressions
+-----------
+  - capture / broadcast
+  - basic operations depending on type
+  - if else
+  - bind
+  - can add 5 + ds.AC or ds.AC + 5 => IntExpression
+  - boolean
+  - propogation of missingness
+  - debugging methods
+  - How are these different than Hail objects?
+
+---------
+Functions
+---------
+  - min, max, count, etc.
+  - randomness (pcoin, etc) -- plus note on why this isn't stable
+  - statistical tests
+  - aggregators
+
 -----
 Table
 -----
@@ -180,6 +201,8 @@ field `Sample`, add a new global field `foo`, and select only the row fields `Sa
 `qPhen` as well as define a new row field `bar` which is the product of `qPhen` and `SampleInt`.
 Lastly, we can use `show` to view the first 10 rows of the new table.
 
+
+# FIXME: add transmute and explode
 .. doctest::
 
     t_new = t.filter(t['qPhen'] < 15000)
@@ -226,7 +249,7 @@ Aggregations
 
 A commonly used operation is to compute an aggregate statistic over the rows of
 the dataset. Hail provides an `aggregate`
-method along with many aggregator functions to return the result of a query.
+method along with many `aggregator functions` to return the result of a query.
 For example, to compute the fraction of rows with ``Status == "CASE"`` and the
 mean value for `qPhen`, we can run the following command:
 
@@ -243,7 +266,7 @@ mean value for `qPhen`, we can run the following command:
 We also might want to compute the mean value of `qPhen` for each unique value of `Status`.
 To do this, we need to first create a :class:`.GroupedTable` using the `group_by` method. This
 will expose the method `aggregate` which can be used to compute new row fields
-over the aggregated rows.
+over the grouped-by rows.
 
 .. doctest::
 
@@ -452,39 +475,186 @@ Import
 
 Hail provides four functions to import genetic datasets as matrix tables from a
 variety of file formats: `import_vcf`, `import_plink`, `import_bgen`, and
-`import_gen`.
+`import_gen`. We will be adding a function to import a matrix table from a TSV
+file in the future.
 
-For example, to import a VCF file as a matrix table, we can do the following:
+An example of importing data from a VCF file to a matrix table follows:
 
 .. doctest::
 
     mt = methods.import_vcf('data/example2.vcf.bgz')
-
     mt.describe()
+
+The `describe` method shows the schemas for the global fields, column fields,
+row fields, entry fields, as well as the column key(s), the row key(s), and the
+partition key.
 
 .. code-block:: text
 
-We will be adding a function to import a matrix table from a TSV
-file in the future.
+    ----------------------------------------
+    Global fields:
+        None
+    ----------------------------------------
+    Column fields:
+        's': String
+    ----------------------------------------
+    Row fields:
+        'locus': Locus(GRCh37)
+        'alleles': Array[String]
+        'rsid': String
+        'qual': Float64
+        'filters': Set[String]
+        'info': Struct {
+            NEGATIVE_TRAIN_SITE: Boolean,
+            HWP: Float64,
+            AC: Array[Int32],
+            culprit: String,
+            .
+            .
+            .
+        }
+    ----------------------------------------
+    Entry fields:
+        'GT': Call
+        'AD': Array[+Int32]
+        'DP': Int32
+        'GQ': Int32
+        'PL': Array[+Int32]
+    ----------------------------------------
+    Column key:
+        's': String
+    Row key:
+        'locus': Locus(GRCh37)
+        'alleles': Array[String]
+    Partition key:
+        'locus': Locus(GRCh37)
+    ----------------------------------------
+
 
 Common Operations
 =================
 
 Like tables, Hail provides a number of useful methods for manipulating data in a
-matrix table. For each operation, there is a method for operating on rows, columns,
-and sometimes globals.
+matrix table. For each operation, there is a method for operating on rows,
+columns, entries, and globals.
 
-**Select / Drop**
+**Select**
+
+Select is used to create a new schema for a dimension of the matrix table. For
+example, following the matrix table schemas from importing a VCF file (shown above),
+to create a hard calls dataset where each entry only contains the `GT` field
+one can do the following:
+
+    >>> mt_new = mt.select_entries('GT')
+    >>> mt_new.entry_schema.pretty()
+    Struct {
+        GT: Call
+    }
+
+Hail has four select methods that correspond to modifying the schema of the row
+fields, the column fields, the entry fields, and the global fields.
+
+- `select_rows`
+- `select_cols`
+- `select_entries`
+- `select_globals`
+
+Each method can take either strings referring to top-level fields, an attribute
+reference (useful for accessing nested fields), as well as key word arguments
+``KEY=VALUE`` to compute new fields. The Python unpack operator ``**`` can be used
+to specify that all fields of a Struct should become top level fields. However,
+be aware that all field names must be unique across rows, columns, entries, and globals.
+So in this example, `**mt['info']` would fail because `DP` already exists as an entry field.
+
+The example below will keep
+the row fields `locus` and `alleles` as well as add two new fields: `AC` is making
+the subfield `AC` into a top level field and `n_filters` is a new computed field.
+
+.. doctest::
+
+    mt_new = mt.select_rows('locus',
+                            'alleles',
+                            AC = mt['info']['AC'],
+                            n_filters = mt['filters'].length())
+
+    mt_new.row_schema.pretty()
+
+.. code-block:: text
+
+    Struct {
+        locus: Locus(GRCh37),
+        alleles: Array[String],
+        AC: Array[Int32],
+        n_filters: Int32
+    }
+
+The order of the fields entered as arguments will be maintained in the new
+matrix table.
+
+**Drop**
+
+Analogous to `select`, `drop` will remove any top level field. An example of
+removing the `GQ` entry field is
+
+    >>> mt_new = mt.drop('GQ')
+    >>> mt_new.entry_schema.pretty()
+    Struct {
+        GT: Call,
+        AD: Array[+Int32],
+        DP: Int32,
+        PL: Array[+Int32]
+    }
+
+Hail also has two methods to drop all rows or all columns from the matrix table:
+`drop_rows` and `drop_cols`.
 
 **Filter**
 
-**Annotate**
-    - select / drop
-    - filter
-    - annotate
+Hail has three methods to filter the rows of a matrix table based on a condition.
 
-Grouped Aggregations
-====================
+- `filter_rows`
+- `filter_cols`
+- `filter_entries`
+
+Filter methods take a boolean expression as its argument.
+
+An example of filtering columns where the fraction of non-missing elements for
+the entry field `GT` is greater than 0.95.
+
+    >>> mt_new = mt.filter_cols(agg.fraction(functions.is_defined(mt.GT)) >= 0.95)
+    >>> mt.count_cols()
+    100
+    >>> mt_new.count_cols()
+    91
+
+- `filter_rows_list`
+- `filter_cols_list`
+
+
+**Annotate**
+
+- `annotate_rows`
+- `annotate_cols`
+- `annotate_entries`
+- `annotate_globals`
+
+**Transmute**
+
+Transmute is similar to `annotate` except
+
+- `transmute_rows`
+- `transmute_cols`
+- `transmute_entries`
+- `transmute_globals`
+
+**Explode**
+
+- `explode_rows`
+- `explode_cols`
+
+
+Aggregations
+============
 
 Joins
 =====
@@ -492,7 +662,9 @@ Joins
 Interacting with MatrixTables Locally
 =====================================
 
-
+describe, sample, head
+rows_table, cols_table, entries_table => exporting results
+count_cols, count_rows
 
 Export
 ======
@@ -502,41 +674,25 @@ Export
     - write, rows_table etc.
 `read_matrix_table`
 
------------
-Expressions
------------
-  - capture / broadcast
-  - basic operations depending on type
-  - if else
-  - bind
-  - can add 5 + ds.AC or ds.AC + 5 => IntExpression
-  - boolean
-  - propogation of missingness
-  - debugging methods
-  - How are these different than Hail objects?
-  - StructExpression is splattable
 
----------
-Functions
----------
-  - min, max, count, etc.
-  - aggregators
-  - linear algebra
-  - randomness (pcoin, etc) -- plus note on why this isn't stable
-  - statistical tests
+--------------------------
+Other Hail Data Structures
+--------------------------
+- linear algebra
+- block matrix
+
+
+---------------------
+Where's the Genetics?
+---------------------
   - genetics specific
     - import vcf, gen, bgen
     - export vcf, gen, etc.
     - call stats, inbreeding, hwe aggregators
     - alternate alleles
-
---------------------------
-Other Hail Data Structures
---------------------------
-
----------------------
-Where's the Genetics?
----------------------
+- tdt
+- genetics objects
+- genetics types
 
 ---------------------
 Python Considerations
@@ -559,5 +715,5 @@ Performance Considerations
 -----
 Other
 -----
-  - expanding fields with splat / double splat
   - hadoop_open, etc.
+
