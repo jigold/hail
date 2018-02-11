@@ -63,6 +63,9 @@ Expressions
   - propogation of missingness
   - debugging methods
   - How are these different than Hail objects?
+  - composable x = mt.DP + mt.GQ
+    x + 5
+  - define null expressions
 
 ---------
 Functions
@@ -469,7 +472,8 @@ Keys
 ====
 
 Analogous to tables, matrix tables also have keys. However, instead of one key, matrix
-tables have two keys: one for the rows table and the other for the columns table. These
+tables have two keys: one for the rows table and the other for the columns table.  Entries
+are indexed by both the row keys and column keys. The keys
 can be accessed with the attributes `row_key` and `col_key` and set with the methods
 `key_rows_by` and `key_cols_by`. Keys are used for joining tables together (discussed below).
 
@@ -508,6 +512,20 @@ with type `Locus(GRCh37)` and it is a row field of the MatrixTable `mt`.
     <hail.expr.expression.LocusExpression object at 0x10b17f790>
       Type: Locus(GRCh37)
       Index:
+        row of <hail.matrixtable.MatrixTable object at 0x10a6a3e50>
+
+Likewise, ``mt.DP`` would be an :class:`.Int32Expression` with type `Int32` and
+is an entry field of `mt`. It is indexed by both rows and columns as denoted
+by its indices when printing the expression.
+
+    >>> mt.DP
+
+.. code-block:: text
+
+    <hail.expr.expression.Int32Expression object at 0x10b2cec10>
+      Type: Int32
+      Indices:
+        column of <hail.matrixtable.MatrixTable object at 0x10a6a3e50>
         row of <hail.matrixtable.MatrixTable object at 0x10a6a3e50>
 
 
@@ -572,8 +590,104 @@ Common Operations
 =================
 
 Like tables, Hail provides a number of useful methods for manipulating data in a
-matrix table. For each operation, there is a method for operating on rows,
-columns, entries, and globals.
+matrix table.
+
+**Filter**
+
+Hail has three methods to filter a matrix table based on a condition:
+
+- `filter_rows`
+- `filter_cols`
+- `filter_entries`
+
+Filter methods take a `boolean expression` as its argument. The simplest boolean
+expression is ``False``, which will remove all rows, or ``True``, which will
+keep all rows.
+
+Just filtering out all rows, columns, or entries isn't particularly useful. Often,
+we want to filter parts of a dataset based on a condition the elements satisfy.
+A commonly used application in genetics is to only keep rows where the number of
+alleles is two (biallelic). This can be expressed as follows:
+
+    >>> mt_biallelic = mt.filter_rows(mt['alleles'].length() == 2)
+
+So what is going on here? The reference to the row field `alleles` returns an
+expression of type `Array[String] :class:`.ArrayStringExpression`. Array expressions
+have multiple methods on them including `length` which returns the number of elements
+in the array. This expression representing the length of the row field `alleles`
+is compared to the number 2 with the `==` comparison operator to return a boolean expression.
+Note that the expression `mt['alleles'].length() == 2` is not actually a value
+in Python. Rather it represents a recipe for computation that is then used by
+Hail to evaluate each row in the matrix table for whether the condition is met.
+
+More complicated expressions can be written with a combination of Hail's functions.
+An example of filtering columns where the fraction of non-missing elements for
+the entry field `GT` is greater than 0.95 utilizes the function `is_defined` and
+the aggregator function `fraction`.
+
+    >>> mt_new = mt.filter_cols(agg.fraction(functions.is_defined(mt.GT)) >= 0.95)
+    >>> mt.count_cols()
+    100
+    >>> mt_new.count_cols()
+    91
+
+In this case, the expression ``mt.GT`` is an aggregable because the function context
+is an operation on columns (`filter_cols`). This means for each column in the
+matrix table, we have N `GT` entries where N is the number of rows in the dataset.
+Aggregables cannot be realized as an actual value, so we must use an aggregator
+function to reduce the aggregable to an actual value.
+
+In the example above, `functions.is_defined` is applied to each element of the aggregable ``mt.GT``
+to transform it from an Aggregable[Call] to an Aggregable[Boolean] where ``True``
+means the value `GT` was defined or ``False`` for missing. `agg.fraction` requires
+an Aggregable[Boolean] for its input, which it then reduces to a single value by computing the
+number of ``True`` values divided by `N`, the length of the aggregable. The result
+of `fraction` is a single value per column, which can then be compared
+to the value `0.95` with the `>=` comparison operator.
+
+Hail also provides two methods to filter columns or rows based on an input list
+of values. This is useful if you have a known subset of the dataset you want to
+subset to.
+
+- `filter_rows_list`
+- `filter_cols_list`
+
+
+**Annotate**
+
+Hail provides four methods to add fields to a matrix table or update existing fields:
+
+- `annotate_rows`
+- `annotate_cols`
+- `annotate_entries`
+- `annotate_globals`
+
+Annotate methods take key-word arguments where the key is the name of the new
+field to add and the value is an expression specifying what should be added.
+
+The simplest example is adding a new global field `foo` that just contains the constant
+5.
+
+    >>> mt_new = mt.annotate_globals(foo = 5)
+    >>> mt.global_schema.pretty()
+    Struct {
+        foo: Int32
+    }
+
+Another example is adding a new row field `call_rate` which computes the fraction
+of non-missing entries `GT` per row. This is similar to the filter example described
+above, except the result of `agg.fraction(functions.is_defined(mt.GT))` is stored
+as a new row field in the matrix table and the operation is performed over rows
+rather than columns.
+
+    >>> mt_new = mt.annotate_rows(call_rate = agg.fraction(functions.is_defined(mt.GT)))
+
+Annotate methods are also useful for updating values. For example, to update the
+GT entry field to be missing if `GQ` is less than 20, we can do the following:
+
+    >>> mt_new = mt.annotate_entries(GT = functions.cond(mt.GQ < 20,
+    ...                                                  functions.null(TCall()),
+    ...                                                  mt.GT))
 
 **Select**
 
@@ -645,91 +759,93 @@ removing the `GQ` entry field is
 Hail also has two methods to drop all rows or all columns from the matrix table:
 `drop_rows` and `drop_cols`.
 
-**Filter**
-
-Hail has three methods to filter the rows of a matrix table based on a condition.
-
-- `filter_rows`
-- `filter_cols`
-- `filter_entries`
-
-Filter methods take a `boolean expression` as its argument. The simplest boolean
-expression is ``False``, which will remove all rows, or ``True``, which will
-keep all rows.
-
-Just filtering out all rows, columns, or entries isn't particularly useful. Often,
-we want to filter parts of a dataset based on a condition the elements satisfy.
-A commonly used application in genetics is to only keep rows where the number of
-alleles is two (biallelic). This can be expressed as follows:
-
-    >>> mt_biallelic = mt.filter_rows(mt['alleles'].length() == 2)
-
-So what is going on here? The reference to the row field `alleles` returns an
-expression of type `Array[String] :class:`.ArrayStringExpression`. Array expressions
-have multiple methods on them including `length` which returns the number of elements
-in the array. This expression representing the length of the row field `alleles`
-is compared to the number 2 with the `==` comparison operator to return a boolean expression.
-Note that the expression `mt['alleles'].length() == 2` is not actually a value
-in Python. Rather it represents a recipe for computation that is then used by
-Hail to evaluate each row in the matrix table for whether the condition is met.
-
-More complicated expressions can be written with a combination of Hail's functions.
-An example of filtering columns where the fraction of non-missing elements for
-the entry field `GT` is greater than 0.95 utilizes the function `is_defined` and
-the aggregator function `fraction`.
-
-    >>> mt_new = mt.filter_cols(agg.fraction(functions.is_defined(mt.GT)) >= 0.95)
-    >>> mt.count_cols()
-    100
-    >>> mt_new.count_cols()
-    91
-
-In this case, the expression ``mt.GT`` is an aggregable because the function context
-is an operation on columns (`filter_cols`). This means for each column in the
-matrix table, we have N `GT` entries where N is the number of rows in the dataset.
-Aggregables cannot be realized as an actual value, so we must use an aggregator
-function to reduce the aggregable to an actual value.
-
-In the example above, `functions.is_defined` is applied to each element of the aggregable ``mt.GT``
-to transform it from an Aggregable[Call] to an Aggregable[Boolean] where ``True``
-means the value `GT` was defined or ``False`` for missing. `agg.fraction` requires
-an Aggregable[Boolean] for its input, which it then reduces to a single value by computing the
-number of ``True`` values divided by `N`, the length of the aggregable. The result
-of `fraction` is a single value per column, which can then be compared
-to the value `0.95` with the `>=` comparison operator.
-
-Hail also provides two methods to filter columns or rows based on an input list
-of values. This is useful if you have a known subset of the dataset you want to
-subset to.
-
-- `filter_rows_list`
-- `filter_cols_list`
-
-
-**Annotate**
-
-- `annotate_rows`
-- `annotate_cols`
-- `annotate_entries`
-- `annotate_globals`
-
-**Transmute**
-
-Transmute is similar to `annotate` except
-
-- `transmute_rows`
-- `transmute_cols`
-- `transmute_entries`
-- `transmute_globals`
-
 **Explode**
+
+Explode is used to unpack a row or column field that is of type array or
+set.
 
 - `explode_rows`
 - `explode_cols`
 
+One use case of explode is to duplicate rows:
+
+    >>> mt_new = mt.annotate_rows(replicate_num = [1, 2])
+    >>> mt_new = mt_new.explode_rows(mt_new['replicate_num'])
+    >>> mt.count_rows()
+    7
+    >>> mt_new.count_rows()
+    14
+
+    >>> mt_new.rows_table().select('locus', 'alleles', 'replicate_num').show()
+
+.. code-block:: text
+
+    +---------------+-----------------+---------------+
+    | locus         | alleles         | replicate_num |
+    +---------------+-----------------+---------------+
+    | Locus(GRCh37) | Array[String]   |         Int32 |
+    +---------------+-----------------+---------------+
+    | 20:12990057   | ["T","A"]       |             1 |
+    | 20:12990057   | ["T","A"]       |             2 |
+    | 20:13090733   | ["A","AT"]      |             1 |
+    | 20:13090733   | ["A","AT"]      |             2 |
+    | 20:13695824   | ["CAA","C"]     |             1 |
+    | 20:13695824   | ["CAA","C"]     |             2 |
+    | 20:13839933   | ["T","C"]       |             1 |
+    | 20:13839933   | ["T","C"]       |             2 |
+    | 20:15948326   | ["GAAAAAA","G"] |             1 |
+    | 20:15948326   | ["GAAAAAA","G"] |             2 |
+    +---------------+-----------------+---------------+
 
 Aggregations
 ============
+
+Like :class:`Table`, Hail provides three methods to compute aggregate statistics:
+
+- `aggregate_rows`
+- `aggregate_cols`
+- `aggregate_entries`
+
+
+
+ A commonly used operation is to compute an aggregate statistic over the rows of
+the dataset. Hail provides an `aggregate`
+method along with many `aggregator functions` to return the result of a query.
+For example, to compute the fraction of rows with ``Status == "CASE"`` and the
+mean value for `qPhen`, we can run the following command:
+
+.. doctest::
+
+    result = t.aggregate(frac_case = agg.fraction(t.Status == "CASE"),
+                         mean_qPhen = agg.mean(t.qPhen))
+    result
+
+.. code-block:: text
+
+    Struct(frac_case=0.41, mean_qPhen=17594.625)
+
+We also might want to compute the mean value of `qPhen` for each unique value of `Status`.
+To do this, we need to first create a :class:`.GroupedTable` using the `group_by` method. This
+will expose the method `aggregate` which can be used to compute new row fields
+over the grouped-by rows.
+
+.. doctest::
+
+    t_agg = (t.group_by('Status')
+              .aggregate(mean = agg.mean(t['qPhen'])))
+    t_agg.show()
+
+
+.. code-block:: text
+
+    +--------+-------------+
+    | Status |        mean |
+    +--------+-------------+
+    | String |     Float64 |
+    +--------+-------------+
+    | CASE   | 1.83183e+04 |
+    | CTRL   | 1.70995e+04 |
+    +--------+-------------+
 
 Joins
 =====
