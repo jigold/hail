@@ -1,5 +1,7 @@
 .. _sec-overview:
 
+.. py:currentmodule:: hail
+
 ========
 Overview
 ========
@@ -203,6 +205,7 @@ Lastly, we can use `show` to view the first 10 rows of the new table.
 
 
 # FIXME: add transmute and explode
+
 .. doctest::
 
     t_new = t.filter(t['qPhen'] < 15000)
@@ -465,10 +468,33 @@ Referencing Fields
 
 All fields (row, column, global, entry)
 are top-level and exposed as attributes on the :class:`.MatrixTable` object.
-For example, if the matrix table `mt1` had a row field `locus`, this field
-could be referenced with either ``mt1.locus`` or ``mt1['locus']``. The former
+For example, if the matrix table `mt` had a row field `locus`, this field
+could be referenced with either ``mt.locus`` or ``mt['locus']``. The former
 access pattern does not work with field names with special characters or periods
 in it.
+
+The result of referencing a field from a matrix table is an :class:`Expression` which knows its type
+and knows its source as well as whether it is a row field, column field, entry field, or global field.
+Hail uses this context to know which operations are allowed for a given expression.
+
+When evaluated in a Python interpreter, we can see ``mt.locus`` is a :class:`.LocusExpression`
+with type `Locus(GRCh37)` and it is a row field of the MatrixTable `mt`.
+
+    >>> mt
+
+.. code-block:: text
+
+    <hail.matrixtable.MatrixTable at 0x10a6a3e50>
+
+    >>> mt.locus
+
+.. code-block:: text
+
+    <hail.expr.expression.LocusExpression object at 0x10b17f790>
+      Type: Locus(GRCh37)
+      Index:
+        row of <hail.matrixtable.MatrixTable object at 0x10a6a3e50>
+
 
 Import
 ======
@@ -480,17 +506,13 @@ file in the future.
 
 An example of importing data from a VCF file to a matrix table follows:
 
-.. doctest::
-
-    mt = methods.import_vcf('data/example2.vcf.bgz')
-    mt.describe()
+    >>> mt = methods.import_vcf('data/example2.vcf.bgz')
 
 The `describe` method shows the schemas for the global fields, column fields,
 row fields, entry fields, as well as the column key(s), the row key(s), and the
 partition key.
 
-.. code-block:: text
-
+    >>> mt.describe()
     ----------------------------------------
     Global fields:
         None
@@ -616,16 +638,54 @@ Hail has three methods to filter the rows of a matrix table based on a condition
 - `filter_cols`
 - `filter_entries`
 
-Filter methods take a boolean expression as its argument.
+Filter methods take a `boolean expression` as its argument. The simplest boolean
+expression is ``False``, which will remove all rows, or ``True``, which will
+keep all rows.
 
+Just filtering out all rows, columns, or entries isn't particularly useful. Often,
+we want to filter parts of a dataset based on a condition the elements satisfy.
+A commonly used application in genetics is to only keep rows where the number of
+alleles is two (biallelic). This can be expressed as follows:
+
+    >>> mt_biallelic = mt.filter_rows(mt['alleles'].length() == 2)
+
+So what is going on here? The reference to the row field `alleles` returns an
+expression of type `Array[String] :class:`.ArrayStringExpression`. Array expressions
+have multiple methods on them including `length` which returns the number of elements
+in the array. This expression representing the length of the row field `alleles`
+is compared to the number 2 with the `==` comparison operator to return a boolean expression.
+Note that the expression `mt['alleles'].length() == 2` is not actually a value
+in Python. Rather it represents a recipe for computation that is then used by
+Hail to evaluate each row in the matrix table for whether the condition is met.
+
+More complicated expressions can be written with a combination of Hail's functions.
 An example of filtering columns where the fraction of non-missing elements for
-the entry field `GT` is greater than 0.95.
+the entry field `GT` is greater than 0.95 utilizes the function `is_defined` and
+the aggregator function `fraction`.
 
     >>> mt_new = mt.filter_cols(agg.fraction(functions.is_defined(mt.GT)) >= 0.95)
     >>> mt.count_cols()
     100
     >>> mt_new.count_cols()
     91
+
+In this case, the expression ``mt.GT`` is an aggregable because the function context
+is an operation on columns (`filter_cols`). This means for each column in the
+matrix table, we have N `GT` entries where N is the number of rows in the dataset.
+Aggregables cannot be realized as an actual value, so we must use an aggregator
+function to reduce the aggregable to an actual value.
+
+In the example above, `functions.is_defined` is applied to each element of the aggregable ``mt.GT``
+to transform it from an Aggregable[Call] to an Aggregable[Boolean] where ``True``
+means the value `GT` was defined or ``False`` for missing. `agg.fraction` requires
+an Aggregable[Boolean] for its input, which it then reduces to a single value by computing the
+number of ``True`` values divided by `N`, the length of the aggregable. The result
+of `fraction` is a single value per column, which can then be compared
+to the value `0.95` with the `>=` comparison operator.
+
+Hail also provides two methods to filter columns or rows based on an input list
+of values. This is useful if you have a known subset of the dataset you want to
+subset to.
 
 - `filter_rows_list`
 - `filter_cols_list`
