@@ -160,8 +160,23 @@ from table `t` with ``t.Sample`` or ``t['Sample']``. If `t` also had a global fi
 then it could be accessed by either ``t.X`` or ``t['X']``. Both row fields and global
 fields are top level fields. Be aware that accessing a field with the `dot` notation will not work
 if the field name has special characters or periods in it. The Python type of each
-attribute is an :class:`.Expression`. A more detailed discussion of expressions
-is <below>.
+attribute is an :class:`.Expression` that also contains context about its type and source,
+in this case a row field of table `t`.
+
+    >>> t
+
+.. code-block:: text
+
+    is.hail.table.Table@42dd544f
+
+    >>> t.Sample
+
+.. code-block:: text
+
+    <hail.expr.expression.StringExpression object at 0x10b498290>
+      Type: String
+      Index:
+        row of is.hail.table.Table@42dd544f
 
 Import
 ======
@@ -172,7 +187,7 @@ done with the `import_table` function.
 
 .. doctest::
 
-    t = functions.import_table("data/kt_example1.tsv", impute=True)
+    t = methods.import_table("data/kt_example1.tsv", impute=True)
 
 A table can also be created from Python
 objects with `parallelize`. For example, a table with only the first two rows
