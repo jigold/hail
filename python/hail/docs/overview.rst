@@ -307,6 +307,9 @@ over the grouped-by rows.
     | CTRL   | 1.70995e+04 |
     +--------+-------------+
 
+Note that the result of `t.group_by(...).aggregate(...)` is a new :class:`.Table`
+while the result of `t.aggregate(...)` is a :class:`.Struct`.
+
 Joins
 =====
 
@@ -800,58 +803,133 @@ One use case of explode is to duplicate rows:
 Aggregations
 ============
 
-Like :class:`Table`, Hail provides three methods to compute aggregate statistics:
+Like :class:`Table`, Hail provides three methods to compute aggregate statistics.
 
 - `aggregate_rows`
 - `aggregate_cols`
 - `aggregate_entries`
 
+These methods take key word arguments where the key is the name of the value to
+compute and the value is the expression for what to compute. The return value
+of aggregate functions is a :class:`.Struct`.
+
+An example of querying entries is to compute the fraction of values where `GT`
+is defined across the entire dataset (call rate):
+
+    >>> result = mt.aggregate_entries(call_rate = agg.fraction(functions.is_defined(mt.GT)))
+    >>> result.call_rate
+    0.9871428571428571
+
+We can also compute multiple global statistics simulatenously by supplying multiple
+key-word arguments:
+
+    >>> result = mt.aggregate_entries(dp_stats = agg.stats(mt.DP),
+    ...                               gq_stats = agg.stats(mt.GQ))
+
+    >>> result.dp_stats
+    Struct(min=5.0, max=161.0, sum=22587.0, stdev=17.7420068551, nNotMissing=699, mean=32.313304721)
 
 
- A commonly used operation is to compute an aggregate statistic over the rows of
-the dataset. Hail provides an `aggregate`
-method along with many `aggregator functions` to return the result of a query.
-For example, to compute the fraction of rows with ``Status == "CASE"`` and the
-mean value for `qPhen`, we can run the following command:
+Group-By
+========
 
-.. doctest::
+Hail provides two methods to group data by either a row field or a column field
+and compute an aggregated statistic for each grouping which then becomes the
+entry fields of a new :class:`.MatrixTable`.
 
-    result = t.aggregate(frac_case = agg.fraction(t.Status == "CASE"),
-                         mean_qPhen = agg.mean(t.qPhen))
-    result
+- `group_rows_by`
+- `group_cols_by`
 
-.. code-block:: text
+First let's add a random phenotype
+as a new column field `Status` and then compute statistics about the entry field `GQ`
+for each grouping of `Status`.
 
-    Struct(frac_case=0.41, mean_qPhen=17594.625)
+    >>> mt_ann = mt.annotate_cols(Status = functions.cond(functions.rand_bool(0.5),
+    ...                                                   "CASE",
+    ...                                                   "CONTROL"))
 
-We also might want to compute the mean value of `qPhen` for each unique value of `Status`.
-To do this, we need to first create a :class:`.GroupedTable` using the `group_by` method. This
-will expose the method `aggregate` which can be used to compute new row fields
-over the grouped-by rows.
+Next we group the columns by `Status` and specify the new entry field will be
+stats on `GQ` that are computed for each grouping of `Status`:
 
-.. doctest::
+    >>> mt_grouped = (mt_ann.group_cols_by(mt_ann['Status'])
+    ...                 .aggregate(gq_stats = agg.stats(mt_ann.GQ)))
 
-    t_agg = (t.group_by('Status')
-              .aggregate(mean = agg.mean(t['qPhen'])))
-    t_agg.show()
+    >>> mt_grouped.entry_schema().pretty()
+    Struct {
+        gq_stats: Struct {
+            mean: Float64,
+            stdev: Float64,
+            min: Float64,
+            max: Float64,
+            nNotMissing: Int64,
+            sum: Float64
+        }
+    }
 
-
-.. code-block:: text
-
-    +--------+-------------+
-    | Status |        mean |
-    +--------+-------------+
-    | String |     Float64 |
-    +--------+-------------+
-    | CASE   | 1.83183e+04 |
-    | CTRL   | 1.70995e+04 |
-    +--------+-------------+
+    >>> mt_grouped.col_schema().pretty()
+    Struct {
+        Status: String
+    }
 
 Joins
 =====
 
+Hail provides two methods to join :class:`.MatrixTable`s together:
+
+- `union_join_cols`
+- `union_join_rows`
+
+`union_join_cols` joins matrix tables together by performing an inner join
+on rows while concatenating columns together (similar to `paste` in Unix).
+Likewise, `union_join_rows` performs an inner join on columns while concatenating
+rows together (similar to `cat` in Unix).
+
+In addition, Hail provides support for joining data from multiple sources together
+if the keys of each source are compatible (same order and type, but the names do
+not need to be identical) using Python's bracket notation ``[]``. The arguments
+inside the brackets are the destination key as a single value or a tuple if there
+are multiple destination keys.
+
+For example, we can annotate rows with row fields from another matrix table or table.
+Let `gnomad_data` be a :class:`.Table` keyed by two row fields with type TLocus and
+TArray(TString), which matches the row keys of `mt`:
+
+    >>> mt_new = mt.annotate_rows(gnomad_ann = gnomad_data[(mt.locus, mt.alleles)])
+
+This command will add a new field `gnomad_ann` which is the result of joining
+between the `locus` and `alleles` row fields of `gnomad_data` and the `locus`
+row field of the matrix table `mt`. For every row in which the keys intersect,
+a new row field `gnomad_ann` which is of type TStruct with fields equal to the
+row fields of `gnomad_data`. For rows where the keys do not intersect, a Struct is
+added with field names equal to the row fields of `gnomad_data`, but whose values
+are all set to missing.
+
+If we only cared about adding one new row field such as `AF` from `gnomad_data`,
+we could do the following:
+
+    >>> mt_new = mt.annotate_rows(gnomad_af = gnomad_data[(mt.locus, mt.alleles)]['AF'])
+
+Analogously, we can add new column fields from a table. In this example, `pheno_data`
+is a table with one key of type TString, which matches the column key of the matrix
+table `mt`. A new column field `phenotypes` will be added which is a Struct containing
+the row fields of the table `pheno_data`.
+
+    >>> mt_new = mt.annotate_cols(phenotypes = pheno_data[mt.s])
+
+This implicit join syntax can also be used to add fields from one matrix table
+to another matrix table.
+
+    >>> mt_new = mt.annotate_cols(phenotypes = mt1[mt.s]['SampleID2'])
+
+
 Interacting with MatrixTables Locally
 =====================================
+
+Some useful methods to interact with matrix tables locally are `describe`,
+`head`, and `sample`. `describe` prints out the schema for all row fields, column
+fields, entry fields, and global fields as well as the row keys, column keys, and
+the partition key. `head` will return a new matrix table with only the first N
+rows.
 
 describe, sample, head
 rows_table, cols_table, entries_table => exporting results
