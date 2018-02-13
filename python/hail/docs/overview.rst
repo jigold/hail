@@ -54,11 +54,239 @@ the structure of data.
 -----------
 Expressions
 -----------
+
+The Python language allows users to specify their computations using expressions.
+For example, a simple expression is ``5 + 6``. This will be evaluated and return
+``11``. You can also assign expressions to variables and then add variable expressions
+together such as ``x = 5; y = 6; x + y``.
+
+The equivalent of a Python expression in Hail is the :class:`.Expression` class.
+Hail expressions are used to specify what computations should be executed on a
+dataset such as :class:`.Table`s or :class:`.MatrixTable`s. An expression can represent a single value
+such as the int value ``5`` or they can represent the composition of multiple expressions
+together and function application. All expressions have a type. For example, an :class:`.StringExpression` would
+have the Hail type :class:`.TString`.
+
+The Hail equivalent of the Python example above would be as follows:
+
+    >>> x = hl.capture(5)
+    >>> y = hl.capture(6)
+
+The `capture` function is used to convert basic Python objects such as strings, ints,
+lists, and dictionaries into their corresponding Hail expression objects.
+`capture` also can be applied to Hail objects such as :class:`.Struct`, :class:`.Locus`,
+:class:`.Interval`, and :class:`.Call`. The `broadcast` function has the same
+functionality as `capture`, but should be used for larger objects such as
+a large list or dictionary.
+
+We can print ``x`` in a Python interpreter and see that ``x`` is an :class:`.Int32Expression`.
+This makes sense because ``5`` is a Python :obj:`int`.
+
+    >>> x
+    <hail.expr.expression.Int32Expression object at 0x10cb5fb50>
+      Type: Int32
+      Index: None
+
+We can add two :class:`.Int32Expression` objects together just like with Python
+:obj:`int`s. Unlike Python, ``x + y`` returns another :class:`.Int32Expression` representing the computation
+of ``x + y`` and not an actual value.
+
+    >>> x + y
+    <hail.expr.expression.Int32Expression object at 0x10cb5b110>
+      Type: Int32
+      Index: None
+
+To obtain an actual value, Hail has the `eval_expr` function which will execute the
+expression on the input data and return a value. `eval_expr_typed` does the same thing
+but also returns the Hail type corresponding to the value.
+
+    >>> hl.eval_expr(x + y)
+    11
+    >>> hl.eval_expr_typed(x + y)
+    (11, TInt32())
+
+We can also add Python :obj:`int` to an :class:`.Int32Expression`.
+
+    >>> x + 3
+    <hail.expr.expression.Int32Expression object at 0x10cb218d0>
+      Type: Int32
+      Index: None
+
+Addition is cumutative, so we can also add an :class:`.Int32Expression` to an
+:obj:`int`.
+
+    >>> 3 + x
+    <hail.expr.expression.Int32Expression object at 0x10cb4d8d0>
+      Type: Int32
+      Index: None
+
+Hail has many subclasses of :class:`.Expression` -- one for each Hail type. Each
+subclass defines possible methods and operations that can be applied. For example,
+if we have a list of :obj:`int` in Python, we can convert this to a Hail :class:`.ArrayInt32Expression`.
+
+    >>> a = hl.capture([1, 2, -3, 0, 5])
+    >>> a
+    <hail.expr.expression.ArrayInt32Expression object at 0x10cb64390>
+      Type: Array[Int32]
+      Index: None
+
+:class:`.ArrayInt32Expression` has many methods that are documented `here`. We
+can obtain the ith element using Python's index notation with ``a[i]``. The resultant
+expression will be a :class:`.Int32Expression` because each element of the array is
+an integer.
+
+    >>> a[1]
+    <hail.expr.expression.Int32Expression object at 0x10bbdd450>
+      Type: Int32
+      Index: None
+
+Likewise, if we `sort` the array, the resultant expression is a :class:`.ArrayInt32Expression`.
+
+    >>> a.sort()
+    <hail.expr.expression.ArrayInt32Expression object at 0x10bbddd50>
+      Type: Array[Int32]
+      Index: None
+
+
+Boolean Logic
+=============
+
+Unlike Python, Hail :class:`.BooleanExpression`s cannot be combined with ``and``, ``or``,
+and ``not``. The equivalents are ``&``, ``|``, and ``~``.
+
+    >>> s1 = hl.capture(x == 3)
+    >>> s2 = hl.capture(x != 4)
+
+    >>> s1 & s2 # s1 and s2
+    >>> s1 | s2 # s1 or s2
+    >>> ~s1 # not s1
+
+In addition, parantheses are required if the boolean expression is not a single variable
+because the precedence of the ``&` and ``|`` operators are lower than ``and`` and ``or``
+in Python.
+
+    >>> (x == 3) & (x != 4)
+
+Conditionals
+============
+
+A conditional expression has three components: the condition to evaluate, the consequent
+value to return if the condition is ``True``, and the alternative to return if the
+condition is ``False``. The Python equivalent of this is `if-else` statements. For example,
+a trivial example is
+
+.. code-block:: python
+
+    if (x > 0):
+        return 1
+    else:
+        return 0
+
+where the condition is ``x > 0``, the consequent is ``1``, and the alternative is ``0``.
+
+The Hail equivalent of this is with the `cond` function.
+
+    >>> hl.cond(x > 0, 1, 0)
+    <hail.expr.expression.Int32Expression object at 0x10cb630d0>
+      Type: Int32
+      Index: None
+
+
+The condition statement must be a :obj:`boolean` or a :class:`.BooleanExpression`.
+The type of evaluating this function is an :class:`.Int32Expression` because both the
+consequent and alternative are :obj:`int`. **The types of the consequent and alternative
+must always be the same.** This conditional expression can be used in composing
+larger expressions where :class:`.Int32Expression`s can be used. For example, we
+can add the result of the conditional statement to ``a`` which was defined above.
+
+    >>> a + hl.cond(x > 0, 1, 0)
+    <hail.expr.expression.ArrayInt32Expression object at 0x10cb668d0>
+      Type: Array[Int32]
+      Index: None
+
+More complicated conditional statements can be constructed with `case`. For example,
+we might want to emit ``1`` if ``x < -1``, ``2`` if ``-1 <= x <= 2`` and ``3`` if ``x > 2``.
+
+    >>> hl.case()
+    ...   .when(x < -1, 1)
+    ...   .when(x >= -1 & x <= 2, 2)
+    ...   .when(x > 2, 3)
+
+Default values can also be specified if no match is made with ``.default(...)``.
+
+    >>> hl.case()
+    ...   .when(x >= -1 & x <= 2, 1)
+    ...   .when(x > 2 & x < 5, 2)
+    ...   .default(0)
+
+
+Lastly, Hail has a `switch` function to build a conditional tree based on the
+value of an expression. In the example below, `csq` is a :class:`.StringExpression`
+representing the functional consequence of a mutation. If `csq` does not match
+one of the cases specified by `when`, it is set to missing with `or_missing`. Other
+switch statements are documented in the :class:`.SwitchBuilder` class.
+
+.. code-block:: python
+
+    is_damaging = (hl.switch(csq)
+                     .when("synonymous", False)
+                     .when("intron", False)
+                     .when("nonsense", True)
+                     .when("indel", True)
+                     .or_missing())
+
+
+Missingness
+===========
+
+An expression representing a missing value of a given type can be generated with
+the `null` function which takes the type as its single argument. An example of
+generating a :class:`.Float64Expression` that is missing is
+
+    >>> hl.null(TFloat64())
+
+These can be used with conditional statements to set values to missing if they
+don't satisfy a condition:
+
+    >>> hl.cond(x > 2.0, x, hl.null(TFloat64()))
+
+The result of method calls on a missing value is ``None``. For example, if
+we define ``cnull`` to be a missing value with type :class:`.TCall`, calling
+the method `is_het` will return ``None`` and not ``False``.
+
+    >>> cnull = hl.null(TCall())
+    >>> cnull.is_het()
+    None
+
+
+Binding Variables
+=================
+
+Hail inlines function calls each time an expression appears. This can result
+in unexpected behavior when random values are used. For example, let ``x`` be
+a random number generated with the function `rand_unif`.
+
+    >>> x = hl.rand_unif(0, 1)
+
+If we create a list with x repeated 3 times, we'd expect to get an array with identical
+values. However, instead we see a list of 3 random numbers.
+
+    >>> hl.eval_expr([x, x, x])
+    [0.8846327207915881, 0.14415148553468504, 0.8202677741734825]
+
+To solve this problem, we can use the `bind` function to bind an expression to a
+value before applying it in a function.
+
+    >>> expr = hl.bind(hl.rand_unif(0, 1), lambda x: [x, x, x])
+    >>> hl.eval_expr(expr)
+    [0.5562065047992025, 0.5562065047992025, 0.5562065047992025]
+
+
+
   - capture / broadcast
   - basic operations depending on type
-  - if else
+  - if else, cond
   - bind
-  - can add 5 + ds.AC or ds.AC + 5 => IntExpression
   - boolean
   - propogation of missingness
   - debugging methods
@@ -70,10 +298,24 @@ Expressions
 ---------
 Functions
 ---------
+
+Missingness
+===========
+
+Struct Operations
+=================
+
+Statistical tests
+=================
+
+Aggregators
+===========
+
   - min, max, count, etc.
   - randomness (pcoin, etc) -- plus note on why this isn't stable
   - statistical tests
   - aggregators
+
 
 -----
 Table
@@ -928,21 +1170,36 @@ Interacting with MatrixTables Locally
 Some useful methods to interact with matrix tables locally are `describe`,
 `head`, and `sample`. `describe` prints out the schema for all row fields, column
 fields, entry fields, and global fields as well as the row keys, column keys, and
-the partition key. `head` will return a new matrix table with only the first N
-rows.
+the partition key. `head` returns a new matrix table with only the first N
+rows. `sample` returns a new matrix table where the rows are randomly sampled
+with frequency `p`.
 
-describe, sample, head
-rows_table, cols_table, entries_table => exporting results
-count_cols, count_rows
+To get the dimensions of the matrix table, use `count_rows` and `count_cols`.
 
 Export
 ======
 
-  - rows, entries, cols tables
-  - exporting
-    - write, rows_table etc.
-`read_matrix_table`
+To save a matrix table to a file, use the `write` command and subsequently `read_matrix_table`
+to read the file again.
 
+In addition, Hail provides three methods to convert matrix tables to tables, which can then
+be printed with :meth:`~hail.Table.show` or exported to a file:
+
+- `rows_table`
+- `cols_table`
+- `entries_table`
+
+The rows table contains a :class:`.Table` with all row fields and the columns table
+contains a :class:`.Table` with all column fields. Likewise, the entries table is
+a :class:`.Table` that contains a row for every element in the matrix along with the row
+and column fields. The entries table is extremely big because it contains
+a row for every element in the matrix as well as the corresponding row and column fields.
+The entries table should never be saved to disk with `write`.
+
+    >>> mt.rows_table().select('locus', 'alleles', 'rsid').show()
+    >>> mt.cols_table().select('s').show()
+
+A common idiom is to
 
 --------------------------
 Other Hail Data Structures
