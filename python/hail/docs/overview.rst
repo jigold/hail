@@ -45,11 +45,17 @@ to this type is ``{"a": "foo", "b": True, "c": 5}``.
 More complex types can be created by nesting TStructs. For example, the type
 TStruct["a": TStruct["foo": TInt, "baz": TString], "b": TStruct["bar": TArray[TInt32]]] consists
 of two fields "a" and "b" each with the type TStruct, but with different fields.
-A valid Python object for this type is ``{"a": {"foo": 3, "baz": "hello"}, "b":
-{"bar": [1, 2, 3]}}``.
+A valid Python object for this type is ``Struct({"a": {"foo": 3, "baz": "hello"}, "b":
+{"bar": [1, 2, 3]}})``.
 
 TStructs are used throughout Hail to create complex schemas representing
 the structure of data.
+
+-------
+Structs
+-------
+
+
 
 -----------
 Expressions
@@ -282,26 +288,74 @@ value before applying it in a function.
     [0.5562065047992025, 0.5562065047992025, 0.5562065047992025]
 
 
----------
 Functions
----------
+=========
 
-Missingness
-===========
+In addition to the methods exposed on each :class:`.Expression`, Hail also has
+numerous functions that can be applied to expressions, which also return an expression.
+We have already seen examples of the functions `capture`, `cond`, `switch`, `case`, `bind`,
+`rand_unif`, and `null`. Some examples of other commonly used functions are
 
-Struct Operations
-=================
+**Conditionals**
 
-Statistical tests
-=================
+- `cond`
+- `switch`
+- `case`
+- `or_else`
+- `or_missing`
 
-Aggregators
-===========
+**Missingness**
 
-  - min, max, count, etc.
-  - randomness (pcoin, etc) -- plus note on why this isn't stable
-  - statistical tests
-  - aggregators
+- `is_defined`
+- `is_missing`
+- `is_nan`
+
+**Mathematical Operations**
+
+- `exp`
+- `log`
+- `log10`
+
+**Manipulating Structs**
+
+- `select`
+- `merge`
+- `drop`
+
+**Constructors**
+
+Construct a missing value of a given type:
+
+- `null`
+
+Construct expressions from input arguments:
+
+- `Dict`
+- `locus`
+- `interval`
+- `call`
+
+Parse strings to construct expressions:
+
+- `parse_variant`
+- `parse_locus`
+- `parse_interval`
+- `parse_call`
+
+**Random Number Generators**
+
+- `rand_bool`
+- `rand_norm`
+- `rand_pois`
+- `rand_unif`
+
+**Statistical Tests**
+
+- `chisq`
+- `fisher_exact_test`
+- `hardy_weinberg_p`
+
+See the full `API` for a list of all functions and their documentation.
 
 
 -----
@@ -498,8 +552,8 @@ Aggregations
 ============
 
 A commonly used operation is to compute an aggregate statistic over the rows of
-the dataset. Hail provides an `aggregate`
-method along with many `aggregator functions` to return the result of a query.
+the dataset. Hail provides an `aggregate` method along with many
+`aggregator functions` to return the result of a query.
 For example, to compute the fraction of rows with ``Status == "CASE"`` and the
 mean value for `qPhen`, we can run the following command:
 
@@ -512,6 +566,10 @@ mean value for `qPhen`, we can run the following command:
 .. code-block:: text
 
     Struct(frac_case=0.41, mean_qPhen=17594.625)
+
+
+
+
 
 We also might want to compute the mean value of `qPhen` for each unique value of `Status`.
 To do this, we need to first create a :class:`.GroupedTable` using the `group_by` method. This
@@ -537,7 +595,7 @@ over the grouped-by rows.
     +--------+-------------+
 
 Note that the result of `t.group_by(...).aggregate(...)` is a new :class:`.Table`
-while the result of `t.aggregate(...)` is a :class:`.Struct`.
+while the result of `t.aggregate(...)` is either a single value or a :class:`.Struct`.
 
 Joins
 =====
@@ -1188,6 +1246,11 @@ The entries table should never be saved to disk with `write`.
 
 A common idiom is to
 
+Methods
+-------
+
+
+
 --------------------------
 Other Hail Data Structures
 --------------------------
@@ -1219,11 +1282,6 @@ Python Considerations
 --------------------------
 Performance Considerations
 --------------------------
-  - when to use broadcast
-  - cache, persist
-  - repartition
-  - shuffling
-  - group / join with null is bad!
 
 -----
 Other

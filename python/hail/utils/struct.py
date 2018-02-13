@@ -16,7 +16,7 @@ class Struct(Mapping, HistoryMixin):
     >>> bar['foo']
 
     Note that it is possible to use Hail to define struct fields inside
-    of a key table or variant dataset that do not match python syntax.
+    of a table or matrix table that do not match python syntax.
     The name "1kg", for example, will not parse to python because it
     begins with an integer, which is not an acceptable leading character
     for an identifier.  There are two ways to access this field:
