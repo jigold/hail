@@ -282,19 +282,6 @@ value before applying it in a function.
     [0.5562065047992025, 0.5562065047992025, 0.5562065047992025]
 
 
-
-  - capture / broadcast
-  - basic operations depending on type
-  - if else, cond
-  - bind
-  - boolean
-  - propogation of missingness
-  - debugging methods
-  - How are these different than Hail objects?
-  - composable x = mt.DP + mt.GQ
-    x + 5
-  - define null expressions
-
 ---------
 Functions
 ---------
