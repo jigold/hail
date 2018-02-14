@@ -55,7 +55,24 @@ the structure of data.
 Structs
 -------
 
+A :class:`.Struct` object corresponds to the type :class:`.TStruct`. It is a
+container object for named values, similar to Python's OrderedDict class.
+An example is a Struct with two fields `a` and
+`b` with the corresponding values 3 and "hello".
 
+    >>> s = Struct(a=3, b="hello")
+
+To access the value ``3``, you can either reference the field `a` as a method or
+as an attribute with bracket notation:
+
+    >>> s.a
+    3
+
+    >>> s['a']
+    3
+
+Be aware that accessing the field as a method will not work if the field name
+has periods or special characters in it.
 
 -----------
 Expressions
@@ -559,17 +576,12 @@ mean value for `qPhen`, we can run the following command:
 
 .. doctest::
 
-    result = t.aggregate(frac_case = agg.fraction(t.Status == "CASE"),
-                         mean_qPhen = agg.mean(t.qPhen))
-    result
+    t.aggregate(frac_case = agg.fraction(t.Status == "CASE"),
+                mean_qPhen = agg.mean(t.qPhen))
 
 .. code-block:: text
 
     Struct(frac_case=0.41, mean_qPhen=17594.625)
-
-
-
-
 
 We also might want to compute the mean value of `qPhen` for each unique value of `Status`.
 To do this, we need to first create a :class:`.GroupedTable` using the `group_by` method. This
@@ -1098,13 +1110,13 @@ Like :class:`Table`, Hail provides three methods to compute aggregate statistics
 
 These methods take key word arguments where the key is the name of the value to
 compute and the value is the expression for what to compute. The return value
-of aggregate functions is a :class:`.Struct`.
+of aggregate is either a single value or a :class:`.Struct` depending
+on the number of values to compute.
 
 An example of querying entries is to compute the fraction of values where `GT`
 is defined across the entire dataset (call rate):
 
-    >>> result = mt.aggregate_entries(call_rate = agg.fraction(functions.is_defined(mt.GT)))
-    >>> result.call_rate
+    >>> mt.aggregate_entries(call_rate = agg.fraction(functions.is_defined(mt.GT)))
     0.9871428571428571
 
 We can also compute multiple global statistics simulatenously by supplying multiple
@@ -1116,6 +1128,7 @@ key-word arguments:
     >>> result.dp_stats
     Struct(min=5.0, max=161.0, sum=22587.0, stdev=17.7420068551, nNotMissing=699, mean=32.313304721)
 
+Hail provides many aggregator functions which are documented `here`.
 
 Group-By
 ========
@@ -1244,7 +1257,7 @@ The entries table should never be saved to disk with `write`.
     >>> mt.rows_table().select('locus', 'alleles', 'rsid').show()
     >>> mt.cols_table().select('s').show()
 
-A common idiom is to
+A common idiom is to compute ... 
 
 Methods
 -------
