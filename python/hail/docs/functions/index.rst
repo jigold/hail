@@ -9,11 +9,12 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     :maxdepth: 2
 
     core
-    numeric
+    constructors
     collections
+    numeric
+    string
     stats
     random
-    string
     genetics
 
 .. rubric:: Core language functions
@@ -32,6 +33,73 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     or_else
     or_missing
     range
+
+.. rubric:: Constructors
+
+.. autosummary::
+
+    bool
+    float
+    float32
+    float64
+    int
+    int32
+    int64
+    interval
+    str
+    struct
+    tuple
+
+.. rubric:: Collection constructors
+
+.. autosummary::
+
+    array
+    empty_array
+    set
+    empty_set
+    dict
+
+.. rubric:: Collection functions
+
+.. autosummary::
+
+    map
+    flatmap
+    zip
+    flatten
+    any
+    all
+    filter
+    sorted
+    find
+    group_by
+    len
+    index
+
+.. rubric:: Numeric functions
+
+.. autosummary::
+
+    abs
+    exp
+    is_nan
+    log
+    log10
+    sqrt
+
+.. rubric:: Numeric collection functions
+
+.. autosummary::
+
+    min
+    max
+    mean
+    median
+    product
+    sum
+    argmin
+    argmax
 
 .. rubric:: String functions
 
@@ -58,61 +126,6 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     qnorm
     qpois
 
-.. rubric:: Collection constructors
-
-.. autosummary::
-
-    dict
-    array
-    set
-
-.. rubric:: Numeric functions
-
-.. autosummary::
-
-    abs
-    exp
-    is_nan
-    log
-    log10
-    sqrt
-    int
-    int32
-    int64
-    float
-    float32
-    float64
-
-.. rubric:: Numeric collection functions
-
-.. autosummary::
-
-    min
-    max
-    mean
-    median
-    product
-    sum
-    argmin
-    argmax
-
-.. rubric:: Collection functions
-
-.. autosummary::
-
-    map
-    flatmap
-    zip
-    flatten
-    any
-    all
-    filter
-    sorted
-    find
-    group_by
-    len
-    index
-
 .. rubric:: Randomness
 
 .. autosummary::
@@ -127,10 +140,10 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 .. autosummary::
 
     locus
+    locus_interval
     parse_locus
     parse_variant
-    interval
-    parse_interval
+    parse_locus_interval
     call
     unphased_diploid_gt_index_call
     parse_call

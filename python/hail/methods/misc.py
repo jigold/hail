@@ -193,7 +193,6 @@ def filter_intervals(ds, intervals, keep=True):
     """Filter rows with an interval or list of intervals.
 
     .. note::
-
         Requires the dataset to have a single partition key of type
         :class:`.tlocus`.
 

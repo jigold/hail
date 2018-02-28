@@ -2,18 +2,6 @@ Collection functions
 --------------------
 .. currentmodule:: hail.expr.functions
 
-.. rubric:: Collection constructors
-
-.. autosummary::
-
-    dict
-    array
-    empty_array
-    set
-    empty_set
-
-.. rubric:: Collection functions
-
 .. autosummary::
 
     len
@@ -29,10 +17,6 @@ Collection functions
     group_by
     index
 
-
-.. autofunction:: dict
-.. autofunction:: array
-.. autofunction:: set
 .. autofunction:: len
 .. autofunction:: map
 .. autofunction:: flatmap
