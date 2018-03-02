@@ -9,11 +9,11 @@ import scala.collection.JavaConverters._
 
 object FilterIntervals {
   def apply(vsm: MatrixTable, intervals: java.util.ArrayList[Interval], keep: Boolean): MatrixTable = {
-    vsm.requirePartitionKeyLocus("filter_intervals")
-    val iList = IntervalTree(vsm.rvd.typ.pkType.ordering,
-      intervals.asScala.map { i =>
-        Interval(Row(i.start), Row(i.end), i.includeStart, i.includeEnd)
-      }.toArray)
+//    val iList = IntervalTree(vsm.rvd.typ.pkType.ordering,
+//      intervals.asScala.map { i =>
+//        Interval(Row(i.start), Row(i.end), i.includeStart, i.includeEnd)
+//      }.toArray)
+    val iList = IntervalTree(vsm.rvd.typ.pkType.ordering, intervals.asScala.toArray)
     apply(vsm, iList, keep)
   }
 

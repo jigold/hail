@@ -192,43 +192,43 @@ def rename_duplicates(dataset, name='unique_id'):
 def filter_intervals(ds, intervals, keep=True):
     """Filter rows with an interval or list of intervals.
 
-    .. note::
-        Requires the dataset to have a single partition key of type
-        :class:`.tlocus`.
-
     Examples
     --------
 
     Filter to loci falling within one interval:
 
-    >>> ds_result = hl.filter_intervals(dataset, hl.Interval.parse('17:38449840-38530994'))
+    >>> ds_result = hl.filter_intervals(dataset, hl.Interval.parse_locus_interval('17:38449840-38530994'))
 
     Remove all loci within list of intervals:
 
-    >>> intervals = [hl.Interval.parse(x) for x in ['1:50M-75M', '2:START-400000', '3-22']]
+    >>> intervals = [hl.Interval.parse_locus_interval(x) for x in ['1:50M-75M', '2:START-400000', '3-22']]
     >>> ds_result = hl.filter_intervals(dataset, intervals)
 
     Notes
     -----
     This method takes an argument of :class:`.Interval` or list of
-    :class:`.Interval`.
+    :class:`.Interval` with point type(s) that are the same as the type of
+    the row partition key.
 
-    Based on the ``keep`` argument, this method will either restrict to loci in
-    the supplied interval ranges, or remove all loci in those ranges.  Note that
-    intervals are left-inclusive, and right-exclusive; the below interval
-    includes the locus ``15:100000`` but not ``15:101000``.
+    If the row partition key has two fields with types
+    :class:`.TLocus` and :class:`.TArray` of :class:`.TString`, the interval
+    point type must be :class:`.TLocus`.
 
-    >>> interval = hl.Interval.parse('15:100000-101000')
+    Based on the ``keep`` argument, this method will either restrict to points
+    in the supplied interval ranges, or remove all loci in those ranges.
 
     When ``keep=True``, partitions that don't overlap any supplied interval
     will not be loaded at all.  This enables :func:`.filter_intervals` to be
-    used for reasonably low-latency queries of small ranges of the genome, even
+    used for reasonably low-latency queries of small ranges of the dataset, even
     on large datasets.
 
     Parameters
     ----------
+    ds : :class:`.MatrixTable`
+        Dataset.
     intervals : :class:`.Interval` or :obj:`list` of :class:`.Interval`
-        Interval(s) to filter on.
+        Interval(s) to filter on. The point type(s) must be the same as the type
+        of the dataset's row partition key.
     keep : :obj:`bool`
         If ``True``, keep only loci fall within any interval in `intervals`. If
         ``False``, keep only loci that fall outside all intervals in
@@ -239,8 +239,24 @@ def filter_intervals(ds, intervals, keep=True):
     :class:`.MatrixTable`
     """
 
-    require_locus(ds, 'filter_intervals')
+    n_pk = len(ds.partition_key)
+    pk_type = ds.partition_key.dtype
 
-    intervals = wrap_to_list(intervals)
-    jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, [x._jrep for x in intervals], keep)
+    # print(n_pk)
+    # print(pk_type)
+
+    def check_input(interval):
+        if interval.point_type == pk_type:
+            return interval
+        elif n_pk == 1 and interval.point_type == ds.partition_key[0].dtype:
+            return Interval(Struct(foo=interval.start),
+                            Struct(foo=interval.end),
+                            interval.include_start,
+                            interval.include_end)
+        else:
+            raise TypeError("The point type for interval %s does not match the row partition key type of the dataset (%s, %s)" %
+                            (str(interval), str(interval.point_type), str(pk_type)))
+
+    intervals = [check_input(x)._jrep for x in wrap_to_list(intervals)]
+    jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, intervals, keep)
     return MatrixTable(jmt)
