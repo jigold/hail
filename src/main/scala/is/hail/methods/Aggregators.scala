@@ -777,6 +777,7 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
 
   def seqOp(x: Any) = {
     val cx = Annotation.copy(t, x)
+    println(s"cx=$cx f=$f f(cx)=${ f(cx) }")
     seqOp(cx, f(cx))
   }
 
@@ -790,6 +791,7 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
         _state += p
       }
     }
+    println(s"p=$p _state.head=${ _state.headOption } _state=${ _state.mkString(",") }")
   }
 
   def combOp(agg2: this.type) {

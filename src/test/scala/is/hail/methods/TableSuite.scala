@@ -494,4 +494,64 @@ class TableSuite extends SparkSuite {
     val table = Table.range(hc, 1).annotate("x" -> "5").keyBy("x")
     table.flatten()
   }
+
+  @Test def foo() {
+    val t = Table.range(hc, 5).annotate("x" -> "5")
+
+    t.show()
+//    +-------+-------+
+//    |   idx |     x |
+//    +-------+-------+
+//    | int32 | int32 |
+//    +-------+-------+
+//    |     0 |     5 |
+//    |     1 |     5 |
+//    |     2 |     5 |
+//    |     3 |     5 |
+//    |     4 |     5 |
+//    +-------+-------+
+
+    val kt = t.keyBy("x")
+
+    kt.show()
+//    +-------+-------+
+//    |   idx |     x |
+//    +-------+-------+
+//    | int32 | int32 |
+//    +-------+-------+
+//    |     0 |     5 |
+//    |     4 |     5 |
+//    |     3 |     5 |
+//    |     2 |     5 |
+//    |     1 |     5 |
+//    +-------+-------+
+
+
+    kt.aggregateByKey("{q: AGG.map(__uid_2 => row.idx).takeBy(__uid_3 => row.idx, (i32#3))}",
+        "q = AGG.map(__uid_2 => row.idx).takeBy(__uid_3 => row.idx, (i32#3))").show()
+
+//    +-------+--------------+
+//    |     x | q            |
+//    +-------+--------------+
+//    | int32 | array<int32> |
+//    +-------+--------------+
+//    |     5 | [4,3,0]      |
+//    +-------+--------------+
+
+    // Output from print statements in aggregator
+//    cx=0 f=<function1> f(cx)=null
+//    p=(0,null) _state.head=Some((0,null)) _state=(0,null)
+
+//    cx=4 f=<function1> f(cx)=null
+//    p=(4,null) _state.head=Some((0,null)) _state=(0,null),(4,null)
+
+//    cx=3 f=<function1> f(cx)=null
+//    p=(3,null) _state.head=Some((0,null)) _state=(0,null),(4,null),(3,null)
+
+//    cx=2 f=<function1> f(cx)=null
+//    p=(2,null) _state.head=Some((0,null)) _state=(0,null),(4,null),(3,null)
+    
+//    cx=1 f=<function1> f(cx)=null
+//    p=(1,null) _state.head=Some((0,null)) _state=(0,null),(4,null),(3,null)
+  }
 }
