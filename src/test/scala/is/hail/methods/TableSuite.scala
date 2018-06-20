@@ -550,7 +550,7 @@ class TableSuite extends SparkSuite {
 
 //    cx=2 f=<function1> f(cx)=null
 //    p=(2,null) _state.head=Some((0,null)) _state=(0,null),(4,null),(3,null)
-    
+
 //    cx=1 f=<function1> f(cx)=null
 //    p=(1,null) _state.head=Some((0,null)) _state=(0,null),(4,null),(3,null)
   }
