@@ -55,6 +55,8 @@ final case class Counter() extends AggOp { }
 // TakeBy needs lambdas
 final case class TakeBy() extends AggOp { }
 
+final case class Keyed(x: AggOp) extends AggOp { }
+
 object AggOp {
 
   def get(aggSig: AggSignature): CodeAggregator[T] forSome { type T <: RegionValueAggregator } =
@@ -205,6 +207,11 @@ object AggOp {
       CodeAggregator[RegionValueInbreedingAggregator](
         RegionValueInbreedingAggregator.typ,
         seqOpArgTypes = Array(classOf[Int], classOf[Double]))
+
+    case (Keyed(op), constrArgs, initOpArgs, seqOpArgs) =>
+      val key = seqOpArgs.head
+      val codeAgg = get(AggSignature(op, constrArgs, initOpArgs, seqOpArgs.drop(1)))
+      
   }
 
   private def incompatible(aggSig: AggSignature): Nothing = {
