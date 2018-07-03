@@ -10,8 +10,6 @@ import scala.reflect.ClassTag
 import scala.reflect.classTag
 
 abstract class BaseCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo] {
-  def in: Type
-
   def out: Type
 
   def initOpArgTypes: Option[Array[Class[_]]]
@@ -23,7 +21,7 @@ abstract class BaseCodeAggregator[Agg <: RegionValueAggregator : ClassTag : Type
   def seqOp(region: Code[Region], rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit]
 
   def toKeyedAggregator(keyType: Type, keyClass: Class[_]): KeyedCodeAggregator[Agg] =
-    KeyedCodeAggregator[Agg](keyType, in, TDict(keyType, out), initOpArgTypes, keyClass +: seqOpArgTypes)
+    KeyedCodeAggregator[Agg](keyType, TDict(keyType, out), initOpArgTypes, keyClass +: seqOpArgTypes)
 }
 
 /**
@@ -34,8 +32,8 @@ case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
   out: Type,
   constrArgTypes: Array[Class[_]] = Array.empty[Class[_]],
   initOpArgTypes: Option[Array[Class[_]]] = None,
-  seqOpArgTypes: Array[Class[_]] = Array.empty[Class[_]]) {
-
+  seqOpArgTypes: Array[Class[_]] = Array.empty[Class[_]]) extends BaseCodeAggregator[Agg] {
+  
   def initOp(rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit] = {
     assert(initOpArgTypes.isDefined && vs.length == ms.length)
     val argTypes = initOpArgTypes.get.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
@@ -61,7 +59,6 @@ case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
 
 case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
   key: Type,
-  in: Type,
   out: Type,
   initOpArgTypes: Option[Array[Class[_]]] = None,
   seqOpArgTypes: Array[Class[_]] = Array.empty[Class[_]]) extends BaseCodeAggregator[Agg] {
@@ -103,8 +100,7 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
       m.invoke[Any, Any, Unit]("update", wrappedKey, Code.checkcast[Agg](krvAgg.invoke[RegionValueAggregator]("rvAgg")).invoke[Agg]("deepCopy"))),
       m.invoke("apply", wrappedKey))
 
-    val argTypes = Array(classOf[Region], TypeToIRIntermediateClassTag(in).runtimeClass, classOf[Boolean]) ++
-      seqOpArgTypes.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
+    val argTypes = classOf[Region] +: seqOpArgTypes.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
     val args = vs.zip(ms).flatMap { case (v, m) => Array(v, m) }
 
     rva.invoke("seqOp", argTypes, Array(region) ++ args)(classTag[Unit])

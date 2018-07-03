@@ -87,11 +87,20 @@ object ExtractAggregators {
         case _ =>
       }
 
-      fb.emit(Code(
-        Code(codeConstructorArgs.map(_.setup): _*),
-        AggOp.get(aggSig)
-          .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
+      aggSig.op match {
+        case _: Keyed =>
+        case _ =>
+          fb.emit(Code(
+            Code(codeConstructorArgs.map(_.setup): _*),
+            AggOp.get(aggSig)
+              .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
+      }
 
-      Region.scoped(fb.result()()(_))
+      val rvagg = Region.scoped(fb.result()()(_))
+
+      aggSig.op match {
+        case _: Keyed => KeyedRegionValueAggregator(rvagg, aggSig.seqOpArgs.head)
+        case _ => rvagg
+      }
   }
 }

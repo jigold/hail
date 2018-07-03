@@ -59,15 +59,15 @@ final case class Keyed(x: AggOp) extends AggOp { }
 
 object AggOp {
 
-  def get(aggSig: AggSignature): CodeAggregator[T] forSome { type T <: RegionValueAggregator } =
+  def get(aggSig: AggSignature): BaseCodeAggregator[T] forSome { type T <: RegionValueAggregator } =
     getOption(aggSig).getOrElse(incompatible(aggSig))
 
   def getType(aggSig: AggSignature): Type = getOption(aggSig).getOrElse(incompatible(aggSig)).out
 
-  def getOption(aggSig: AggSignature): Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] =
+  def getOption(aggSig: AggSignature): Option[BaseCodeAggregator[T] forSome { type T <: RegionValueAggregator }] =
     getOption(aggSig.op, aggSig.constructorArgs, aggSig.initOpArgs, aggSig.seqOpArgs)
 
-  val getOption: ((AggOp, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
+  val getOption: ((AggOp, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[BaseCodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
     case (Fraction(), Seq(), None, Seq(_: TBoolean)) =>
       CodeAggregator[RegionValueFractionAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Boolean]))
 
@@ -209,6 +209,7 @@ object AggOp {
         seqOpArgTypes = Array(classOf[Int], classOf[Double]))
 
     case (Keyed(op), constrArgs, initOpArgs, seqOpArgs) =>
+      assert(seqOpArgs.length >= 2)
       val keyType = seqOpArgs.head
       val codeAgg = get(AggSignature(op, constrArgs, initOpArgs, seqOpArgs.drop(1)))
 
