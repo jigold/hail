@@ -8,6 +8,23 @@ import is.hail.expr.types._
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
+abstract class BaseCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo] {
+  def in: Type
+
+  def out: Type
+
+  def initOpArgTypes: Option[Array[Class[_]]]
+
+  def seqOpArgTypes: Array[Class[_]]
+
+  def initOp(rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit]
+
+  def seqOp(region: Code[Region], rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit]
+
+  def toKeyedAggregator(keyType: Type, keyClass: Class[_]): KeyedCodeAggregator[Agg] =
+    KeyedCodeAggregator[Agg](keyType, in, TDict(keyType, out), initOpArgTypes, keyClass +: seqOpArgTypes)
+}
+
 /**
   * Pair the aggregator with a staged seqOp that calls the non-generic seqOp and initOp
   * methods. Missingness is handled by Emit.
