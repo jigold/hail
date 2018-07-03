@@ -92,7 +92,7 @@ object ExtractAggregators {
         case _ =>
           fb.emit(Code(
             Code(codeConstructorArgs.map(_.setup): _*),
-            AggOp.get(aggSig)
+            AggOp.get(aggSig).asInstanceOf[CodeAggregator[_]]
               .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
       }
 
