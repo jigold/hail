@@ -92,8 +92,7 @@ object ExtractAggregators {
                   EmitTriplet(Code._empty, const(false), fb.getType(keyType)))
               case _ =>
             }
-
-            println(aggSig.toString)
+            
             fb.emit(Code(
               Code(codeConstructorArgs.map(_.setup): _*),
               AggOp.get(aggSig).asInstanceOf[CodeAggregator[_]]

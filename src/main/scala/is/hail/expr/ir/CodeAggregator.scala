@@ -20,8 +20,8 @@ abstract class BaseCodeAggregator[Agg <: RegionValueAggregator : ClassTag : Type
 
   def seqOp(region: Code[Region], rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit]
 
-  def toKeyedAggregator(keyType: Type, keyClass: Class[_]): KeyedCodeAggregator[Agg] =
-    KeyedCodeAggregator[Agg](keyType, TDict(keyType, out), initOpArgTypes, keyClass +: seqOpArgTypes)
+  def toKeyedAggregator(keyType: Type): KeyedCodeAggregator[Agg] =
+    KeyedCodeAggregator[Agg](keyType, TDict(keyType, out), initOpArgTypes, seqOpArgTypes)
 }
 
 /**
@@ -100,7 +100,7 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
       m.invoke[Any, Any, Unit]("update", wrappedKey, Code.checkcast[Agg](krvAgg.invoke[RegionValueAggregator]("rvAgg")).invoke[Agg]("copy"))),
       m.invoke("apply", wrappedKey))
 
-    val argTypes = classOf[Region] +: seqOpArgTypes.drop(1).flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
+    val argTypes = classOf[Region] +: seqOpArgTypes.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
     val args = vs.drop(1).zip(ms.drop(1)).flatMap { case (v, m) => Array(v, m) }
 
     rva.invoke("seqOp", argTypes, Array(region) ++ args)(classTag[Unit])

@@ -212,17 +212,7 @@ object AggOp {
       assert(seqOpArgs.nonEmpty)
       val keyType = seqOpArgs.head
       val codeAgg = get(AggSignature(op, constrArgs, initOpArgs, seqOpArgs.drop(1)))
-
-      def keyedAgg(keyArg: Class[_]) = codeAgg.toKeyedAggregator(keyType, keyArg)
-
-      keyType match {
-        case _: TBoolean => keyedAgg(classOf[Boolean])
-        case _: TInt32 | _: TCall => keyedAgg(classOf[Int])
-        case _: TInt64 => keyedAgg(classOf[Long])
-        case _: TFloat32 => keyedAgg(classOf[Float])
-        case _: TFloat64 => keyedAgg(classOf[Double])
-        case _ => keyedAgg(classOf[Long])
-      }
+      codeAgg.toKeyedAggregator(keyType)
   }
 
   private def incompatible(aggSig: AggSignature): Nothing = {
