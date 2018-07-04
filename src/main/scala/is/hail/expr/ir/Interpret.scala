@@ -340,12 +340,15 @@ object Interpret {
           case Count() =>
             assert(args.isEmpty)
             aggregator.get.asInstanceOf[CountAggregator].seqOp(0) // 0 is a dummy value
-          case Keyed(op) =>
+          case Keyed(aggOp) =>
             assert(args.nonEmpty)
-            op match {
-              case _:
+            def formatArgs(aggOp: AggOp, args: IndexedSeq[IR]): Row = {
+              aggOp match {
+                case Keyed(op) => Row(interpret(args.head), formatArgs(op, args.tail))
+                case _ => Row(interpret(args.head), Row(args.tail.map(interpret(_)): _*))
+              }
             }
-            aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(Row(interpret(args.head), Row(args.tail.map(interpret(_)): _*)))
+            aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(formatArgs(aggOp, args))
           case _ =>
             val IndexedSeq(a) = args
             aggregator.get.seqOp(interpret(a))
