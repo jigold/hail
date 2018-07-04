@@ -348,7 +348,7 @@ object Interpret {
         val seqOpArgTypes = aggSig.seqOpArgs
         assert(AggOp.getType(aggSig) == x.typ)
 
-        def getAggregator(aggOp: AggOp) = aggOp match {
+        def getAggregator(aggOp: AggOp, seqOpArgs: Seq[Type]): TypedAggregator[_] = aggOp match {
           case CallStats() =>
             assert(seqOpArgTypes == FastIndexedSeq(TCall()))
             val nAlleles = interpret(initOpArgs.get(0))
@@ -437,10 +437,10 @@ object Interpret {
             val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
             new HistAggregator(indices)
           case Keyed(op) =>
-            
+            new KeyedAggregator(getAggregator(op, seqOpArgs.drop(1)), TTuple(seqOpArgs.toFastIndexedSeq))
         }
 
-        val aggregator = getAggregator(aggSig.op)
+        val aggregator = getAggregator(aggSig.op, aggSig.seqOpArgs)
         val Some((aggElements, aggElementType)) = agg
         aggElements.foreach { element =>
           val env = (element.toSeq, aggElementType.fieldNames).zipped
