@@ -342,6 +342,9 @@ object Interpret {
             aggregator.get.asInstanceOf[CountAggregator].seqOp(0) // 0 is a dummy value
           case Keyed(op) =>
             assert(args.nonEmpty)
+            op match {
+              case _:
+            }
             aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(Row(interpret(args.head), Row(args.tail.map(interpret(_)): _*)))
           case _ =>
             val IndexedSeq(a) = args
