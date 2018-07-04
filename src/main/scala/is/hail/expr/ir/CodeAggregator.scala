@@ -97,7 +97,7 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
 
     val rva = Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
       Code._empty,
-      m.invoke[Any, Any, Unit]("update", wrappedKey, Code.checkcast[Agg](krvAgg.invoke[RegionValueAggregator]("rvAgg")).invoke[Agg]("deepCopy"))),
+      m.invoke[Any, Any, Unit]("update", wrappedKey, Code.checkcast[Agg](krvAgg.invoke[RegionValueAggregator]("rvAgg")).invoke[Agg]("copy"))),
       m.invoke("apply", wrappedKey))
 
     val argTypes = classOf[Region] +: seqOpArgTypes.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))

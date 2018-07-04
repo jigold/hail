@@ -9,6 +9,7 @@ import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
 import org.apache.spark.sql.Row
 
+
 class AggregatorsSuite {
   def runAggregator(op: AggOp, aggType: TStruct, agg: IndexedSeq[Row], expected: Any, constrArgs: IndexedSeq[IR],
     initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR]) {
@@ -619,5 +620,50 @@ class AggregatorsSuite {
     assertTakeByEvalsTo(TCall(), TInt64(), 3,
       FastIndexedSeq(Row(Call2(0, 0), 4L), Row(null, null), Row(null, 2L), Row(Call2(0, 1), 0L), Row(Call2(1, 1), 1L), Row(Call2(0, 2), null)),
       FastIndexedSeq(Call2(0, 1), Call2(1, 1), null))
+  }
+
+  def runKeyedAggregator(op: AggOp, keyType: Type, aggType: Type, k: IndexedSeq[Any], a: IndexedSeq[Any], expected: Any,
+    args: IndexedSeq[IR] = FastIndexedSeq(), initOpArgs: Option[IndexedSeq[IR]] = None) {
+    assert(a.length == k.length)
+    val aggSig = AggSignature(op, args.map(_.typ), initOpArgs.map(_.map(_.typ)), FastIndexedSeq(keyType, aggType))
+    assertEvalsTo(ApplyAggOp(
+      SeqOp(I32(0), FastIndexedSeq(Ref("k", keyType), Ref("x", aggType)), aggSig), args, initOpArgs, aggSig),
+      (k.zip(a).map(i => Row(i._1, i._2)), TStruct("k" -> keyType, "x" -> aggType)),
+      expected)
+  }
+
+  @Test
+  def keyedCollect() {
+    runKeyedAggregator(Keyed(Collect()),
+      TBoolean(),
+      TInt32(),
+      FastIndexedSeq(true, true, true, false, false, null, null),
+      FastIndexedSeq(5, 3, null, 0, null, null, 2),
+      Map(true -> FastIndexedSeq(5, 3, null), false -> FastIndexedSeq(0, null), (null, FastIndexedSeq(null, 2))))
+  }
+
+  @Test
+  def keyedCallStats() {
+    runKeyedAggregator(Keyed(CallStats()),
+      TBoolean(),
+      TCall(),
+      FastIndexedSeq(true, true, true, false, false, false),
+      FastIndexedSeq(null, Call2(0, 1), Call2(0, 1), null, Call2(0, 0), Call2(1, 1)),
+      Map(true -> Row(FastIndexedSeq(2, 2), FastIndexedSeq(0.5, 0.5), 4, FastIndexedSeq(0, 0)),
+        false -> Row(FastIndexedSeq(2, 2), FastIndexedSeq(0.5, 0.5), 4, FastIndexedSeq(1, 1))),
+      initOpArgs = Some(FastSeq(I32(2))))
+  }
+
+  @Test
+  def keyedTakeBy() {
+    runAggregator(Keyed(TakeBy()),
+      TStruct("k" -> TString(), "x" -> TFloat64(), "y" -> TInt32()),
+      FastIndexedSeq(Row("case", 0.2, 5), Row("control", 0.4, 0), Row(null, 1.0, 3), Row("control", 0.0, 2), Row("case", 0.3, 6), Row("control", 0.5, 1)),
+      Map("case" -> FastIndexedSeq(0.2, 0.3),
+        "control" -> FastIndexedSeq(0.4, 0.5),
+        (null, FastIndexedSeq(1.0))),
+      constrArgs = FastIndexedSeq(I32(2)),
+      None,
+      seqOpArgs = FastIndexedSeq(Ref("k", TString()), Ref("x", TFloat64()), Ref("y", TInt32())))
   }
 }

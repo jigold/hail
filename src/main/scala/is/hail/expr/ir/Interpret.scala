@@ -340,15 +340,17 @@ object Interpret {
           case Count() =>
             assert(args.isEmpty)
             aggregator.get.asInstanceOf[CountAggregator].seqOp(0) // 0 is a dummy value
+          case Keyed(op) =>
+            assert(args.length > 1)
+            aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(Row(args.map(interpret(_)): _*))
           case _ =>
             val IndexedSeq(a) = args
             aggregator.get.seqOp(interpret(a))
         }
       case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-        val seqOpArgTypes = aggSig.seqOpArgs
         assert(AggOp.getType(aggSig) == x.typ)
 
-        def getAggregator(aggOp: AggOp, seqOpArgs: Seq[Type]): TypedAggregator[_] = aggOp match {
+        def getAggregator(aggOp: AggOp, seqOpArgTypes: Seq[Type]): TypedAggregator[_] = aggOp match {
           case CallStats() =>
             assert(seqOpArgTypes == FastIndexedSeq(TCall()))
             val nAlleles = interpret(initOpArgs.get(0))
@@ -437,7 +439,7 @@ object Interpret {
             val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
             new HistAggregator(indices)
           case Keyed(op) =>
-            new KeyedAggregator(getAggregator(op, seqOpArgs.drop(1)), TTuple(seqOpArgs.toFastIndexedSeq))
+            new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)), TTuple(seqOpArgTypes.toFastIndexedSeq))
         }
 
         val aggregator = getAggregator(aggSig.op, aggSig.seqOpArgs)
