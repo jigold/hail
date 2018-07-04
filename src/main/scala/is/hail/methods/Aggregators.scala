@@ -493,14 +493,14 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
   def copy() = new TakeByAggregator(t, f, n)
 }
 
-class KeyedAggregator[T, K](aggregator: TypedAggregator[T], t: Type) extends TypedAggregator[Map[Any, T]] {
+class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggregator[Map[Any, T]] {
+
   private val m = mutable.Map[Any, TypedAggregator[T]]()
 
   def result = m.map { case (k, v) => (k, v.result) }.toMap
 
   def seqOp(x: Any) {
-    val cx = Annotation.copy(t, x).asInstanceOf[Row]
-
+    val cx = x.asInstanceOf[Row]
     if (cx != null)
       seqOp(cx.get(0), cx.get(1))
     else
@@ -508,15 +508,14 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T], t: Type) extends Typ
   }
 
   private def seqOp(key: Any, x: Any) {
-    val r = x.asInstanceOf[Row]
     val agg = m.getOrElseUpdate(key, aggregator.copy())
+    val r = x.asInstanceOf[Row]
     agg match {
-      case tagg: TakeByAggregator[_] =>
-        tagg.seqOp(r.get(0), r.get(1))
-      case tagg: InbreedingAggregator =>
-        tagg.seqOp(r.get(0), r.get(1))
-      case _ =>
-        agg.seqOp(r.get(0))
+      case tagg: KeyedAggregator[_, _] => agg.seqOp(x)
+      case tagg: CountAggregator => agg.seqOp(0)
+      case tagg: InbreedingAggregator => agg.seqOp(r.get(0), r.get(1))
+      case tagg: TakeByAggregator[_] => agg.seqOp(r.get(0), r.get(1))
+      case _ => agg.seqOp(r.get(0))
     }
   }
 
@@ -532,6 +531,6 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T], t: Type) extends Typ
     }
   }
 
-  def copy() = new KeyedAggregator(aggregator, t)
+  def copy() = new KeyedAggregator(aggregator.copy())
 }
 

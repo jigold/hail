@@ -415,7 +415,7 @@ object Interpret {
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             val seqOps = Extract(a, _.isInstanceOf[SeqOp]).map(_.asInstanceOf[SeqOp])
             assert(seqOps.length == 1)
-            val IndexedSeq(_, ordering: IR) = seqOps.head.args
+            val IndexedSeq(_, _, ordering: IR) = seqOps.head.args
             val ord = ordering.typ.ordering.toOrdering
             new TakeByAggregator(aggType, null, nValue)(ord)
           case Statistics() => new StatAggregator()
@@ -439,7 +439,7 @@ object Interpret {
             val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
             new HistAggregator(indices)
           case Keyed(op) =>
-            new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)), TTuple(seqOpArgTypes.head, TTuple(seqOpArgTypes.drop(1).toFastIndexedSeq)))
+            new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)))
         }
 
         val aggregator = getAggregator(aggSig.op, aggSig.seqOpArgs)
