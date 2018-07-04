@@ -633,6 +633,17 @@ class AggregatorsSuite {
   }
 
   @Test
+  def keyedCount() {
+    runAggregator(Keyed(Count()),
+      TStruct("k" -> TBoolean()),
+      FastIndexedSeq(Row(true), Row(true), Row(true), Row(false), Row(false), Row(null), Row(null)),
+      Map(true -> 3L, false -> 2L, (null, 2L)),
+      constrArgs = FastIndexedSeq(),
+      initOpArgs = None,
+      seqOpArgs = FastIndexedSeq(Ref("k", TBoolean())))
+  }
+
+  @Test
   def keyedCollect() {
     runKeyedAggregator(Keyed(Collect()),
       TBoolean(),
@@ -665,5 +676,16 @@ class AggregatorsSuite {
       constrArgs = FastIndexedSeq(I32(2)),
       None,
       seqOpArgs = FastIndexedSeq(Ref("k", TString()), Ref("x", TFloat64()), Ref("y", TInt32())))
+  }
+
+  @Test
+  def keyedKeyedCollect() {
+    runAggregator(Keyed(Keyed(Collect())),
+      TStruct("k1" -> TString(), "k2" -> TString(), "x" -> TInt32()),
+      FastIndexedSeq(Row("EUR", "CASE", 1), Row("EUR", "CONTROL", 2), Row("AFR", "CASE", 3), Row("AFR", null, 4)),
+      Map("EUR" -> Map("CASE" -> FastIndexedSeq(1), "CONTROL" -> FastIndexedSeq(2)), "AFR" -> Map("CASE" -> FastIndexedSeq(3), (null, FastIndexedSeq(4)))),
+      constrArgs = FastIndexedSeq(),
+      None,
+      seqOpArgs = FastIndexedSeq(Ref("k1", TString()), Ref("k2", TString()), Ref("x", TInt32())))
   }
 }

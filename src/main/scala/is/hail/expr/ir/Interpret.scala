@@ -341,8 +341,8 @@ object Interpret {
             assert(args.isEmpty)
             aggregator.get.asInstanceOf[CountAggregator].seqOp(0) // 0 is a dummy value
           case Keyed(op) =>
-            assert(args.length > 1)
-            aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(Row(args.map(interpret(_)): _*))
+            assert(args.nonEmpty)
+            aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(Row(interpret(args.head), Row(args.tail.map(interpret(_)): _*)))
           case _ =>
             val IndexedSeq(a) = args
             aggregator.get.seqOp(interpret(a))
@@ -439,7 +439,7 @@ object Interpret {
             val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
             new HistAggregator(indices)
           case Keyed(op) =>
-            new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)), TTuple(seqOpArgTypes.toFastIndexedSeq))
+            new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)), TTuple(seqOpArgTypes.head, TTuple(seqOpArgTypes.drop(1).toFastIndexedSeq)))
         }
 
         val aggregator = getAggregator(aggSig.op, aggSig.seqOpArgs)
