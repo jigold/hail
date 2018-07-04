@@ -93,7 +93,7 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
     }
 
     val wrappedKey = ms.head.mux(Code._null[Any], wrapArg(vs.head))
-    val m =  krvAgg.invoke[mutable.Map[Any, Agg]]("m")
+    val m = krvAgg.invoke[mutable.Map[Any, Agg]]("m")
 
     val rva = Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
       Code._empty,
