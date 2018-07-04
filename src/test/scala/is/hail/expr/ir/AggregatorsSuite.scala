@@ -280,8 +280,7 @@ class AggregatorsSuite {
   def ifInApplyAggOp() {
     val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TFloat64()))
     assertEvalsTo(
-      ApplyAggOp(
-        If(
+      ApplyAggOp(If(
           ApplyComparisonOp(NEQ(TFloat64()), Ref("a", TFloat64()), F64(10.0)),
           SeqOp(I32(0), FastSeq(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64()))),
             aggSig),
@@ -676,6 +675,17 @@ class AggregatorsSuite {
       constrArgs = FastIndexedSeq(I32(2)),
       None,
       seqOpArgs = FastIndexedSeq(Ref("k", TString()), Ref("x", TFloat64()), Ref("y", TInt32())))
+  }
+
+  @Test
+  def keyedInbreeding() {
+    runAggregator(Keyed(Inbreeding()),
+      TStruct("k" -> TString(), "x" -> TCall(), "y" -> TFloat64()),
+      FastIndexedSeq(Row("case", Call2(0, 0), 0d), Row("case", Call2(0, 1), 0.1), Row("case", Call2(0, 1), 0.2), Row("case", null, 0.3), Row("case", Call2(1, 1), 0.4), Row("case", Call2(0, 0), null)),
+      Map("case" -> Row(-1.040816, 4L, 3.02, 2L)),
+      constrArgs = FastIndexedSeq(),
+      None,
+      seqOpArgs = FastIndexedSeq(Ref("k", TString()), Ref("x", TCall()), Ref("y", TFloat64())))
   }
 
   @Test
