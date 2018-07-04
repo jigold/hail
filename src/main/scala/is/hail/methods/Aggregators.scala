@@ -508,16 +508,15 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T], t: Type) extends Typ
   }
 
   private def seqOp(key: Any, x: Any) {
+    val r = x.asInstanceOf[Row]
     val agg = m.getOrElseUpdate(key, aggregator.copy())
     agg match {
       case tagg: TakeByAggregator[_] =>
-        val (a, b) = x.asInstanceOf[Tuple2[_, _]]
-        tagg.seqOp(a, b)
+        tagg.seqOp(r.get(0), r.get(1))
       case tagg: InbreedingAggregator =>
-        val (a, b) = x.asInstanceOf[Tuple2[_, _]]
-        tagg.seqOp(a, b)
+        tagg.seqOp(r.get(0), r.get(1))
       case _ =>
-        agg.seqOp(x)
+        agg.seqOp(r.get(0))
     }
   }
 
