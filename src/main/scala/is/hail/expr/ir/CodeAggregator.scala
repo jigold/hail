@@ -100,8 +100,8 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
       m.invoke[Any, Any, Unit]("update", wrappedKey, Code.checkcast[Agg](krvAgg.invoke[RegionValueAggregator]("rvAgg")).invoke[Agg]("copy"))),
       m.invoke("apply", wrappedKey))
 
-    val argTypes = classOf[Region] +: seqOpArgTypes.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
-    val args = vs.zip(ms).flatMap { case (v, m) => Array(v, m) }
+    val argTypes = classOf[Region] +: seqOpArgTypes.drop(1).flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
+    val args = vs.drop(1).zip(ms.drop(1)).flatMap { case (v, m) => Array(v, m) }
 
     rva.invoke("seqOp", argTypes, Array(region) ++ args)(classTag[Unit])
   }

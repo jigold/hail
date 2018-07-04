@@ -70,37 +70,38 @@ object ExtractAggregators {
   }
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
-    case x@ApplyAggOp(a, constructorArgs, _, aggSig) =>
-      val fb = EmitFunctionBuilder[Region, RegionValueAggregator]
-      var codeConstructorArgs = constructorArgs.map(Emit.toCode(_, fb, 1))
+    case x@ApplyAggOp(a, constructorArgs, _, _) =>
 
-      aggSig match {
-        case AggSignature(Collect() | Take() | CollectAsSet(), _, _, Seq(t@(_: TBoolean | _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TCall))) =>
-        case AggSignature(Collect() | Take() | CollectAsSet(), _, _, Seq(t)) =>
-          codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
-        case AggSignature(Counter(), _, _, Seq(t@(_: TBoolean))) =>
-        case AggSignature(Counter(), _, _, Seq(t)) =>
-          codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
-        case AggSignature(TakeBy(), _, _, Seq(aggType, keyType)) =>
-          codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(aggType)),
-            EmitTriplet(Code._empty, const(false), fb.getType(keyType)))
-        case _ =>
-      }
+      def getAggregator(op: AggOp, aggSig: AggSignature): RegionValueAggregator = op match {
+          case Keyed(subop) =>
+            val newAggSig = aggSig.copy(op = subop, seqOpArgs = aggSig.seqOpArgs.drop(1))
+            KeyedRegionValueAggregator(getAggregator(subop, newAggSig), aggSig.seqOpArgs.head)
+          case _ =>
+            val fb = EmitFunctionBuilder[Region, RegionValueAggregator]
+            var codeConstructorArgs = constructorArgs.map(Emit.toCode(_, fb, 1))
 
-      aggSig.op match {
-        case _: Keyed =>
-        case _ =>
-          fb.emit(Code(
-            Code(codeConstructorArgs.map(_.setup): _*),
-            AggOp.get(aggSig).asInstanceOf[CodeAggregator[_]]
-              .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
-      }
+            aggSig match {
+              case AggSignature(Collect() | Take() | CollectAsSet(), _, _, Seq(t@(_: TBoolean | _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TCall))) =>
+              case AggSignature(Collect() | Take() | CollectAsSet(), _, _, Seq(t)) =>
+                codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
+              case AggSignature(Counter(), _, _, Seq(t@(_: TBoolean))) =>
+              case AggSignature(Counter(), _, _, Seq(t)) =>
+                codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
+              case AggSignature(TakeBy(), _, _, Seq(aggType, keyType)) =>
+                codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(aggType)),
+                  EmitTriplet(Code._empty, const(false), fb.getType(keyType)))
+              case _ =>
+            }
 
-      val rvagg = Region.scoped(fb.result()()(_))
+            println(aggSig.toString)
+            fb.emit(Code(
+              Code(codeConstructorArgs.map(_.setup): _*),
+              AggOp.get(aggSig).asInstanceOf[CodeAggregator[_]]
+                .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
 
-      aggSig.op match {
-        case _: Keyed => KeyedRegionValueAggregator(rvagg, aggSig.seqOpArgs.head)
-        case _ => rvagg
-      }
+            Region.scoped(fb.result()()(_))
+        }
+
+      getAggregator(x.op, x.aggSig)
   }
 }

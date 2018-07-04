@@ -209,7 +209,7 @@ object AggOp {
         seqOpArgTypes = Array(classOf[Int], classOf[Double]))
 
     case (Keyed(op), constrArgs, initOpArgs, seqOpArgs) =>
-      assert(seqOpArgs.length >= 2)
+      assert(seqOpArgs.nonEmpty)
       val keyType = seqOpArgs.head
       val codeAgg = get(AggSignature(op, constrArgs, initOpArgs, seqOpArgs.drop(1)))
 
@@ -223,7 +223,6 @@ object AggOp {
         case _: TFloat64 => keyedAgg(classOf[Double])
         case _ => keyedAgg(classOf[Long])
       }
-      
   }
 
   private def incompatible(aggSig: AggSignature): Nothing = {
