@@ -69,7 +69,7 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
     assert(initOpArgTypes.isDefined && vs.length == ms.length)
     val argTypes = initOpArgTypes.get.flatMap[Class[_], Array[Class[_]]](Array(_, classOf[Boolean]))
     val args = vs.zip(ms).flatMap { case (v, m) => Array(v, m) }
-    val krvAgg = Code.checkcast[KeyedRegionValueAggregator[Agg]](krva)
+    val krvAgg = Code.checkcast[KeyedRegionValueAggregator[Agg]](krva) /// FIXME
     krvAgg.invoke[Agg]("rvAgg").invoke("initOp", argTypes, args)(classTag[Unit])
   }
 
@@ -91,18 +91,24 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
     }
 
     val wrappedKey = ms.head.mux(Code._null[Any], wrapArg(vs.head))
-    val m = krva.invoke[mutable.Map[Any, Agg]]("m")
+    val m = krva.invoke[mutable.Map[Any, RegionValueAggregator]]("m")
 
     if (keyTypes.length == 1) {
-      Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
+      Code(
+        Code.getStatic[System, java.io.PrintStream]("out").invoke[String, Unit]("println", "non-keyedagg"),
+        Code.getStatic[System, java.io.PrintStream]("out").invoke[String, Unit]("println", m.invoke[String]("toString")),
+        Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
         Code._empty,
         m.invoke[Any, Any, Unit]("update", wrappedKey, krva.invoke[RegionValueAggregator]("rvAgg").invoke[Agg]("copy"))),
-        m.invoke("apply", wrappedKey))
-    } else {
-      val newkrvAgg = Code.checkcast[KeyedRegionValueAggregator[_]](Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
-        Code._empty,
-        m.invoke[Any, Any, Unit]("update", wrappedKey, krva.invoke[RegionValueAggregator]("rvAgg").invoke[KeyedRegionValueAggregator[Agg]]("copy"))),
         m.invoke("apply", wrappedKey)))
+    } else {
+      val newkrvAgg = Code.checkcast[KeyedRegionValueAggregator[_]](Code(
+        Code.getStatic[System, java.io.PrintStream]("out").invoke[String, Unit]("println", "keyedagg"),
+        Code.getStatic[System, java.io.PrintStream]("out").invoke[String, Unit]("println", m.invoke[String]("toString")),
+        Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
+        Code._empty,
+        m.invoke[Any, Any, Unit]("update", wrappedKey, krva.invoke[RegionValueAggregator]("rvAgg").invoke[KeyedRegionValueAggregator[_]]("copy"))),
+        m.invoke("apply", wrappedKey))))
       getRVAgg(region, newkrvAgg, keyTypes.drop(1), vs.drop(1), ms.drop(1))
     }
   }
