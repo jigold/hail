@@ -109,6 +109,7 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
         Code._empty,
         m.invoke[Any, Any, Unit]("update", wrappedKey, krva.invoke[RegionValueAggregator]("rvAgg").invoke[KeyedRegionValueAggregator[_]]("copy"))),
         m.invoke("apply", wrappedKey))))
+
       getRVAgg(region, newkrvAgg, keyTypes.drop(1), vs.drop(1), ms.drop(1))
     }
   }
