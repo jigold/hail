@@ -73,7 +73,7 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
     krvAgg.invoke[Agg]("rvAgg").invoke("initOp", argTypes, args)(classTag[Unit])
   }
 
-  def getRVAgg(region: Code[Region], krva: Code[KeyedRegionValueAggregator[Agg]], keyTypes: Array[Type], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[RegionValueAggregator] = {
+  def getRVAgg(region: Code[Region], krva: Code[KeyedRegionValueAggregator[_]], keyTypes: Array[Type], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[RegionValueAggregator] = {
     def wrapArg(arg: Code[_]): Code[_] = keyTypes.head match {
       case _: TBoolean => Code.boxBoolean(coerce[Boolean](arg))
       case _: TInt32 | _: TCall => Code.boxInt(coerce[Int](arg))
@@ -99,7 +99,7 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
         m.invoke[Any, Any, Unit]("update", wrappedKey, krva.invoke[RegionValueAggregator]("rvAgg").invoke[Agg]("copy"))),
         m.invoke("apply", wrappedKey))
     } else {
-      val newkrvAgg = Code.checkcast[KeyedRegionValueAggregator[Agg]](Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
+      val newkrvAgg = Code.checkcast[KeyedRegionValueAggregator[_]](Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
         Code._empty,
         m.invoke[Any, Any, Unit]("update", wrappedKey, krva.invoke[RegionValueAggregator]("rvAgg").invoke[KeyedRegionValueAggregator[Agg]]("copy"))),
         m.invoke("apply", wrappedKey)))
@@ -110,7 +110,7 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
   def seqOp(region: Code[Region], krva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit] = {
     assert(vs.length == ms.length)
 
-    val krvAgg = Code.checkcast[KeyedRegionValueAggregator[Agg]](krva)
+    val krvAgg = Code.checkcast[KeyedRegionValueAggregator[_]](krva)
     val rva = getRVAgg(region, krvAgg, keys, vs, ms)
 
     val nKeys = keys.length
