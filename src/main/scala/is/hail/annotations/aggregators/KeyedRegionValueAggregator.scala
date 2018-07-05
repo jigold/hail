@@ -5,24 +5,24 @@ import is.hail.expr.types.Type
 
 import scala.collection.mutable
 
-case class KeyedRegionValueAggregator[Agg <: RegionValueAggregator](
-  rvAgg: Agg,
+case class KeyedRegionValueAggregator(
+  rvAgg: RegionValueAggregator,
   keyType: Type) extends RegionValueAggregator {
 
-  var m = mutable.Map.empty[Any, Agg] // this can't be private for reflection to work
+  var m = mutable.Map.empty[Any, RegionValueAggregator] // this can't be private for reflection to work
 
-  def newInstance(): KeyedRegionValueAggregator[Agg] = {
-    KeyedRegionValueAggregator[Agg](rvAgg, keyType)
+  def newInstance(): KeyedRegionValueAggregator = {
+    KeyedRegionValueAggregator(rvAgg, keyType)
   }
 
-  def copy(): KeyedRegionValueAggregator[Agg] = {
-    val rva = KeyedRegionValueAggregator[Agg](rvAgg, keyType)
-    rva.m = m.map { case (k, agg) => (k, agg.copy().asInstanceOf[Agg]) }
+  def copy(): KeyedRegionValueAggregator = {
+    val rva = KeyedRegionValueAggregator(rvAgg, keyType)
+    rva.m = m.map { case (k, agg) => (k, agg.copy()) }
     rva
   }
 
   override def combOp(agg2: RegionValueAggregator): Unit = {
-    val m2 = agg2.asInstanceOf[KeyedRegionValueAggregator[Agg]].m
+    val m2 = agg2.asInstanceOf[KeyedRegionValueAggregator].m
     m2.foreach { case (k, v2) =>
       m(k) = m.get(k) match {
         case Some(v) =>

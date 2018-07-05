@@ -101,6 +101,7 @@ object ExtractAggregators {
             Region.scoped(fb.result()()(_))
         }
 
+      println(getAggregator(x.op, x.aggSig))
       getAggregator(x.op, x.aggSig)
   }
 }
