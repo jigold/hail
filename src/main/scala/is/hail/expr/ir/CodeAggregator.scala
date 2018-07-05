@@ -73,8 +73,8 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
     krvAgg.invoke[Agg]("rvAgg").invoke("initOp", argTypes, args)(classTag[Unit])
   }
 
-  def getRVAgg(region: Code[Region], krva: Code[KeyedRegionValueAggregator[Agg]], keys: Array[Type], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[RegionValueAggregator] = {
-    def wrapArg(arg: Code[_]): Code[_] = keys.head match {
+  def getRVAgg(region: Code[Region], krva: Code[KeyedRegionValueAggregator[Agg]], keyTypes: Array[Type], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[RegionValueAggregator] = {
+    def wrapArg(arg: Code[_]): Code[_] = keyTypes.head match {
       case _: TBoolean => Code.boxBoolean(coerce[Boolean](arg))
       case _: TInt32 | _: TCall => Code.boxInt(coerce[Int](arg))
       case _: TInt64 => Code.boxLong(coerce[Long](arg))
@@ -93,18 +93,17 @@ case class KeyedCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInf
     val wrappedKey = ms.head.mux(Code._null[Any], wrapArg(vs.head))
     val m = krva.invoke[mutable.Map[Any, Agg]]("m")
 
-    if (keys.length == 1) {
-      Code.checkcast[Agg](Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
+    if (keyTypes.length == 1) {
+      Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
         Code._empty,
-        m.invoke[Any, Any, Unit]("update", wrappedKey, Code.checkcast[Agg](krva.invoke[RegionValueAggregator]("rvAgg")).invoke[Agg]("copy"))),
-        m.invoke("apply", wrappedKey)))
+        m.invoke[Any, Any, Unit]("update", wrappedKey, krva.invoke[RegionValueAggregator]("rvAgg").invoke[Agg]("copy"))),
+        m.invoke("apply", wrappedKey))
     } else {
-//      ???
-      val newkrva = Code.checkcast[KeyedRegionValueAggregator[Agg]](Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
+      val newkrvAgg = Code.checkcast[KeyedRegionValueAggregator[Agg]](Code(m.invoke[Any, Boolean]("contains", wrappedKey).mux(
         Code._empty,
-        m.invoke[Any, Any, Unit]("update", wrappedKey, Code.checkcast[KeyedRegionValueAggregator[Agg]](krva.invoke[RegionValueAggregator]("rvAgg")).invoke[KeyedRegionValueAggregator[Agg]]("copy"))),
+        m.invoke[Any, Any, Unit]("update", wrappedKey, krva.invoke[RegionValueAggregator]("rvAgg").invoke[KeyedRegionValueAggregator[Agg]]("copy"))),
         m.invoke("apply", wrappedKey)))
-      getRVAgg(region, newkrva, keys.drop(1), vs.drop(1), ms.drop(1))
+      getRVAgg(region, newkrvAgg, keyTypes.drop(1), vs.drop(1), ms.drop(1))
     }
   }
 
