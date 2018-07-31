@@ -14,6 +14,8 @@ class IndexSuite extends SparkSuite {
     "skunk", "snail", "squirrel", "vole",
     "weasel", "whale", "yak", "zebra")
 
+//  val strings = Array("bear", "cat")
+
   @DataProvider(name = "elements")
   def data(): Array[Array[Array[String]]] = {
     (1 to strings.length).map(i => Array(strings.take(i))).toArray // FIXME: empty array ???

@@ -57,7 +57,7 @@ class IndexReader(conf: Configuration, path: String, cacheCapacity: Int = 256) {
     rv.setOffset(leafDecoder.readRegionValue(region))
     LeafNode(SafeRow(leafType, rv))
   }
-
+  
   private def queryByKey(key: Annotation, depth: Int, nodeOffset: Long, ordering: ExtendedOrdering): Option[Long] = {
     def searchLeafNode(node: LeafNode): Option[Long] = {
       var i = 0
