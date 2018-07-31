@@ -14,7 +14,7 @@ import org.apache.spark.sql.Row
 import org.json4s.Formats
 import org.json4s.jackson.JsonMethods
 
-class IndexReader(conf: Configuration, path: String, cacheCapacity: Int = 256) {
+class IndexReader(conf: Configuration, path: String, cacheCapacity: Int = 256) extends Serializable with AutoCloseable {
   private val is = conf.unsafeReader(path + "/index").asInstanceOf[FSDataInputStream]
   private val codecSpec = CodecSpec.default
 
@@ -57,7 +57,7 @@ class IndexReader(conf: Configuration, path: String, cacheCapacity: Int = 256) {
     rv.setOffset(leafDecoder.readRegionValue(region))
     LeafNode(SafeRow(leafType, rv))
   }
-  
+
   private def queryByKey(key: Annotation, depth: Int, nodeOffset: Long, ordering: ExtendedOrdering): Option[Long] = {
     def searchLeafNode(node: LeafNode): Option[Long] = {
       var i = 0

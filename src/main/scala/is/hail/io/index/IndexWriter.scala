@@ -19,12 +19,21 @@ case class IndexMetadata(
   attributes: Map[String, Any]
 )
 
+object IndexWriter {
+  def apply(
+    conf: Configuration,
+    path: String,
+    keyType: Type,
+    branchingFactor: Int = 1024,
+    attributes: Map[String, Any] = Map.empty[String, Any]) = new IndexWriter(new SerializableHadoopConfiguration(conf), path, keyType, branchingFactor)
+}
+
 class IndexWriter(
-  conf: Configuration,
+  conf: SerializableHadoopConfiguration,
   path: String,
   keyType: Type,
   branchingFactor: Int = 1024,
-  attributes: Map[String, Any] = Map.empty[String, Any]) {
+  attributes: Map[String, Any] = Map.empty[String, Any]) extends Serializable {
 
   private var elementIdx = 0L
   private var rootOffset = 0L
@@ -37,7 +46,7 @@ class IndexWriter(
   private val leafNode = new LeafNodeBuilder(keyType)
   private val internalNodes = new ArrayBuilder[InternalNodeBuilder]()
 
-  private val trackedOS = new ByteTrackingOutputStream(conf.unsafeWriter(path + "/index"))
+  private val trackedOS = new ByteTrackingOutputStream(conf.value.unsafeWriter(path + "/index"))
   private val codecSpec = CodecSpec.default
   private val leafEncoder = codecSpec.buildEncoder(leafNode.typ)(trackedOS)
   private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType))(trackedOS)
@@ -140,7 +149,8 @@ class IndexWriter(
   }
 
   private def writeMetadata() = {
-    conf.writeTextFile(path + "/metadata.json.gz") { out =>
+    conf.value.writeTextFile(path + "/metadata.json.gz") { out =>
+      // FIXME: path is not correct!
       val metadata = IndexMetadata(1, branchingFactor, keyType._toPretty, elementIdx, path, rootOffset, attributes)
       implicit val formats: Formats = defaultJSONFormats
       Serialization.write(metadata, out)

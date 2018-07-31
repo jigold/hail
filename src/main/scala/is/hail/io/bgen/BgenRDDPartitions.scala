@@ -3,6 +3,7 @@ package is.hail.io.bgen
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
+import is.hail.io.index.IndexReader
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader, OnDiskBTreeIndexToValue}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
@@ -58,45 +59,60 @@ object BgenRDDPartitions extends Logging {
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
         val nPartitions = fileNPartitions(fileIndex)
-        using(new OnDiskBTreeIndexToValue(file.path + ".idx", hConf)) { index =>
-          includedVariantsPerFile.get(file.path) match {
-            case None =>
-              val partNVariants = partition(file.nVariants, nPartitions)
-              val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
-              val partFirstByteOffset = index.positionOfVariants(partFirstVariantIndex)
-              var i = 0
-              while (i < nPartitions) {
-                partitions += BgenPartitionWithoutFilter(
-                  file.path,
-                  file.compressed,
-                  partFirstVariantIndex(i),
-                  partFirstByteOffset(i),
-                  if (i < nPartitions - 1) partFirstByteOffset(i + 1) else file.fileByteSize,
-                  partitions.length,
-                  sHadoopConfBc,
-                  settings
-                )
-                i += 1
-              }
-            case Some(variantIndices) =>
-              val partNVariants = partition(variantIndices.length, nPartitions)
-              val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
-              val variantIndexByteOffset = index.positionOfVariants(variantIndices.toArray)
-              var i = 0
-              while (i < nPartitions) {
-                var firstVariantIndex = partFirstVariantIndex(i)
-                var lastVariantIndex = firstVariantIndex + partNVariants(i)
-                partitions += BgenPartitionWithFilter(
-                  file.path,
-                  file.compressed,
-                  partitions.length,
-                  variantIndexByteOffset.slice(firstVariantIndex, lastVariantIndex),
-                  variantIndices.slice(firstVariantIndex, lastVariantIndex).toArray,
-                  sHadoopConfBc,
-                  settings
-                )
-                i += 1
-              }
+
+        if (settings.createIndex) {
+          assert(nPartitions == 1)
+          partitions += BgenPartitionWithoutFilter(
+            file.path,
+            file.compressed,
+            0,
+            file.dataStart,
+            file.fileByteSize,
+            partitions.length,
+            sHadoopConfBc,
+            settings
+          )
+        } else {
+          using(new IndexReader(hConf, file.path + ".idx")) { ir =>
+            includedVariantsPerFile.get(file.path) match {
+              case None =>
+                val partNVariants = partition(file.nVariants, nPartitions)
+                val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
+                val partFirstByteOffset = partFirstVariantIndex.map(ir.queryByIndex(_).offset)
+                var i = 0
+                while (i < nPartitions) {
+                  partitions += BgenPartitionWithoutFilter(
+                    file.path,
+                    file.compressed,
+                    partFirstVariantIndex(i),
+                    partFirstByteOffset(i),
+                    if (i < nPartitions - 1) partFirstByteOffset(i + 1) else file.fileByteSize,
+                    partitions.length,
+                    sHadoopConfBc,
+                    settings
+                  )
+                  i += 1
+                }
+              case Some(variantIndices) =>
+                val partNVariants = partition(variantIndices.length, nPartitions)
+                val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
+                val variantIndexByteOffset = variantIndices.map(ir.queryByIndex(_).offset).toArray
+                var i = 0
+                while (i < nPartitions) {
+                  val firstVariantIndex = partFirstVariantIndex(i)
+                  val lastVariantIndex = firstVariantIndex + partNVariants(i)
+                  partitions += BgenPartitionWithFilter(
+                    file.path,
+                    file.compressed,
+                    partitions.length,
+                    variantIndexByteOffset.slice(firstVariantIndex, lastVariantIndex),
+                    variantIndices.slice(firstVariantIndex, lastVariantIndex).toArray,
+                    sHadoopConfBc,
+                    settings
+                  )
+                  i += 1
+                }
+            }
           }
         }
         fileIndex += 1
@@ -179,6 +195,7 @@ object CompileDecoder {
     val cbfis = mb.getArg[HadoopFSDataBinaryReader](3).load()
     val csettings = mb.getArg[BgenSettings](4).load()
     val srvb = new StagedRegionValueBuilder(mb, settings.typ)
+    val offset = mb.newLocal[Long]
     val fileRowIndex = mb.newLocal[Long]
     val varid = mb.newLocal[String]
     val rsid = mb.newLocal[String]
@@ -211,6 +228,11 @@ object CompileDecoder {
     val d2 = mb.newLocal[Int]
     val c = Code(
       fileRowIndex := cp.invoke[HadoopFSDataBinaryReader, Long]("advance", cbfis),
+      if (settings.rowFields.offset) {
+        offset := cbfis.invoke[Long]("getPosition")
+      } else {
+        Code._empty
+      },
       if (settings.rowFields.varid) {
         varid := cbfis.invoke[Int, String]("readLengthAndString", 2)
       } else {
@@ -289,6 +311,9 @@ object CompileDecoder {
       else Code._empty,
       if (settings.rowFields.fileRowIndex)
         Code(srvb.addLong(fileRowIndex), srvb.advance())
+      else Code._empty,
+      if (settings.rowFields.offset)
+        Code(srvb.addLong(offset), srvb.advance())
       else Code._empty,
       dataSize := cbfis.invoke[Int]("readInt"),
       settings.entries match {

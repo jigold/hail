@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.expr.types.TString
+import is.hail.io.bgen.LoadBgen
 import is.hail.io.index.{IndexReader, IndexWriter}
 import org.testng.annotations.{DataProvider, Test}
 import is.hail.utils._
@@ -14,8 +15,6 @@ class IndexSuite extends SparkSuite {
     "skunk", "snail", "squirrel", "vole",
     "weasel", "whale", "yak", "zebra")
 
-//  val strings = Array("bear", "cat")
-
   @DataProvider(name = "elements")
   def data(): Array[Array[Array[String]]] = {
     (1 to strings.length).map(i => Array(strings.take(i))).toArray // FIXME: empty array ???
@@ -26,7 +25,7 @@ class IndexSuite extends SparkSuite {
     val file = tmpDir.createTempFile("test", "idx")
     val attributes = Map("foo" -> true, "bar" -> 5)
 
-    val iw = new IndexWriter(hc.hadoopConf, file, TString(), branchingFactor = 2, attributes)
+    val iw = IndexWriter(hc.hadoopConf, file, TString(), branchingFactor = 2, attributes)
     data.zipWithIndex.foreach { case (s, offset) =>
       iw += (s, offset)
     }
@@ -43,4 +42,10 @@ class IndexSuite extends SparkSuite {
     assert(ir.queryByKey("moo").isEmpty)
     ir.close()
   }
+
+//  @Test def indexBGEN() {
+//    hc.indexBgen(Seq("example.8bits.bgen"), Some("GRCh37"), Map("01" -> "1"), skipInvalidLoci = false)
+//    hc.importBgens(Seq("example.8bits.bgen"), Some("example.sample"),
+//      rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"), skipInvalidLoci = false)
+//  }
 }
