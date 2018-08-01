@@ -333,7 +333,6 @@ class HailContext private(val sc: SparkContext,
       dropRows = false,
       reader))
 
-    val hConf = new SerializableHadoopConfiguration(hadoopConf)
     LoadBgen.index(mt, files.toArray, rg, contigRecoding, skipInvalidLoci)
 
     info(s"Number of BGEN files indexed: ${ files.length }")
