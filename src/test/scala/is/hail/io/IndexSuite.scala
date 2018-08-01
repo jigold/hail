@@ -43,9 +43,9 @@ class IndexSuite extends SparkSuite {
     ir.close()
   }
 
-//  @Test def indexBGEN() {
+  @Test def indexBGEN() {
 //    hc.indexBgen(Seq("example.8bits.bgen"), Some("GRCh37"), Map("01" -> "1"), skipInvalidLoci = false)
 //    hc.importBgens(Seq("example.8bits.bgen"), Some("example.sample"),
 //      rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"), skipInvalidLoci = false)
-//  }
+  }
 }

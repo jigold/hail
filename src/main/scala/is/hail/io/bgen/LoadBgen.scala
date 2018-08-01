@@ -46,7 +46,7 @@ object LoadBgen {
       "skip_invalid_loci" -> skipInvalidLoci)
 
     mt.rvd.mapPartitionsWithIndex({ (i, it) =>
-      val iw = new IndexWriter(conf, files(i), keyType, attributes = attributes)
+      val iw = new IndexWriter(conf, files(i) + ".idx", keyType, attributes = attributes)
       val (t, kf) = rowType.select(keyFields.toArray)
       assert(t == keyType)
       it.foreach { rv =>
@@ -55,8 +55,8 @@ object LoadBgen {
         rv
       }
       iw.close()
-      it
-    })
+      Iterator.single(1)
+    }).collect()
   }
 
   def readSamples(hConf: org.apache.hadoop.conf.Configuration, file: String): Array[String] = {
@@ -267,35 +267,37 @@ case class MatrixBGENReader(
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 
-  val outdatedIdxFiles = inputs.filter(f => hConf.exists(f + ".idx") && hConf.isFile(f + ".idx"))
-  if (outdatedIdxFiles.length > 0)
-    fatal(
-      s"""The following BGEN files have invalid index files. Use 'index_bgen' to recreate the index file once before calling 'import_bgen':
+  if (!createIndex) {
+    val outdatedIdxFiles = inputs.filter(f => hConf.exists(f + ".idx") && hConf.isFile(f + ".idx"))
+    if (outdatedIdxFiles.length > 0)
+      fatal(
+        s"""The following BGEN files have invalid index files. Use 'index_bgen' to recreate the index file once before calling 'import_bgen':
             |  ${ outdatedIdxFiles.mkString("\n  ") })""".stripMargin)
 
-  val missingIdxFiles = inputs.filterNot(f => hConf.exists(f + ".idx"))
-  if (missingIdxFiles.length > 0)
-    fatal(
-      s"""The following BGEN files have missing index files. Use 'index_bgen' to create the index file once before calling 'import_bgen':
+    val missingIdxFiles = inputs.filterNot(f => hConf.exists(f + ".idx"))
+    if (missingIdxFiles.length > 0)
+      fatal(
+        s"""The following BGEN files have missing index files. Use 'index_bgen' to create the index file once before calling 'import_bgen':
             |  ${ missingIdxFiles.mkString("\n  ") })""".stripMargin)
 
-  val mismatchIdxFiles = inputs.filter(f => hConf.exists(f + ".idx") && hConf.isDir(f + ".idx")).flatMap { f =>
-    val ir = new IndexReader(hConf, f + ".idx")
-    val idxAttr = ir.attributes
-    val attr = Map("reference_genome" -> rg.orNull, "contig_recoding" -> contigRecoding, "skip_invalid_loci" -> skipInvalidLoci)
-    if (idxAttr != attr) {
-      val msg = new StringBuilder()
-      msg ++= s"The index file for BGEN file '$f' was created with different parameters than called with 'import_bgen':\n"
-      Array("reference_genome", "contig_recoding", "skip_invalid_loci").foreach { k =>
-        if (idxAttr(k) != attr(k))
-          msg ++= s"parameter:$k\texpected:${ idxAttr(k) }\tfound:${ attr(k) }\n"
-      }
-      Some(msg.result())
-    } else
-    None
+    val mismatchIdxFiles = inputs.filter(f => hConf.exists(f + ".idx") && hConf.isDir(f + ".idx")).flatMap { f =>
+      val ir = new IndexReader(hConf, f + ".idx")
+      val idxAttr = ir.attributes
+      val attr = Map("reference_genome" -> rg.orNull, "contig_recoding" -> contigRecoding, "skip_invalid_loci" -> skipInvalidLoci)
+      if (idxAttr != attr) {
+        val msg = new StringBuilder()
+        msg ++= s"The index file for BGEN file '$f' was created with different parameters than called with 'import_bgen':\n"
+        Array("reference_genome", "contig_recoding", "skip_invalid_loci").foreach { k =>
+          if (idxAttr(k) != attr(k))
+            msg ++= s"parameter:$k\texpected:${ idxAttr(k) }\tfound:${ attr(k) }\n"
+        }
+        Some(msg.result())
+      } else
+        None
+    }
+    if (mismatchIdxFiles.length > 0)
+      fatal(mismatchIdxFiles.mkString(""))
   }
-  if (mismatchIdxFiles.length > 0)
-    fatal(mismatchIdxFiles.mkString(""))
 
   val fullType: MatrixType = MatrixType.fromParts(
     globalType = TStruct.empty(),
