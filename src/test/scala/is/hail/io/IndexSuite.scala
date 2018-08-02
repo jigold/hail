@@ -49,4 +49,13 @@ class IndexSuite extends SparkSuite {
       rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"), skipInvalidLoci = false)
     println(mt.forceCountRows())
   }
+
+  @Test def test2() {
+    val files = Array("src/test/resources/random-b.bgen",
+      "src/test/resources/random-a.bgen",
+      "src/test/resources/random-c.bgen")
+
+    hc.indexBgen(files)
+    hc.importBgens(files, Some("src/test/resources/random.sample"), nPartitions = Some(1)).forceCountRows()
+  }
 }

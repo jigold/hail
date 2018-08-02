@@ -495,12 +495,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
-    def test_parallel_import(self):
-        mt = hl.import_bgen(resource('parallelBgenExport.bgen'),
-                            ['GT', 'GP'],
-                            resource('parallelBgenExport.sample'))
-        self.assertEqual(mt.count(), (16, 10))
-
     def test_import_bgen_dosage_and_gp_dosage_function_agree(self):
         recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}
 
@@ -644,6 +638,18 @@ class BGENTests(unittest.TestCase):
         dc = bgen.drop_cols()
         self.assertEqual(dc._force_count_rows(), 199)
         self.assertEqual(dc._force_count_cols(), 0)
+
+    def test_multiple_files(self):
+        sample_file = resource('random.sample')
+        # genmt = hl.import_gen(resource('random.gen'), sample_file)
+
+        bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
+        hl.index_bgen(bgen_file)
+        bgenmt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file, n_partitions=3)
+        bgenmt._force_count_rows()
+        # self.assertTrue(
+        #     bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
+
 
 class GENTests(unittest.TestCase):
     def test_import_gen(self):

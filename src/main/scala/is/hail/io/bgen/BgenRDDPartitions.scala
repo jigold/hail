@@ -66,7 +66,7 @@ object BgenRDDPartitions extends Logging {
         val nPartitions = fileNPartitions(fileIndex)
         if (settings.createIndex) {
           assert(nPartitions == 1)
-          partitions += StreamingBgenPartition(
+          partitions += StreamBgenPartition(
             file.path,
             file.compressed,
             0,
@@ -80,7 +80,7 @@ object BgenRDDPartitions extends Logging {
           using(new IndexReader(hConf, file.path + ".idx")) { ir =>
             val indices = includedVariantsPerFile.get(file.path) match {
               case Some(indices) => indices
-              case None => 0 until file.nVariants // FIXME: skipped variants!
+              case None => 0 until file.nVariants
             }
             val partNVariants = partition(indices.length, nPartitions)
             val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
@@ -90,7 +90,7 @@ object BgenRDDPartitions extends Logging {
               val lastVariantIndex = firstVariantIndex + partNVariants(i)
               val variantIndices = indices.slice(firstVariantIndex, lastVariantIndex).toArray
               val variantByteOffsets = variantIndices.map(ir.queryByIndex(_).offset)
-              partitions += SeekingBgenPartition(
+              partitions += SeekBgenPartition(
                 file.path,
                 file.compressed,
                 partitions.length,
@@ -109,7 +109,7 @@ object BgenRDDPartitions extends Logging {
     }
   }
 
-  private case class StreamingBgenPartition(
+  private case class StreamBgenPartition(
     path: String,
     compressed: Boolean,
     firstRecordIndex: Long,
@@ -140,7 +140,7 @@ object BgenRDDPartitions extends Logging {
       bfis.getPosition < endByteOffset
   }
 
-  private case class SeekingBgenPartition(
+  private case class SeekBgenPartition(
     path: String,
     compressed: Boolean,
     partitionIndex: Int,
