@@ -78,24 +78,24 @@ object BgenRDDPartitions extends Logging {
           )
         } else {
           using(new IndexReader(hConf, file.path + ".idx")) { ir =>
-            val indices = includedVariantsPerFile.get(file.path) match {
-              case Some(indices) => indices
+            val variantIndices = includedVariantsPerFile.get(file.path) match {
               case None => 0 until file.nVariants
+              case Some(indices) => indices
             }
-            val partNVariants = partition(indices.length, nPartitions)
+
+            val partNVariants = partition(variantIndices.length, nPartitions)
             val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
+            val variantIndexByteOffset = variantIndices.map(ir.queryByIndex(_).offset).toArray // index.positionOfVariants(variantIndices.toArray)
             var i = 0
             while (i < nPartitions) {
               val firstVariantIndex = partFirstVariantIndex(i)
               val lastVariantIndex = firstVariantIndex + partNVariants(i)
-              val variantIndices = indices.slice(firstVariantIndex, lastVariantIndex).toArray
-              val variantByteOffsets = variantIndices.map(ir.queryByIndex(_).offset)
               partitions += SeekBgenPartition(
                 file.path,
                 file.compressed,
                 partitions.length,
-                variantByteOffsets,
-                variantIndices,
+                variantIndexByteOffset.slice(firstVariantIndex, lastVariantIndex),
+                variantIndices.slice(firstVariantIndex, lastVariantIndex).toArray,
                 sHadoopConfBc,
                 settings
               )

@@ -128,6 +128,8 @@ private class BgenRecordIterator(
   private[this] val bfis = p.makeInputStream
   private[this] val rv = RegionValue(ctx.region)
   def next(): Option[RegionValue] = {
+    println(p)
+    println(bfis.getPosition)
     val maybeOffset = f(ctx.region, p, bfis, settings)
     if (maybeOffset == -1) {
       None
