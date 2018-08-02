@@ -611,8 +611,8 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(expected._same(actual))
         self.assertEqual((hl.str(actual.locus.contig) + ":" + hl.str(actual.locus.position)).collect(),
-                         ['1:3000', '1:4000', '1:5000', '1:7000', '1:9000',
-                          '1:11000', '1:13000', '1:15000', '1:19000', '1:100001'])
+                         ['1:2000', '1:2001', '1:3000', '1:4000', '1:5000',
+                          '1:6000', '1:7000', '1:8000', '1:10000', '1:100001'])
 
     # FIXME testing block_size (in MB) requires large BGEN
     def test_n_partitions(self):
