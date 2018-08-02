@@ -14,7 +14,7 @@ import org.apache.spark.sql.Row
 import org.json4s.Formats
 import org.json4s.jackson.JsonMethods
 
-class IndexReader(conf: Configuration, path: String, cacheCapacity: Int = 256) extends Serializable with AutoCloseable {
+class IndexReader(conf: Configuration, path: String, cacheCapacity: Int = 32) extends Serializable with AutoCloseable {
   private val is = conf.unsafeReader(path + "/index").asInstanceOf[FSDataInputStream]
   private val codecSpec = CodecSpec.default
 
