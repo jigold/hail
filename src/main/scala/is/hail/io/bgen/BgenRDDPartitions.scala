@@ -59,7 +59,6 @@ object BgenRDDPartitions extends Logging {
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
         val nPartitions = fileNPartitions(fileIndex)
-
         if (settings.createIndex) {
           assert(nPartitions == 1)
           partitions += StreamingBgenPartition(
@@ -97,48 +96,6 @@ object BgenRDDPartitions extends Logging {
               )
               i += 1
             }
-
-//
-//            includedVariantsPerFile.get(file.path) match {
-//              case None =>
-//                val partNVariants = partition(file.nVariants, nPartitions)
-//                val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
-//                var i = 0
-//                while (i < nPartitions) {
-//                  val firstVariantIndex = partFirstVariantIndex(i)
-//                  val lastVariantIndex = firstVariantIndex + partNVariants(i)
-//                  val variantIndexByteOffset = (firstVariantIndex until lastVariantIndex).map(ir.queryByIndex(_).offset).toArray
-//                  partitions += SeekingBgenPartition(
-//                    file.path,
-//                    file.compressed,
-//                    partitions.length,
-//                    variantIndexByteOffset,
-//                    (0 until lastVariantIndex - firstVariantIndex).toArray,
-//                    sHadoopConfBc,
-//                    settings
-//                  )
-//                  i += 1
-//                }
-//              case Some(variantIndices) =>
-//                val partNVariants = partition(variantIndices.length, nPartitions)
-//                val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
-//                val variantIndexByteOffset = variantIndices.map(ir.queryByIndex(_).offset).toArray
-//                var i = 0
-//                while (i < nPartitions) {
-//                  val firstVariantIndex = partFirstVariantIndex(i)
-//                  val lastVariantIndex = firstVariantIndex + partNVariants(i)
-//                  partitions += SeekingBgenPartition(
-//                    file.path,
-//                    file.compressed,
-//                    partitions.length,
-//                    variantIndexByteOffset.slice(firstVariantIndex, lastVariantIndex),
-//                    variantIndices.slice(firstVariantIndex, lastVariantIndex).toArray,
-//                    sHadoopConfBc,
-//                    settings
-//                  )
-//                  i += 1
-//                }
-//            }
           }
         }
         fileIndex += 1
