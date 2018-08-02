@@ -45,9 +45,14 @@ object BgenRDDPartitions extends Logging {
     val hConf = sc.hadoopConfiguration
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
     val filesWithVariantFilters = files.map { header =>
+      val nVariants =
+        if (settings.createIndex)
+          header.nVariants
+        else
+          IndexReader.readMetadata(hConf, header.path + ".idx/metadata.json.gz").nKeys.toInt
       val nKeptVariants = includedVariantsPerFile.get(header.path)
         .map(_.length)
-        .getOrElse(header.nVariants)
+        .getOrElse(nVariants)
       header.copy(nVariants = nKeptVariants)
     }
     val nonEmptyFilesAfterFilter = filesWithVariantFilters.filter(_.nVariants > 0)
@@ -75,7 +80,7 @@ object BgenRDDPartitions extends Logging {
           using(new IndexReader(hConf, file.path + ".idx")) { ir =>
             val indices = includedVariantsPerFile.get(file.path) match {
               case Some(indices) => indices
-              case None => 0 until file.nVariants
+              case None => 0 until file.nVariants // FIXME: skipped variants!
             }
             val partNVariants = partition(indices.length, nPartitions)
             val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init

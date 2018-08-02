@@ -453,8 +453,8 @@ class BGENTests(unittest.TestCase):
 
     def test_import_bgen_skip_invalid_loci(self):
         hl.index_bgen(resource('skip_invalid_loci.bgen'),
-                      contig_recoding={'01': '1'},
-                      reference_genome='GRCh37')
+                      reference_genome='GRCh37',
+                      skip_invalid_loci=True)
 
         mt = hl.import_bgen(resource('skip_invalid_loci.bgen'),
                             entry_fields=[],
@@ -464,6 +464,8 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(mt._force_count_rows() == 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
+            hl.index_bgen(resource('skip_invalid_loci.bgen'))
+
             mt = hl.import_bgen(resource('skip_invalid_loci.bgen'),
                                 entry_fields=[],
                                 sample_file=resource('skip_invalid_loci.sample'))
@@ -573,7 +575,7 @@ class BGENTests(unittest.TestCase):
                             _row_fields=['rsid', 'file_row_idx'])
         self.assertEqual(mt.file_row_idx.take(10), [99, 0, 100, 1, 101, 2, 102, 3, 103, 4])
 
-        # the rsids are numbered 2 to 200 and corresond to the order of the
+        # the rsids are numbered 2 to 200 and correspond to the order of the
         # variants in the file (the loci are out of order in this file)
         #
         # the rsids look like: "RSID_99"

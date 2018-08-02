@@ -30,9 +30,7 @@ object LoadBgen {
   def index(
     mt: MatrixTable,
     files: Array[String],
-    rg: Option[String],
-    contigRecoding: Map[String, String],
-    skipInvalidLoci: Boolean) {
+    attributes: Map[String, Any]) {
 
     val conf = new SerializableHadoopConfiguration(mt.hadoopConf)
 
@@ -40,10 +38,6 @@ object LoadBgen {
     val keyType = mt.rowKeyStruct
     val rowType = mt.rvRowType
     val offsetIdx = rowType.fieldIdx("offset")
-
-    val attributes = Map("reference_genome" -> rg.orNull,
-      "contig_recoding" -> contigRecoding,
-      "skip_invalid_loci" -> skipInvalidLoci)
 
     mt.rvd.mapPartitionsWithIndex({ (i, it) =>
       val iw = new IndexWriter(conf, files(i) + ".idx", keyType, attributes = attributes)
@@ -289,7 +283,7 @@ case class MatrixBGENReader(
         msg ++= s"The index file for BGEN file '$f' was created with different parameters than called with 'import_bgen':\n"
         Array("reference_genome", "contig_recoding", "skip_invalid_loci").foreach { k =>
           if (idxAttr(k) != attr(k))
-            msg ++= s"parameter:$k\texpected:${ idxAttr(k) }\tfound:${ attr(k) }\n"
+            msg ++= s"parameter: '$k'\texpected: ${ idxAttr(k) }\tfound: ${ attr(k) }\n"
         }
         Some(msg.result())
       } else

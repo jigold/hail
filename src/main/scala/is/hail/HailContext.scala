@@ -303,6 +303,11 @@ class HailContext private(val sc: SparkContext,
     contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false) {
 
+    files.foreach { f =>
+      if (hadoopConf.exists(f + ".idx"))
+        hadoopConf.delete(f + ".idx", recursive = true)
+    }
+
     val referenceGenome = rg.map(ReferenceGenome.getReference)
 
     val typedRowFields = Array(
@@ -333,7 +338,11 @@ class HailContext private(val sc: SparkContext,
       dropRows = false,
       reader))
 
-    LoadBgen.index(mt, files.toArray, rg, contigRecoding, skipInvalidLoci)
+    val attributes = Map("reference_genome" -> rg.orNull,
+      "contig_recoding" -> Option(contigRecoding).getOrElse(Map.empty[String, String]),
+      "skip_invalid_loci" -> skipInvalidLoci)
+
+    LoadBgen.index(mt, files.toArray, attributes)
 
     info(s"Number of BGEN files indexed: ${ files.length }")
   }

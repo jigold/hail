@@ -14,11 +14,19 @@ import org.apache.spark.sql.Row
 import org.json4s.Formats
 import org.json4s.jackson.JsonMethods
 
+object IndexReader {
+  def readMetadata(conf: Configuration, metadataFile: String): IndexMetadata = {
+    val jv = conf.readFile(metadataFile) { in => JsonMethods.parse(in) }
+    implicit val formats: Formats = defaultJSONFormats
+    jv.extract[IndexMetadata]
+  }
+}
+
 class IndexReader(conf: Configuration, path: String, cacheCapacity: Int = 32) extends Serializable with AutoCloseable {
   private val is = conf.unsafeReader(path + "/index").asInstanceOf[FSDataInputStream]
   private val codecSpec = CodecSpec.default
 
-  private val metadata = readMetadata(path + "/metadata.json.gz")
+  private val metadata = IndexReader.readMetadata(conf, path + "/metadata.json.gz")
   val branchingFactor = metadata.branchingFactor
   val nKeys = metadata.nKeys
   val attributes = metadata.attributes
@@ -36,12 +44,6 @@ class IndexReader(conf: Configuration, path: String, cacheCapacity: Int = 32) ex
 
   @transient private[this] lazy val leafCache = new util.LinkedHashMap[Long, LeafNode](cacheCapacity, 0.75f, true) {
     override def removeEldestEntry(eldest: Entry[Long, LeafNode]): Boolean = size() > cacheCapacity
-  }
-
-  private def readMetadata(metadataFile: String): IndexMetadata = {
-    val jv = conf.readFile(metadataFile) { in => JsonMethods.parse(in) }
-    implicit val formats: Formats = defaultJSONFormats
-    jv.extract[IndexMetadata]
   }
 
   private def readInternalNode(offset: Long): InternalNode = {
