@@ -2,6 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction4
+import is.hail.expr.ir.TableValue
 import is.hail.expr.types._
 import is.hail.io.HadoopFSDataBinaryReader
 import is.hail.rvd._
@@ -67,7 +68,7 @@ case class BgenSettings(
   }
 
   def recodeContig(bgenContig: String): String = {
-    val hailContig = bgenContig match {
+    val hailContig = bgenContig match { // FIXME!! This shouldn't be here!
       case "23" => "X"
       case "24" => "Y"
       case "25" => "X"
@@ -83,11 +84,11 @@ object BgenRDD {
     sc: SparkContext,
     files: Seq[BgenHeader],
     fileNPartitions: Array[Int],
-    includedOffsetsPerFile: Map[String, Array[Long]],
+    includedVariants: TableValue,
     settings: BgenSettings
   ): ContextRDD[RVDContext, RegionValue] =
     ContextRDD(
-      new BgenRDD(sc, files, fileNPartitions, includedOffsetsPerFile, settings))
+      new BgenRDD(sc, files, fileNPartitions, includedVariants, settings))
 
   private[bgen] def decompress(
     input: Array[Byte],
@@ -99,7 +100,7 @@ private class BgenRDD(
   sc: SparkContext,
   files: Seq[BgenHeader],
   fileNPartitions: Array[Int],
-  includedOffsetsPerFile: Map[String, Array[Long]],
+  includedVariants: TableValue,
   settings: BgenSettings
 ) extends RDD[RVDContext => Iterator[RegionValue]](sc, Nil) {
   private[this] val f = CompileDecoder(settings)
@@ -107,8 +108,8 @@ private class BgenRDD(
     sc,
     files,
     fileNPartitions,
-    includedOffsetsPerFile,
-    settings)
+    includedVariants,
+    settings.createIndex)
 
   protected def getPartitions: Array[Partition] = parts
 

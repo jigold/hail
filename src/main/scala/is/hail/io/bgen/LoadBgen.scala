@@ -2,7 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue}
+import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue, TableValue}
 import is.hail.expr.types._
 import is.hail.io._
 import is.hail.io.index.{IndexReader, IndexWriter}
@@ -65,7 +65,7 @@ object LoadBgen {
         rg,
         Option(contigRecoding).getOrElse(Map.empty[String, String]),
         skipInvalidLoci,
-        None,
+        null,
         createIndex = true)
 
       val mt = new MatrixTable(hc, MatrixRead(
@@ -196,7 +196,7 @@ case class MatrixBGENReader(
   rg: Option[String],
   contigRecoding: Map[String, String],
   skipInvalidLoci: Boolean,
-  includedVariants: Option[Seq[Annotation]],
+  includedVariants: TableValue,
   createIndex: Boolean) extends MatrixReader {
   private val hc = HailContext.get
   private val sc = hc.sc
@@ -320,17 +320,17 @@ case class MatrixBGENReader(
       fatal(mismatchIdxFiles.mkString(""))
   }
 
-  private val includedOffsetsPerFile = includedVariants match {
-    case Some(variants) if !createIndex =>
-      // I tried to use sc.parallelize to do this in parallel, but couldn't fix the serialization error
-      files.map { f =>
-        val index = new IndexReader(hConf, f + ".idx2")
-        val offsets = variants.flatMap(index.queryByKey(_).map(_.recordOffset)).toArray
-        index.close()
-        (absolutePath(f), offsets)
-      }.toMap
-    case _ => Map.empty[String, Array[Long]]
-  }
+//  private val includedOffsetsPerFile = includedVariants match {
+//    case Some(variants) if !createIndex =>
+//      // I tried to use sc.parallelize to do this in parallel, but couldn't fix the serialization error
+//      files.map { f =>
+//        val index = new IndexReader(hConf, f + ".idx2")
+//        val offsets = variants.flatMap(index.queryByKey(_).map(_.recordOffset)).toArray
+//        index.close()
+//        (absolutePath(f), offsets)
+//      }.toMap
+//    case _ => Map.empty[String, Array[Long]]
+//  }
 
   val fullType: MatrixType = MatrixType.fromParts(
     globalType = TStruct.empty(),
@@ -355,7 +355,7 @@ case class MatrixBGENReader(
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
   lazy val fastKeys = BgenRDD(
-    sc, fileHeaders, inputNPartitions, includedOffsetsPerFile,
+    sc, fileHeaders, inputNPartitions, includedVariants,
     BgenSettings(
       nSamples,
       NoEntries,
@@ -396,7 +396,7 @@ case class MatrixBGENReader(
       OrderedRVD.empty(sc, requestedType.orvdType)
     else
       coercer.coerce(requestedType.orvdType,
-        BgenRDD(sc, fileHeaders, inputNPartitions, includedOffsetsPerFile, recordsSettings))
+        BgenRDD(sc, fileHeaders, inputNPartitions, includedVariants, recordsSettings))
 
     MatrixValue(mr.typ,
       BroadcastRow(Row.empty, mr.typ.globalType, sc),

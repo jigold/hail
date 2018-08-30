@@ -4,7 +4,7 @@ import java.io.InputStream
 import java.util.Properties
 
 import is.hail.annotations._
-import is.hail.expr.ir.MatrixRead
+import is.hail.expr.ir.{MatrixRead, TableValue}
 import is.hail.expr.types._
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.io.bgen.{LoadBgen, MatrixBGENReader}
@@ -392,7 +392,7 @@ class HailContext private(val sc: SparkContext,
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false,
-    includedVariants: Option[Seq[Annotation]] = None
+    includedVariants: TableValue = null
   ): MatrixTable = {
     val referenceGenome = rg.map(ReferenceGenome.getReference)
 
