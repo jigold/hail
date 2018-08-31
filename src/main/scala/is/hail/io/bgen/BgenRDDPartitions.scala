@@ -21,7 +21,7 @@ trait BgenPartition extends Partition {
   def makeInputStream: HadoopFSDataBinaryReader
 
   // advances the reader to the next variant position
-  def advance(bfis: HadoopFSDataBinaryReader): Unit
+  def advance(bfis: HadoopFSDataBinaryReader, offset: Long): Unit
 
   def hasNext(bfis: HadoopFSDataBinaryReader): Boolean
 }
@@ -43,7 +43,7 @@ object BgenRDDPartitions extends Logging {
           header.nVariants
         else {
           // This is needed because invalid loci can be skipped when creating the index
-          val nIndexKeys = IndexReader.readMetadata(hConf, header.path + ".idx/metadata.json.gz").nKeys.toInt
+          val nIndexKeys = IndexReader.readMetadata(hConf, header.path + ".idx2/metadata.json.gz").nKeys.toInt
           assert(nIndexKeys <= header.nVariants)
           nIndexKeys
         }
@@ -63,7 +63,7 @@ object BgenRDDPartitions extends Logging {
         val nPartitions = fileNPartitions(fileIndex)
         if (createIndex) {
           assert(nPartitions == 1)
-          partitions += IndexBgenPartition(
+          partitions += BgenPartitionFromByteRange(
             file.path,
             file.compressed,
             0,
@@ -73,66 +73,26 @@ object BgenRDDPartitions extends Logging {
             sHadoopConfBc
           )
         } else {
-          using(new IndexReader(hConf, file.path + ".idx")) { index =>
-            val partNVariants = partition(file.nVariants, nPartitions)
-            val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
+          val indexFile = file.path + ".idx2"
 
-            if (includedVariants != null) {
-              val keyType = includedVariants.typ.keyType
-              val partFirstKeys = partFirstVariantIndex.map(index.queryByIndex(_).key)
+          val partNVariants = partition(file.nVariants, nPartitions)
+          val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
 
-              val intervals = {
-                val ab = new ArrayBuilder[Interval]()
-                val n = partFirstKeys.length
-                var i = 0
-                while (i < n) {
-                  val interval =
-                    if (i != n - 1)
-                      Interval(partFirstKeys(i), partFirstKeys(i + 1), includesStart = true, includesEnd = true)
-                    else
-                      Interval(partFirstKeys(i), index.queryByIndex(index.nKeys - 1).key, includesStart = true, includesEnd = true)
-                  ab += interval
-                  i += 1
-                }
-                ab.result()
-              }
+          var i = 0
+          while (i < nPartitions) {
+            val firstVariantIndex = partFirstVariantIndex(i)
+            val lastVariantIndex = firstVariantIndex + partNVariants(i)
 
-              val newPartitioner = OrderedRVDPartitioner.generate(keyType.get, intervals)
-              val keysRDD = includedVariants.enforceOrderingRVD.toOrderedRVD.constrainToOrderedPartitioner(newPartitioner).toRows
-              val keyIterators = sc.runJob(keysRDD, (it: Iterator[Annotation]) => it)
-
-              var i = 0
-              while (i < nPartitions) {
-                partitions += BgenPartitionFromKeys(
-                  file.path,
-                  file.compressed,
-                  partitions.length,
-                  index,
-                  keyIterators(i),
-                  sHadoopConfBc
-                )
-                i += 1
-              }
-              assert(i == keyIterators.length)
-            } else {
-              var i = 0
-              while (i < nPartitions) {
-                val firstVariantIndex = partFirstVariantIndex(i)
-                val lastVariantIndex = firstVariantIndex + partNVariants(i)
-
-                partitions += BgenPartitionFromRange(
-                  file.path,
-                  file.compressed,
-                  partitions.length,
-                  index.iterator(firstVariantIndex, lastVariantIndex),
-                  //                  index,
-                  //                  firstVariantIndex,
-                  //                  lastVariantIndex,
-                  sHadoopConfBc
-                )
-                i += 1
-              }
-            }
+            partitions += BgenPartitionFromIndexRange(
+              file.path,
+              file.compressed,
+              partitions.length,
+              indexFile,
+              firstVariantIndex,
+              lastVariantIndex,
+              sHadoopConfBc
+            )
+            i += 1
           }
         }
         fileIndex += 1
@@ -141,114 +101,185 @@ object BgenRDDPartitions extends Logging {
     }
   }
 
-  private case class IndexBgenPartition(
-    path: String,
-    compressed: Boolean,
-    firstRecordIndex: Long,
-    startByteOffset: Long,
-    endByteOffset: Long,
-    partitionIndex: Int,
-    sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
-  ) extends BgenPartition {
+//          if (includedVariants != null) {
+//            using(new IndexReader(hConf, indexFile)) { index =>
+//              val keyType = includedVariants.typ.keyType
+//              val partFirstKeys = partFirstVariantIndex.map(index.queryByIndex(_).key)
+//
+//              val intervals = {
+//                val ab = new ArrayBuilder[Interval]()
+//                val n = partFirstKeys.length
+//                var i = 0
+//                while (i < n) {
+//                  val interval =
+//                    if (i != n - 1)
+//                      Interval(partFirstKeys(i), partFirstKeys(i + 1), includesStart = true, includesEnd = true)
+//                    else
+//                      Interval(partFirstKeys(i), index.queryByIndex(index.nKeys - 1).key, includesStart = true, includesEnd = true)
+//                  ab += interval
+//                  i += 1
+//                }
+//                ab.result()
+//              }
+//
+//              val newPartitioner = OrderedRVDPartitioner.generate(keyType.get, intervals)
+//              val keysRDD = includedVariants.enforceOrderingRVD.toOrderedRVD.constrainToOrderedPartitioner(newPartitioner).toRows
+//              val keyIterators = sc.runJob(keysRDD, (it: Iterator[Annotation]) => it)
+//
+//              var i = 0
+//              while (i < nPartitions) {
+//                partitions += BgenPartitionFromKeys(
+//                  file.path,
+//                  file.compressed,
+//                  partitions.length,
+//                  index,
+//                  keyIterators(i),
+//                  sHadoopConfBc
+//                )
+//                i += 1
+//              }
+//              assert(i == keyIterators.length)
+//            }
+//          } else {
+//            var i = 0
+//            while (i < nPartitions) {
+//              val firstVariantIndex = partFirstVariantIndex(i)
+//              val lastVariantIndex = firstVariantIndex + partNVariants(i)
+//
+//              partitions += BgenPartitionFromIndexRange(
+//                file.path,
+//                file.compressed,
+//                partitions.length,
+//                indexFile,
+//                firstVariantIndex,
+//                lastVariantIndex,
+//                sHadoopConfBc
+//              )
+//              i += 1
+//            }
+//          }
+//        }
+//      }
+//      fileIndex += 1
+//    }
+//    partitions.result()
+//  }
+//}
 
-    def index = partitionIndex
+private[bgen] case class BgenPartitionFromByteRange(
+  path: String,
+  compressed: Boolean,
+  firstRecordIndex: Long,
+  startByteOffset: Long,
+  endByteOffset: Long,
+  partitionIndex: Int,
+  sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
+) extends BgenPartition {
 
-    def makeInputStream = {
-      val hadoopPath = new Path(path)
-      val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
-      val bfis = new HadoopFSDataBinaryReader(fs.open(hadoopPath))
-      bfis.seek(startByteOffset)
-      bfis
-    }
+  def index = partitionIndex
 
-    def advance(bfis: HadoopFSDataBinaryReader) {
-    }
-
-    def hasNext(bfis: HadoopFSDataBinaryReader): Boolean =
-      bfis.getPosition < endByteOffset
+  def makeInputStream = {
+    val hadoopPath = new Path(path)
+    val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
+    val bfis = new HadoopFSDataBinaryReader(fs.open(hadoopPath))
+    bfis.seek(startByteOffset)
+    bfis
   }
 
-  private case class BgenPartitionFromRange(
-    path: String,
-    compressed: Boolean,
-    partitionIndex: Int,
-    it: Iterator[LeafChild],
-    sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
-  ) extends BgenPartition {
-    def index = partitionIndex
-
-    def makeInputStream = {
-      val hadoopPath = new Path(path)
-      val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
-      new HadoopFSDataBinaryReader(fs.open(hadoopPath))
-    }
-
-    def advance(bfis: HadoopFSDataBinaryReader) {
-      val newPos = it.next().recordOffset
-      if (newPos != bfis.getPosition)
-        bfis.seek(newPos)
-    }
-
-    def hasNext(bfis: HadoopFSDataBinaryReader): Boolean = it.hasNext
+  def advance(bfis: HadoopFSDataBinaryReader, offset: Long) {
   }
 
-  private case class BgenPartitionFromKeys(
-    path: String,
-    compressed: Boolean,
-    partitionIndex: Int,
-    indexReader: IndexReader,
-    keys: Iterator[Annotation],
-    sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
-  ) extends BgenPartition {
-    private[this] var current: Annotation = _
-    private[this] var prev: Annotation = _
-    private[this] var indexKeyIterator: Iterator[LeafChild] = _
-    private[this] var isEnd = false
-    updateIterators()
-
-    def updateIterators() {
-      while (indexKeyIterator == null || (keys.hasNext && !indexKeyIterator.hasNext)) {
-        do {
-          prev = current
-          current = keys.next()
-          indexKeyIterator = indexReader.keyIterator(current)
-        } while (keys.hasNext && current == prev)
-      }
-
-      isEnd = !keys.hasNext && !indexKeyIterator.hasNext
-    }
-
-    def index = partitionIndex
-
-    def makeInputStream = {
-      val hadoopPath = new Path(path)
-      val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
-      new HadoopFSDataBinaryReader(fs.open(hadoopPath))
-    }
-
-    def advance(bfis: HadoopFSDataBinaryReader) {
-      assert(!isEnd)
-
-      val newPos = indexKeyIterator.next().recordOffset
-      if (newPos != bfis.getPosition)
-        bfis.seek(newPos)
-
-      updateIterators()
-    }
-
-    def hasNext(bfis: HadoopFSDataBinaryReader): Boolean = isEnd
-  }
+  def hasNext(bfis: HadoopFSDataBinaryReader): Boolean =
+    bfis.getPosition < endByteOffset
 }
+
+private[bgen] case class BgenPartitionFromIndexRange(
+  path: String,
+  compressed: Boolean,
+  partitionIndex: Int,
+  indexFile: String,
+  startIndex: Long,
+  endIndex: Long,
+  sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
+) extends BgenPartition {
+  private[this] var pos = startIndex
+
+  def index = partitionIndex
+
+  def makeInputStream = {
+    val hadoopPath = new Path(path)
+    val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
+    new HadoopFSDataBinaryReader(fs.open(hadoopPath))
+  }
+
+  def advance(bfis: HadoopFSDataBinaryReader, offset: Long) {
+    if (offset != bfis.getPosition)
+      bfis.seek(offset)
+    pos += 1
+  }
+
+  def hasNext(bfis: HadoopFSDataBinaryReader): Boolean =
+    startIndex < endIndex
+}
+//
+//private case class BgenPartitionFromKeys(
+//  path: String,
+//  compressed: Boolean,
+//  partitionIndex: Int,
+//  indexReader: IndexReader,
+//  keys: Iterator[Annotation],
+//  sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
+//) extends BgenPartition {
+//  private[this] var current: Annotation = _
+//  private[this] var prev: Annotation = _
+//  private[this] var indexKeyIterator: Iterator[LeafChild] = _
+//  private[this] var isEnd = false
+//  updateIterators()
+//
+//  def updateIterators() {
+//    while (indexKeyIterator == null || (keys.hasNext && !indexKeyIterator.hasNext)) {
+//      do {
+//        prev = current
+//        current = keys.next()
+//        indexKeyIterator = indexReader.keyIterator(current)
+//      } while (keys.hasNext && current == prev)
+//    }
+//
+//    isEnd = !keys.hasNext && !indexKeyIterator.hasNext
+//  }
+//
+//  def index = partitionIndex
+//
+//  def makeInputStream = {
+//    val hadoopPath = new Path(path)
+//    val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
+//    new HadoopFSDataBinaryReader(fs.open(hadoopPath))
+//  }
+//
+//  def advance(bfis: HadoopFSDataBinaryReader, offset: Long) {
+//    assert(!isEnd)
+//
+//    val newPos = indexKeyIterator.next().recordOffset
+//    if (newPos != bfis.getPosition)
+//      bfis.seek(newPos)
+//
+//    updateIterators()
+//  }
+//
+//  def hasNext(bfis: HadoopFSDataBinaryReader): Boolean = isEnd
+//}
+
 
 object CompileDecoder {
   def apply(
     settings: BgenSettings
-  ): () => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
-    val fb = new Function4Builder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]
+  ): () => AsmFunction5[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long, Long] = {
+    val fb = new Function5Builder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long, Long]
     val mb = fb.apply_method
     val cp = mb.getArg[BgenPartition](2).load()
     val cbfis = mb.getArg[HadoopFSDataBinaryReader](3).load()
     val csettings = mb.getArg[BgenSettings](4).load()
+    val recordOffset = mb.getArg[Long](5).load()
     val srvb = new StagedRegionValueBuilder(mb, settings.typ)
     val offset = mb.newLocal[Long]
     val varid = mb.newLocal[String]
@@ -281,8 +312,8 @@ object CompileDecoder {
     val d1 = mb.newLocal[Int]
     val d2 = mb.newLocal[Int]
     val c = Code(
-      cp.invoke[HadoopFSDataBinaryReader, Unit]("advance", cbfis),
-      offset := cbfis.invoke[Long]("getPosition"),
+      cp.invoke[HadoopFSDataBinaryReader, Long, Unit]("advance", cbfis, recordOffset),
+      offset := cbfis.invoke[Long]("getPosition"), // index file record offset is a dummy variable
       if (settings.rowFields.varid) {
         varid := cbfis.invoke[Int, String]("readLengthAndString", 2)
       } else {
