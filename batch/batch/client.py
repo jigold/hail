@@ -65,15 +65,18 @@ class Batch:
     def __init__(self, client, id):
         self.client = client
         self.id = id
+        self.jobs = []
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
                    service_account_name=None, attributes=None, callback=None, parent_ids=None):
         if parent_ids is None:
             parent_ids = []
-        return self.client._create_job(
+        j = self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, self.id, callback, parent_ids)
+        self.jobs.append(j)
+        return j
 
     def status(self):
         return self.client._get_batch(self.id)
@@ -82,13 +85,13 @@ class Batch:
         i = 0
         while True:
             status = self.status()
-            if status['jobs']['Created'] == 0:
+            if status['job_states']['Created'] == 0:
                 return status
             j = random.randrange(2 ** i)
             time.sleep(0.100 * j)
             # max 5.12s
             if i < 9:
-                i = i + 1
+                i += 1
 
 
 class BatchClient:

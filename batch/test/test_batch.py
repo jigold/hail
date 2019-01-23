@@ -120,8 +120,8 @@ class Test(unittest.TestCase):
         j3.cancel()
         bstatus = b.wait()
 
-        n_cancelled = bstatus['jobs']['Cancelled']
-        n_complete = bstatus['jobs']['Complete']
+        n_cancelled = bstatus['job_states']['Cancelled']
+        n_complete = bstatus['job_states']['Complete']
         self.assertTrue(n_cancelled <= 1)
         self.assertTrue(n_cancelled + n_complete == 3)
 

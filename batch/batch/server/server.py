@@ -395,7 +395,8 @@ class Batch:
         state_count = Counter([j._state for j in self.jobs])
         return {
             'id': self.id,
-            'jobs': {
+            'jobs': [j.to_json() for j in self.jobs],
+            'job_states': {
                 'Created': state_count.get('Created', 0),
                 'Complete': state_count.get('Complete', 0),
                 'Cancelled': state_count.get('Cancelled', 0)
