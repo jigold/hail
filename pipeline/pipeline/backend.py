@@ -3,8 +3,6 @@ import os
 import subprocess as sp
 import batch.client
 
-from google.cloud import storage
-
 from .resource import ResourceFile, ResourceGroup, InputResourceFile, TaskResourceFile
 from .utils import get_sha, escape_string, flatten
 
@@ -135,7 +133,6 @@ class LocalBackend(Backend):
 class BatchBackend(Backend):
     def __init__(self, url='http://localhost:5000'):
         self._batch_client = batch.client.BatchClient(url)
-        self._gcs_client = storage.Client()
 
     def run(self, pipeline, dry_run, verbose, bg, delete_on_exit):  # pylint: disable-msg=R0915
         remote_tmpdir = self.tmp_dir()
@@ -271,16 +268,5 @@ class BatchBackend(Backend):
 
     def tmp_dir(self):
         hail_scratch_bucket = 'hail-pipeline-scratch'
-
-        def create_bucket(n_attempts):
-            subdir_name = 'pipeline-{}'.format(get_sha(16).lower())
-            bucket = self._gcs_client.bucket(hail_scratch_bucket)  # FIXME: Want to create separate bucket per pipeline
-            f = bucket.blob(subdir_name)
-            if not f.exists(self._gcs_client):
-                return f'gs://{hail_scratch_bucket}/{subdir_name}/'
-            else:
-                if n_attempts > 3:
-                    raise Exception("Too many attempts to create a bucket!")
-                return create_bucket(n_attempts + 1)
-
-        return create_bucket(0)
+        subdir_name = 'pipeline-{}'.format(get_sha(16).lower())
+        return f'gs://{hail_scratch_bucket}/{subdir_name}/'
