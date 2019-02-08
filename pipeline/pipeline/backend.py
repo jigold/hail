@@ -74,6 +74,7 @@ class LocalBackend(Backend):
                 memory = f'-m {task._memory}' if task._memory else ''
 
                 script += [f"docker run "
+                           f"--rm "
                            f"-v {tmpdir}:{tmpdir} "
                            f"-w {tmpdir} "
                            f"{memory} "
