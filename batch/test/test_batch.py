@@ -130,7 +130,7 @@ class Test(unittest.TestCase):
         status2 = j2.status()
         assert(status2['id'] == j.id)
 
-    def test_batch(self):
+    def test_batch1(self):
         b = self.batch.create_batch()
         j1 = b.create_job('alpine', ['false'])
         j2 = b.create_job('alpine', ['sleep', '1'])
