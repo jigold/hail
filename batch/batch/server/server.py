@@ -358,6 +358,7 @@ class Job:
         self._tasks = [JobTask.copy_task(self.id, 'input', input_files, copy_service_account_name),
                        JobTask(self.id, 'main', pod_spec),
                        JobTask.copy_task(self.id, 'output', output_files, copy_service_account_name)]
+        self._tasks = [t for t in self._tasks if t is not None]
         await db.jobs.update_record(self.id,
                                     tasks=json.dumps([jt.to_dict() if jt is not None else None for jt in self._tasks]))
 
