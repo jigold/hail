@@ -246,6 +246,8 @@ class Job:
                 if err.status == 404:
                     log.info(f'persistent volume claim {self._pvc.metadata.name} in '
                              f'{self._pvc.metadata.namespace} is already deleted')
+                    await db.jobs.update_record(self.id, pvc=None)
+                    self._pvc = None
                     return
                 raise
             self._pvc = None
