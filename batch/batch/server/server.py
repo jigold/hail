@@ -168,15 +168,9 @@ class JobTask:  # pylint: disable=R0903
 class Job:
     async def _next_task(self):
         self._task_idx += 1
-        while self._task_idx < len(self._tasks):
-            self._current_task = self._tasks[self._task_idx]
-            if self._current_task is not None:
-                await db.jobs.update_record(self.id, task_idx=self._task_idx)
-                return
-            self._task_idx += 1
-
         await db.jobs.update_record(self.id, task_idx=self._task_idx)
-        self._current_task = None
+        if self._task_idx < len(self._tasks):
+            self._current_task = self._tasks[self._task_idx]
 
     def _has_next_task(self):
         return self._task_idx < len(self._tasks)
