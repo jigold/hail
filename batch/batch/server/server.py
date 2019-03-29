@@ -300,7 +300,7 @@ class Job:
             j.attributes = json.loads(record['attributes'])
             j.callback = record['callback']
             # j.child_ids = json.loads(record['child_ids']) # FIXME
-            # j.parent_ids = json.loads(record['parent_ids'])
+            j.parent_ids = json.loads(record['parent_ids'])
 
             # x = await db.jobs.get_records(j.parent_ids)
             # print(x.result())
@@ -333,8 +333,8 @@ class Job:
         self.attributes = attributes
         self.callback = callback
         # self.child_ids = set([])
-        # self.parent_ids = parent_ids
-        self.incomplete_parent_ids = set(self.parent_ids)
+        self.parent_ids = parent_ids
+        # self.incomplete_parent_ids = set(self.parent_ids)
         self.scratch_folder = scratch_folder
         self.always_run = always_run
 
@@ -354,8 +354,8 @@ class Job:
                                            callback=self.callback,
                                            attributes=json.dumps(self.attributes),
                                            task_idx=self._task_idx,
-                                           always_run=self.always_run) #,
-                                           # parent_ids=json.dumps(self.parent_ids))
+                                           always_run=self.always_run,
+                                           parent_ids=json.dumps(self.parent_ids))
 
         self._tasks = [JobTask.copy_task(self.id, 'input', input_files, copy_service_account_name),
                        JobTask(self.id, 'main', pod_spec),
@@ -369,9 +369,9 @@ class Job:
 
         job_id_job[self.id] = self
 
-        for parent in parent_ids:
-            db.job_id_parents.new_record(id=self.id,
-                                         parent=parent.id)
+        for parent in self.parent_ids:
+            await db.jobs_parents.new_record(id=self.id,
+                                             parent=parent)
             # job_id_job[parent].child_ids.add(self.id)
             # db.jobs.update_record(parent.id, ...)  # FIXME: parent-to-children
 
@@ -382,7 +382,7 @@ class Job:
         log.info('created job {}'.format(self.id))
         add_event({'message': f'created job {self.id}'})
 
-        if not self.parent_ids:
+        if not parent_ids:
             await self._create_pod()
         else:
             await self.refresh_parents_and_maybe_create()
@@ -395,16 +395,19 @@ class Job:
 
     async def set_state(self, new_state):
         if self._state != new_state:
+            self._state = new_state
+            await db.jobs.update_record(self.id, state=new_state)
+
             log.info('job {} changed state: {} -> {}'.format(
                 self.id,
                 self._state,
                 new_state))
-            self._state = new_state
+
             await self.notify_children(new_state)
-            await db.jobs.update_record(self.id, state=new_state)
 
     async def notify_children(self, new_state):
         child_ids = await db.jobs_parents.get_children(self.id)
+        print('child_ids', child_ids)
         for child_id in child_ids:
             child = job_id_job.get(child_id)
             if child:
@@ -414,9 +417,8 @@ class Job:
 
     async def parent_new_state(self, new_state, parent_id, maybe_exit_code):
         async def update():
-            # incomplete_parent_ids =  # FIXME
-            self.incomplete_parent_ids.discard(parent_id)  # FIXME
-            if not self.incomplete_parent_ids:
+            incomplete_parent_ids = await db.jobs.get_incomplete_parents(self.id)
+            if not incomplete_parent_ids:
                 assert self._state in ('Cancelled', 'Created'), f'bad state: {self._state}'
                 if self._state != 'Cancelled':
                     log.info(f'all parents complete for {self.id},'

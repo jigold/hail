@@ -121,6 +121,16 @@ class Table:
                 count = await cursor.execute(sql, tuple(key_values))
         return count == 1
 
+    async def _get_field(self, key, field):
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                key_template = ", ".join([f'`{k.replace("`", "``")}` = %s' for k, v in key.items()])
+                key_values = key.values()
+                sql = f"SELECT `{field}` FROM `{self.name}` WHERE {key_template}"
+                await cursor.execute(sql, tuple(key_values))
+                result = cursor.fetchone()
+        return result
+
 
 @asyncinit
 class JobsTable(Table):
@@ -170,6 +180,19 @@ class JobsTable(Table):
     async def has_record(self, id):
         return await self._has_record({'id': id})
 
+    async def get_field(self, id, field):
+        return await self._get_field({'id': id}, field)
+
+    async def get_incomplete_parents(self, id):
+        parent_ids = await self.get_field(id, 'parent_ids')
+        parent_ids = json.loads(parent_ids.result()['parent_ids'])
+        print('parent_ids', parent_ids)
+        parent_records = await self.get_records(parent_ids)
+        incomplete_parents = [pr['id'] for pr in parent_records.result()
+                              if pr['state'] == 'Created']
+        print('incomplete_parents', incomplete_parents)
+        return incomplete_parents
+
 
 @asyncinit
 class JobsParentsTable(Table):
@@ -182,6 +205,10 @@ class JobsParentsTable(Table):
         self._keys = ['id']
 
         await self._create_table(self._schema, self._keys)
+
+    async def new_record(self, **items):
+        assert all([k in self._schema for k in items.keys()])
+        return await self._new_record(items)
 
     async def get_parents(self, id):
         result = await self._get_records({'id': id})
