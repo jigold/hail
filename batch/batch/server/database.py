@@ -231,6 +231,16 @@ class BatchTable(Table):
         assert all([k in self._schema for k in items.keys()])
         return await self._new_record(items)
 
+    async def update_record(self, id, **items):
+        assert all([k in self._schema for k in items.keys()])
+        await self._update_record({'id': id}, items)
+
+    async def get_record(self, id):
+        return await self._get_record({'id': id})
+
+    async def has_record(self, id):
+        return await self._has_record({'id': id})
+
 
 @asyncinit
 class BatchJobsTable(Table):

@@ -115,7 +115,12 @@ class JobTask:  # pylint: disable=R0903
         jt = object.__new__(cls)
         jt.name = d['name']
         assert d['pod_template'] is not None
+        print("JobTask from dict", d['pod_template'])
+        print(type(d['pod_template']))
+        print(type(d['pod_template']['metadata']))
+        print(v1.api_client._ApiClient__deserialize(d['pod_template']['metadata'], kube.client.V1ObjectMeta))
         jt.pod_template = v1.api_client._ApiClient__deserialize(d['pod_template'], kube.client.V1Pod)
+        print("after deserialization", jt.pod_template)
         return jt
 
     @staticmethod
@@ -217,6 +222,8 @@ class Job:
                     kube.client.V1VolumeMount(
                         mount_path='/io',
                         name=self._pvc.metadata.name))
+
+        print(self._current_task.pod_template)
 
         pod = v1.create_namespaced_pod(
             POD_NAMESPACE,
@@ -323,6 +330,7 @@ class Job:
 
             x = json.loads(record['tasks'])
             j._tasks = [JobTask.from_dict(item) if item is not None else None for item in x]
+            print(j._tasks)
             j._current_task = j._tasks[j._task_idx] if j._task_idx < len(j._tasks) else None
 
             return j
@@ -359,7 +367,6 @@ class Job:
                                            always_run=self.always_run,
                                            parent_ids=json.dumps(self.parent_ids))
 
-        print("batch_id constructor", self.id, batch_id)
         self._tasks = [JobTask.copy_task(self.id, 'input', input_files, copy_service_account_name),
                        JobTask(self.id, 'main', pod_spec),
                        JobTask.copy_task(self.id, 'output', output_files, copy_service_account_name)]
@@ -400,7 +407,6 @@ class Job:
 
     async def set_state(self, new_state):
         if self._state != new_state:
-            self._state = new_state
             await db.jobs.update_record(self.id, state=new_state)
 
             log.info('job {} changed state: {} -> {}'.format(
@@ -408,12 +414,15 @@ class Job:
                 self._state,
                 new_state))
 
+            self._state = new_state
             await self.notify_children(new_state)
 
     async def notify_children(self, new_state):
         child_ids = await db.jobs_parents.get_children(self.id)
         for child_id in child_ids:
-            child = job_id_job.get(child_id)
+            # child = job_id_job.get(child_id)
+            child = await Job.from_db(child_id)
+            print("child", child_id, child)
             if child:
                 await child.parent_new_state(new_state, self.id, self.exit_code)
             else:
@@ -586,7 +595,8 @@ async def create_job(request):  # pylint: disable=R0912
 
     parent_ids = parameters.get('parent_ids', [])
     for parent_id in parent_ids:
-        parent_job = job_id_job.get(parent_id, None)
+        parent_job = await Job.from_db(parent_id)
+        # parent_job = job_id_job.get(parent_id, None)
         if parent_job is None:
             abort(400, f'invalid parent_id: no job with id {parent_id}')
         if parent_job.batch_id != batch_id or parent_job.batch_id is None or batch_id is None:
@@ -715,7 +725,9 @@ async def cancel_job(request):
     # job = job_id_job.get(job_id)
     if not job:
         abort(404)
+    print(f"cancelling job {job_id}")
     await job.cancel()
+    print(f"cancelled job {job_id}")
     return jsonify({})
 
 
@@ -755,7 +767,9 @@ class Batch:
         if self.callback:
             def handler(id, job_id, callback, json):
                 try:
+                    print("marking job complete")
                     requests.post(callback, json=json, timeout=120)
+                    print("marked job complete")
                 except requests.exceptions.RequestException as exc:
                     log.warning(
                         f'callback for batch {id}, job {job_id} failed due to an error, I will not retry. '
@@ -766,15 +780,16 @@ class Batch:
                 args=(self.id, job.id, self.callback, job.to_dict())
             ).start()
 
-    def close(self):
+    async def close(self):
         if self.is_open:
             log.info(f'closing batch {self.id}, ttl was {self.ttl}')
             self.is_open = False
+            await db.batch.update_record(self.id, is_open=False)
         else:
             log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
 
     def to_dict(self):
-        state_count = Counter([j._state for j in self.jobs])
+        state_count = Counter([j._state for j in self.jobs])  # FIXME: THis should get jobs from database
         return {
             'id': self.id,
             'jobs': {
@@ -806,7 +821,6 @@ async def create_batch(request):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
     batch = await Batch(parameters.get('attributes'), parameters.get('callback'), parameters.get('ttl'))
-    print(batch.to_dict())
     return jsonify(batch.to_dict())
 
 

@@ -56,7 +56,7 @@ def test_already_deleted_parent_is_400(client):
     assert False
 
 
-def test_dag(client):
+def test_dag1(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
     assert head.parent_ids == []
