@@ -22,19 +22,19 @@ class API():
             'parent_ids': parent_ids,
             'always_run': always_run
         }
-        if attributes:
+        if attributes is not None:
             doc['attributes'] = attributes
-        if batch_id:
+        if batch_id is not None:
             doc['batch_id'] = batch_id
-        if callback:
+        if callback is not None:
             doc['callback'] = callback
-        if scratch_folder:
+        if scratch_folder is not None:
             doc['scratch_folder'] = scratch_folder
-        if input_files:
+        if input_files is not None:
             doc['input_files'] = input_files
-        if output_files:
+        if output_files is not None:
             doc['output_files'] = output_files
-        if copy_service_account_name:
+        if copy_service_account_name is not None:
             doc['copy_service_account_name'] = copy_service_account_name
 
         response = requests.post(url + '/jobs/create', json=doc, timeout=self.timeout)

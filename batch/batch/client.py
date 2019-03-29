@@ -79,6 +79,7 @@ class Batch:
                    copy_service_account_name=None, always_run=False):
         if parent_ids is None:
             parent_ids = []
+        print("batch client constructor", self.id)
         return self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, self.id, callback, parent_ids, scratch_folder,

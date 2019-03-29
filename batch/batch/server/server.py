@@ -289,7 +289,7 @@ class Job:
         return None
 
     @classmethod
-    async def from_sql(cls, id):
+    async def from_db(cls, id):
         record = await db.jobs.get_record(id)
         record = record.result()
         if record is not None:
@@ -297,6 +297,7 @@ class Job:
 
             j.id = id
             j.batch_id = record['batch_id']
+            print("batch_id from_db", j.id, j.batch_id)
             j.attributes = json.loads(record['attributes'])
             j.callback = record['callback']
             # j.child_ids = json.loads(record['child_ids']) # FIXME
@@ -329,6 +330,7 @@ class Job:
     async def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
                        scratch_folder, input_files, output_files, copy_service_account_name,
                        always_run):
+
         self.batch_id = batch_id
         self.attributes = attributes
         self.callback = callback
@@ -357,6 +359,7 @@ class Job:
                                            always_run=self.always_run,
                                            parent_ids=json.dumps(self.parent_ids))
 
+        print("batch_id constructor", self.id, batch_id)
         self._tasks = [JobTask.copy_task(self.id, 'input', input_files, copy_service_account_name),
                        JobTask(self.id, 'main', pod_spec),
                        JobTask.copy_task(self.id, 'output', output_files, copy_service_account_name)]
@@ -377,6 +380,8 @@ class Job:
 
         if batch_id:
             batch = batch_id_batch[batch_id]
+            await db.batch_jobs.new_record(id=batch_id,
+                                           job=self.id)
             batch.jobs.add(self)
 
         log.info('created job {}'.format(self.id))
@@ -621,6 +626,7 @@ async def create_job(request):  # pylint: disable=R0912
         output_files,
         copy_service_account_name,
         always_run)
+
     return jsonify(job.to_dict())
 
 
@@ -649,7 +655,7 @@ async def get_job(request):
     # else:
     #     await Job.from_sql(job_id)
     # print("here")
-    job = await Job.from_sql(job_id)
+    job = await Job.from_db(job_id)
     # job = job_id_job.get(job_id)
     if not job:
         abort(404)
@@ -664,7 +670,7 @@ async def get_job_log(request):  # pylint: disable=R1710
     # if not job_exists:
     #     abort(404)
 
-    job = await Job.from_sql(job_id)
+    job = await Job.from_db(job_id)
     # job = job_id_job.get(job_id)
     if job:
         job_log = job._read_logs()
@@ -689,7 +695,7 @@ async def delete_job(request):
     # if not job_exists:
     #     abort(404)
 
-    job = await Job.from_sql(job_id)
+    job = await Job.from_db(job_id)
     # job = job_id_job.get(job_id)
     if not job:
         abort(404)
@@ -705,7 +711,7 @@ async def cancel_job(request):
     # if not job_exists:
     #     abort(404)
 
-    job = await Job.from_sql(job_id)
+    job = await Job.from_db(job_id)
     # job = job_id_job.get(job_id)
     if not job:
         abort(404)
@@ -713,19 +719,26 @@ async def cancel_job(request):
     return jsonify({})
 
 
+@asyncinit
 class Batch:
     MAX_TTL = 30 * 60
 
-    def __init__(self, attributes, callback, ttl):
+    async def __init__(self, attributes, callback, ttl):
         self.attributes = attributes
         self.callback = callback
-        self.id = next_id()
-        batch_id_batch[self.id] = self
+        # self.id = next_id()
+
         self.jobs = set([])
         self.is_open = True
         if ttl is None or ttl > Batch.MAX_TTL:
             ttl = Batch.MAX_TTL
         self.ttl = ttl
+
+        self.id = await db.batch.new_record(attributes=json.dumps(self.attributes),
+                                            callback=self.callback,
+                                            ttl=self.ttl,
+                                            is_open=self.is_open)
+        batch_id_batch[self.id] = self
         schedule(self.ttl, self.close)
 
     def delete(self):
@@ -792,14 +805,15 @@ async def create_batch(request):
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    batch = Batch(parameters.get('attributes'), parameters.get('callback'), parameters.get('ttl'))
+    batch = await Batch(parameters.get('attributes'), parameters.get('callback'), parameters.get('ttl'))
+    print(batch.to_dict())
     return jsonify(batch.to_dict())
 
 
 @routes.get('/batches/{batch_id}')
 async def get_batch(request):
     batch_id = int(request.match_info['batch_id'])
-    batch = batch_id_batch.get(batch_id)
+    batch = batch_id_batch.get(batch_id)  # FIXME: from_db
     if not batch:
         abort(404)
     return jsonify(batch.to_dict())

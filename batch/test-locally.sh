@@ -10,7 +10,7 @@ cleanup() {
     trap "" INT TERM
     [[ -z $server_pid ]] || kill -9 $server_pid
 
-    python3 -c "from batch.cloud_sql_helpers import *; drop_table(\"$JOBS_TABLE\",\"$JOBS_PARENTS_TABLE\")"    
+    python3 -c "from batch.cloud_sql_helpers import *; drop_table(\"$JOBS_TABLE\",\"$JOBS_PARENTS_TABLE\",\"$BATCH_TABLE\",\"$BATCH_JOBS_TABLE\")"    
     [[ -z $proxy_pid ]] || kill -9 $proxy_pid
 }
 trap cleanup EXIT
@@ -30,6 +30,8 @@ fi
 
 export JOBS_TABLE=$(python3 -c 'from batch.cloud_sql_helpers import *; print(get_temp_table("jobs"))')
 export JOBS_PARENTS_TABLE=$(python3 -c 'from batch.cloud_sql_helpers import *; print(get_temp_table("jobs-parents"))')
+export BATCH_TABLE=$(python3 -c 'from batch.cloud_sql_helpers import *; print(get_temp_table("batch"))')
+export BATCH_JOBS_TABLE=$(python3 -c 'from batch.cloud_sql_helpers import *; print(get_temp_table("batch-jobs"))')
 
 python3 -c 'import batch.server; batch.server.serve(5000)' &
 server_pid=$!

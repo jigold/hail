@@ -27,16 +27,10 @@ class Database:
                                                # echo=True,
                                                autocommit=True)
 
-        self._jobs_table = await JobsTable(self, os.environ.get("JOBS_TABLE"))
-        self._jobs_parents_table = await JobsParentsTable(self, os.environ.get("JOBS_PARENTS_TABLE"))
-
-    @property
-    def jobs(self):
-        return self._jobs_table
-
-    @property
-    def jobs_parents(self):
-        return self._jobs_parents_table
+        self.jobs = await JobsTable(self, os.environ.get("JOBS_TABLE"))
+        self.jobs_parents = await JobsParentsTable(self, os.environ.get("JOBS_PARENTS_TABLE"))
+        self.batch = await BatchTable(self, os.environ.get("BATCH_TABLE"))
+        self.batch_jobs = await BatchJobsTable(self, os.environ.get("BATCH_JOBS_TABLE"))
 
 
 class Table:
@@ -200,7 +194,7 @@ class JobsParentsTable(Table):
         self._schema = {'id': 'BIGINT',
                         'parent': 'BIGINT'}
 
-        self._keys = ['id']
+        self._keys = []
 
         await self._create_table(self._schema, self._keys)
 
@@ -215,3 +209,45 @@ class JobsParentsTable(Table):
     async def get_children(self, id):
         result = await self._get_records({'parent': id})
         return [record['id'] for record in result.result()]
+
+
+@asyncinit
+class BatchTable(Table):
+    async def __init__(self, db, name='batch'):
+        super().__init__(db, name)
+
+        self._schema = {'id': 'BIGINT NOT NULL AUTO_INCREMENT',
+                        'attributes': 'TEXT(65535)',
+                        'callback': 'TEXT(65535)',
+                        'ttl': 'INT',
+                        'is_open': 'BOOLEAN NOT NULL'
+                        }
+
+        self._keys = ['id']
+
+        await self._create_table(self._schema, self._keys)
+
+    async def new_record(self, **items):
+        assert all([k in self._schema for k in items.keys()])
+        return await self._new_record(items)
+
+
+@asyncinit
+class BatchJobsTable(Table):
+    async def __init__(self, db, name='batch-jobs'):
+        super().__init__(db, name)
+
+        self._schema = {'id': 'BIGINT',
+                        'job': 'BIGINT'}
+
+        self._keys = []
+
+        await self._create_table(self._schema, self._keys)
+
+    async def new_record(self, **items):
+        assert all([k in self._schema for k in items.keys()])
+        return await self._new_record(items)
+
+    async def get_jobs(self, id):
+        result = await self._get_records({'id': id})
+        return [record['job'] for record in result.result()]
