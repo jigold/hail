@@ -20,7 +20,8 @@ from aiohttp import web
 from asyncinit import asyncinit
 
 from .globals import _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
-from .globals import next_id, get_recent_events, add_event
+from .globals import next_id, get_recent_events, add_event, to_dict_fixed
+from .extension import deserialize
 
 from .. import schemas
 from .database import Database
@@ -115,12 +116,7 @@ class JobTask:  # pylint: disable=R0903
         jt = object.__new__(cls)
         jt.name = d['name']
         assert d['pod_template'] is not None
-        print("JobTask from dict", d['pod_template'])
-        print(type(d['pod_template']))
-        print(type(d['pod_template']['metadata']))
-        print(v1.api_client._ApiClient__deserialize(d['pod_template']['metadata'], kube.client.V1ObjectMeta))
-        jt.pod_template = v1.api_client._ApiClient__deserialize(d['pod_template'], kube.client.V1Pod)
-        print("after deserialization", jt.pod_template)
+        jt.pod_template = deserialize(v1.api_client, d['pod_template'], kube.client.V1Pod)
         return jt
 
     @staticmethod

@@ -41,3 +41,11 @@ def add_event(event):
 
     event['time'] = str(datetime.datetime.now())
     _recent_events.append(event)
+
+
+def to_dict_fixed(data, klass):
+    fixed_dict = {}
+    for attr, attr_type in klass.attribute_map.items():
+        if data[attr] is not None:
+            fixed_dict[attr_type] = data[attr]
+    return fixed_dict
