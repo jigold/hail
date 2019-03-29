@@ -407,7 +407,6 @@ class Job:
 
     async def notify_children(self, new_state):
         child_ids = await db.jobs_parents.get_children(self.id)
-        print('child_ids', child_ids)
         for child_id in child_ids:
             child = job_id_job.get(child_id)
             if child:

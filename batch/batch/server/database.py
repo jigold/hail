@@ -186,11 +186,9 @@ class JobsTable(Table):
     async def get_incomplete_parents(self, id):
         parent_ids = await self.get_field(id, 'parent_ids')
         parent_ids = json.loads(parent_ids.result()['parent_ids'])
-        print('parent_ids', parent_ids)
         parent_records = await self.get_records(parent_ids)
         incomplete_parents = [pr['id'] for pr in parent_records.result()
                               if pr['state'] == 'Created']
-        print('incomplete_parents', incomplete_parents)
         return incomplete_parents
 
 
