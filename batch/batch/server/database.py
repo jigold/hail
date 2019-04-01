@@ -125,6 +125,27 @@ class Table:
                 result = cursor.fetchone()
         return result
 
+    async def _delete_records(self, key):
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                key_template = []
+                key_values = []
+                for k, v in key.items():
+                    if isinstance(v, list):
+                        if len(v) == 0:
+                            key_template.append("FALSE")
+                        else:
+                            key_template.append(f'`{k.replace("`", "``")}` IN %s')
+                            key_values.append(v)
+                    else:
+                        key_template.append(f'`{k.replace("`", "``")}` = %s')
+                        key_values.append(v)
+
+                key_template = "AND".join(key_template)
+                sql = f"DELETE FROM `{self.name}` WHERE {key_template}"
+                await cursor.execute(sql, key_values)
+                result = cursor.fetchall()
+        return result
 
 @asyncinit
 class JobsTable(Table):
@@ -261,3 +282,11 @@ class BatchJobsTable(Table):
     async def get_jobs(self, id):
         result = await self._get_records({'id': id})
         return [record['job'] for record in result.result()]
+
+    async def delete_records(self, batch_id, job_id):
+        await self._delete_records({'id': batch_id,
+                                    'job': job_id})
+
+    async def has_record(self, batch_id, job_id):
+        return await self._has_record({'id': batch_id,
+                                       'job': job_id})

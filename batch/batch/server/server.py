@@ -462,7 +462,7 @@ class Job:
 
         if self.batch_id:
             batch = batch_id_batch[self.batch_id]
-            batch.remove(self)
+            await batch.remove(self)
 
         await self._delete_k8s_resources()
         await self.set_state('Cancelled')
@@ -526,7 +526,7 @@ class Job:
             threading.Thread(target=handler, args=(self.id, self.callback, self.to_dict())).start()
 
         if self.batch_id:
-            batch_id_batch[self.batch_id].mark_job_complete(self)
+            await batch_id_batch[self.batch_id].mark_job_complete(self)
 
     def to_dict(self):
         result = {
@@ -736,7 +736,7 @@ class Batch:
         self.callback = callback
         # self.id = next_id()
 
-        self.jobs = set([])
+        # self.jobs = set([])
         self.is_open = True
         if ttl is None or ttl > Batch.MAX_TTL:
             ttl = Batch.MAX_TTL
@@ -746,20 +746,25 @@ class Batch:
                                             callback=self.callback,
                                             ttl=self.ttl,
                                             is_open=self.is_open)
-        batch_id_batch[self.id] = self
+        batch_id_batch[self.id] = self  # FIXME: delete
         schedule(self.ttl, self.close)
 
-    def delete(self):
+    async def delete(self):
         del batch_id_batch[self.id]
-        for j in self.jobs:
-            assert j.batch_id == self.id
-            j.batch_id = None
+        jobs = await db.batch_jobs.get_jobs()
+        for jid in jobs:
+            batch_id = await db.jobs.get_field(jid, 'batch_id')
+            assert batch_id == self.id
+            await db.jobs.update_record(jid, batch_id=None)
+            # jid.batch_id = None
 
-    def remove(self, job):
-        self.jobs.remove(job)
+    async def remove(self, job):
+        await db.batch_jobs.remove(self.id, job)
+        # self.jobs.remove(job)
 
-    def mark_job_complete(self, job):
-        assert job in self.jobs
+    async def mark_job_complete(self, job):
+        # assert job in self.jobs
+        assert await db.batch_jobs.has_record(self.id, job.id)
         if self.callback:
             def handler(id, job_id, callback, json):
                 try:
@@ -835,7 +840,7 @@ async def delete_batch(request):
     batch = batch_id_batch.get(batch_id)
     if not batch:
         abort(404)
-    batch.delete()
+    await batch.delete()
     return jsonify({})
 
 
