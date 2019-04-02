@@ -219,8 +219,6 @@ class Job:
                         mount_path='/io',
                         name=self._pvc.metadata.name))
 
-        print(self._current_task.pod_template)
-
         pod = v1.create_namespaced_pod(
             POD_NAMESPACE,
             self._current_task.pod_template,
@@ -294,7 +292,6 @@ class Job:
     @classmethod
     async def from_db(cls, id):
         record = await db.jobs.get_record(id)
-        record = record.result()
         if record is not None:
             j = object.__new__(cls)
 
@@ -326,7 +323,6 @@ class Job:
 
             x = json.loads(record['tasks'])
             j._tasks = [JobTask.from_dict(item) if item is not None else None for item in x]
-            print(j._tasks)
             j._current_task = j._tasks[j._task_idx] if j._task_idx < len(j._tasks) else None
 
             return j
@@ -385,7 +381,7 @@ class Job:
             batch = batch_id_batch[batch_id]
             await db.batch_jobs.new_record(id=batch_id,
                                            job=self.id)
-            batch.jobs.add(self)
+            # batch.jobs.add(self)
 
         log.info('created job {}'.format(self.id))
         add_event({'message': f'created job {self.id}'})
@@ -751,9 +747,9 @@ class Batch:
 
     async def delete(self):
         del batch_id_batch[self.id]
-        jobs = await db.batch_jobs.get_jobs()
+        jobs = await db.batch_jobs.get_jobs(self.id)
         for jid in jobs:
-            batch_id = await db.jobs.get_field(jid, 'batch_id')
+            batch_id = await db.jobs.get_fields(jid, ['batch_id'])
             assert batch_id == self.id
             await db.jobs.update_record(jid, batch_id=None)
             # jid.batch_id = None
@@ -789,8 +785,9 @@ class Batch:
         else:
             log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
 
-    def to_dict(self):
-        state_count = Counter([j._state for j in self.jobs])  # FIXME: THis should get jobs from database
+    async def to_dict(self):
+        jobs = [await Job.from_db(id) for id in await db.batch_jobs.get_jobs(self.id)]
+        state_count = Counter([j._state for j in jobs])  # FIXME: THis should get jobs from database
         return {
             'id': self.id,
             'jobs': {
@@ -798,7 +795,7 @@ class Batch:
                 'Complete': state_count.get('Complete', 0),
                 'Cancelled': state_count.get('Cancelled', 0)
             },
-            'exit_codes': {j.id: j.exit_code for j in self.jobs},
+            'exit_codes': {j.id: j.exit_code for j in jobs},
             'attributes': self.attributes,
             'is_open': self.is_open
         }
@@ -822,7 +819,7 @@ async def create_batch(request):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
     batch = await Batch(parameters.get('attributes'), parameters.get('callback'), parameters.get('ttl'))
-    return jsonify(batch.to_dict())
+    return jsonify(await batch.to_dict())
 
 
 @routes.get('/batches/{batch_id}')
@@ -831,7 +828,7 @@ async def get_batch(request):
     batch = batch_id_batch.get(batch_id)  # FIXME: from_db
     if not batch:
         abort(404)
-    return jsonify(batch.to_dict())
+    return jsonify(await batch.to_dict())
 
 
 @routes.delete('/batches/{batch_id}/delete')

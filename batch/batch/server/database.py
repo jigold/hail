@@ -24,7 +24,7 @@ class Database:
                                                password=self.password,
                                                charset=self.charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
-                                               # echo=True,
+                                               echo=True,
                                                autocommit=True)
 
         self.jobs = await JobsTable(self, os.environ.get("JOBS_TABLE"))
@@ -74,7 +74,8 @@ class Table:
                     sql = f"UPDATE `{self.name}` SET {items_template} WHERE {key_template}"
                     await cursor.execute(sql, (*values, *key_values))
 
-    async def _get_records(self, key):
+    async def _get_records(self, key, fields=None):
+        assert fields is None or len(fields) != 0
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 key_template = []
@@ -91,39 +92,37 @@ class Table:
                         key_values.append(v)
 
                 key_template = "AND".join(key_template)
-                sql = f"SELECT * FROM `{self.name}` WHERE {key_template}"
+                fields = ",".join(fields) if fields is not None else "*"
+
+                sql = f"SELECT {fields} FROM `{self.name}` WHERE {key_template}"
                 await cursor.execute(sql, key_values)
                 result = cursor.fetchall()
         return result
 
-    async def _get_record(self, key):
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                key_template = ", ".join([f'`{k.replace("`", "``")}` = %s' for k, v in key.items()])
-                key_values = key.values()
-                sql = f"SELECT * FROM `{self.name}` WHERE {key_template}"
-                await cursor.execute(sql, tuple(key_values))
-                result = cursor.fetchone()
-        return result
+    async def _get_record(self, key, fields=None):
+        records = await self._get_records(key, fields)
+        assert len(records.result()) == 1
+        return records.result()[0]
+        # assert fields is None or len(fields) != 0
+        # async with self._db.pool.acquire() as conn:
+        #     async with conn.cursor() as cursor:
+        #         key_template = ", ".join([f'`{k.replace("`", "``")}` = %s' for k, v in key.items()])
+        #         key_values = key.values()
+        #         fields = ",".join(fields) if fields is not None else "*"
+        #         sql = f"SELECT {fields} FROM `{self.name}` WHERE {key_template}"
+        #         await cursor.execute(sql, tuple(key_values))
+        #         result = cursor.fetchone()
+        # return result
 
     async def _has_record(self, key):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                key_template = ", ".join([f'`{k.replace("`", "``")}` = %s' for k, v in key.items()])
+                key_template = " AND ".join([f'`{k.replace("`", "``")}` = %s' for k, v in key.items()])
                 key_values = key.values()
                 sql = f"SELECT COUNT(1) FROM `{self.name}` WHERE {key_template}"
+                print(cursor.mogrify(sql, tuple(key_values)))
                 count = await cursor.execute(sql, tuple(key_values))
         return count == 1
-
-    async def _get_field(self, key, field):
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                key_template = ", ".join([f'`{k.replace("`", "``")}` = %s' for k, v in key.items()])
-                key_values = key.values()
-                sql = f"SELECT `{field}` FROM `{self.name}` WHERE {key_template}"
-                await cursor.execute(sql, tuple(key_values))
-                result = cursor.fetchone()
-        return result
 
     async def _delete_records(self, key):
         async with self._db.pool.acquire() as conn:
@@ -185,22 +184,19 @@ class JobsTable(Table):
         assert all([k in self._schema for k in items.keys()])
         await self._update_record({'id': id}, items)
 
-    async def get_records(self, ids):
+    async def get_records(self, ids, fields=None):
         assert isinstance(ids, list)
-        return await self._get_records({'id': list(ids)})
+        return await self._get_records({'id': ids}, fields)
 
-    async def get_record(self, id):
-        return await self._get_record({'id': id})
+    async def get_record(self, id, fields=None):
+        return await self._get_record({'id': id}, fields)
 
     async def has_record(self, id):
         return await self._has_record({'id': id})
 
-    async def get_field(self, id, field):
-        return await self._get_field({'id': id}, field)
-
     async def get_incomplete_parents(self, id):
-        parent_ids = await self.get_field(id, 'parent_ids')
-        parent_ids = json.loads(parent_ids.result()['parent_ids'])
+        parent_ids = await self.get_record(id, ['parent_ids'])
+        parent_ids = json.loads(parent_ids['parent_ids'])
         parent_records = await self.get_records(parent_ids)
         incomplete_parents = [pr['id'] for pr in parent_records.result()
                               if pr['state'] == 'Created']
@@ -224,11 +220,11 @@ class JobsParentsTable(Table):
         return await self._new_record(items)
 
     async def get_parents(self, id):
-        result = await self._get_records({'id': id})
+        result = await self._get_records({'id': id}, ['parent'])
         return [record['parent'] for record in result.result()]
 
     async def get_children(self, id):
-        result = await self._get_records({'parent': id})
+        result = await self._get_records({'parent': id}, ['id'])
         return [record['id'] for record in result.result()]
 
 
