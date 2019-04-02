@@ -484,11 +484,12 @@ class Job:
 
     async def delete(self):
         # remove from structures
-        del job_id_job[self.id]
-        await db.jobs.update_record(self.id, pod_name=None)  # FIXME: should this get removed from database
+        # del job_id_job[self.id]
+        await db.jobs.delete_record(self.id)  # FIXME: should this get removed from database
 
         if self.batch_id:
-            batch = batch_id_batch[self.batch_id]
+            batch = Batch.from_db(self.batch_id)
+            # batch = batch_id_batch[self.batch_id]
             await batch.remove(self)
 
         await self._delete_k8s_resources()
@@ -757,6 +758,18 @@ async def cancel_job(request):
 @asyncinit
 class Batch:
     MAX_TTL = 30 * 60
+
+    @classmethod
+    async def from_db(cls, id):
+        record = await db.batch.get_record(id)
+        if record is not None:
+            b = object.__new__(cls)
+            b.id = id
+            b.attributes = json.loads(record['attributes'])
+            b.callback = record['callback']
+            b.ttl = record['ttl']
+            b.is_open = record['is_open']
+            return b
 
     async def __init__(self, attributes, callback, ttl):
         self.attributes = attributes

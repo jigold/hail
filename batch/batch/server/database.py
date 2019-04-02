@@ -203,6 +203,9 @@ class JobsTable(Table):
                               if pr['state'] == 'Created']
         return incomplete_parents
 
+    async def delete_record(self, id):
+        await self._delete_records({'id': id})
+
 
 @asyncinit
 class JobsParentsTable(Table):
