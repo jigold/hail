@@ -34,7 +34,7 @@ s = sched.scheduler()
 def schedule(ttl, fun, args=(), kwargs=None):
     if kwargs is None:
         kwargs = {}
-    s.enter(ttl, 1, fun, args, kwargs)
+    s.enter(ttl, 1, fun, args, kwargs) ## FIXME???
 
 
 if not os.path.exists('logs'):
@@ -488,9 +488,10 @@ class Job:
         await db.jobs.delete_record(self.id)  # FIXME: should this get removed from database
 
         if self.batch_id:
-            batch = Batch.from_db(self.batch_id)
-            # batch = batch_id_batch[self.batch_id]
-            await batch.remove(self)
+            await db.batch_jobs.delete_record(self.batch_id, self.id)
+            # batch = Batch.from_db(self.batch_id)
+            # # batch = batch_id_batch[self.batch_id]
+            # await batch.remove(self)
 
         await self._delete_k8s_resources()
         await self.set_state('Cancelled')
@@ -891,7 +892,7 @@ async def close_batch(request):
     batch = batch_id_batch.get(batch_id)
     if not batch:
         abort(404)
-    batch.close()
+    await batch.close()
     return jsonify({})
 
 
