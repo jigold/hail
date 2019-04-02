@@ -24,7 +24,7 @@ class Database:
                                                password=self.password,
                                                charset=self.charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
-                                               echo=True,
+                                               # echo=True,
                                                autocommit=True)
 
         self.jobs = await JobsTable(self, os.environ.get("JOBS_TABLE"))
@@ -91,7 +91,7 @@ class Table:
                         key_template.append(f'`{k.replace("`", "``")}` = %s')
                         key_values.append(v)
 
-                key_template = "AND".join(key_template)
+                key_template = " AND ".join(key_template)
                 fields = ",".join(fields) if fields is not None else "*"
 
                 sql = f"SELECT {fields} FROM `{self.name}` WHERE {key_template}"
@@ -101,8 +101,10 @@ class Table:
 
     async def _get_record(self, key, fields=None):
         records = await self._get_records(key, fields)
-        assert len(records.result()) == 1
-        return records.result()[0]
+        records = records.result()
+        return records[0] if len(records) != 0 else None
+        # assert len(records.result()) == 1
+        # return records.result()[0]
         # assert fields is None or len(fields) != 0
         # async with self._db.pool.acquire() as conn:
         #     async with conn.cursor() as cursor:
@@ -120,7 +122,6 @@ class Table:
                 key_template = " AND ".join([f'`{k.replace("`", "``")}` = %s' for k, v in key.items()])
                 key_values = key.values()
                 sql = f"SELECT COUNT(1) FROM `{self.name}` WHERE {key_template}"
-                print(cursor.mogrify(sql, tuple(key_values)))
                 count = await cursor.execute(sql, tuple(key_values))
         return count == 1
 
@@ -140,7 +141,7 @@ class Table:
                         key_template.append(f'`{k.replace("`", "``")}` = %s')
                         key_values.append(v)
 
-                key_template = "AND".join(key_template)
+                key_template = " AND ".join(key_template)
                 sql = f"DELETE FROM `{self.name}` WHERE {key_template}"
                 await cursor.execute(sql, key_values)
                 result = cursor.fetchall()
@@ -279,7 +280,7 @@ class BatchJobsTable(Table):
         result = await self._get_records({'id': id})
         return [record['job'] for record in result.result()]
 
-    async def delete_records(self, batch_id, job_id):
+    async def delete_record(self, batch_id, job_id):
         await self._delete_records({'id': batch_id,
                                     'job': job_id})
 

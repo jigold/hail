@@ -393,9 +393,10 @@ class Job:
 
     # pylint incorrect error: https://github.com/PyCQA/pylint/issues/2047
     async def refresh_parents_and_maybe_create(self):  # pylint: disable=invalid-name
-        for parent in self.parent_ids:
-            parent_job = job_id_job[parent]
-            await self.parent_new_state(parent_job._state, parent, parent_job.exit_code)
+        for parent_id in self.parent_ids:
+            # parent_job = job_id_job[parent]
+            # await self.parent_new_state(parent_job._state, parent, parent_job.exit_code)
+            await self.parent_new_state(parent_id)
 
     async def set_state(self, new_state):
         if self._state != new_state:
@@ -416,11 +417,16 @@ class Job:
             child = await Job.from_db(child_id)
             print("child", child_id, child)
             if child:
-                await child.parent_new_state(new_state, self.id, self.exit_code)
+                await child.parent_new_state(self.id)
             else:
                 log.info(f'missing child: {child_id}')
 
-    async def parent_new_state(self, new_state, parent_id, maybe_exit_code):
+    async def parent_new_state(self, parent_id):
+        parent = await db.jobs.get_record(parent_id, ['exit_code', 'state'])
+        assert parent is not None
+        new_state = parent['state']
+        maybe_exit_code = parent['exit_code']
+
         async def update():
             incomplete_parent_ids = await db.jobs.get_incomplete_parents(self.id)
             if not incomplete_parent_ids:
@@ -444,6 +450,31 @@ class Job:
                 log.info(f'job {self.id} is set to always run despite '
                          f' parents deleted, cancelled, or failed.')
                 await update()
+
+    # async def parent_new_state(self, new_state, parent_id, maybe_exit_code):
+    #     async def update():
+    #         incomplete_parent_ids = await db.jobs.get_incomplete_parents(self.id)
+    #         if not incomplete_parent_ids:
+    #             assert self._state in ('Cancelled', 'Created'), f'bad state: {self._state}'
+    #             if self._state != 'Cancelled':
+    #                 log.info(f'all parents complete for {self.id},'
+    #                          f' creating pod')
+    #                 await self._create_pod()
+    #             else:
+    #                 log.info(f'all parents complete for {self.id},'
+    #                          f' but it is already cancelled')
+    #
+    #     if new_state == 'Complete' and maybe_exit_code == 0:
+    #         log.info(f'parent {parent_id} successfully complete for {self.id}')
+    #         await update()
+    #     elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
+    #         log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
+    #         if not self.always_run:
+    #             await self.cancel()
+    #         else:
+    #             log.info(f'job {self.id} is set to always run despite '
+    #                      f' parents deleted, cancelled, or failed.')
+    #             await update()
 
     async def cancel(self):
         if self.is_complete():
@@ -755,7 +786,7 @@ class Batch:
             # jid.batch_id = None
 
     async def remove(self, job):
-        await db.batch_jobs.remove(self.id, job)
+        await db.batch_jobs.delete_record(self.id, job.id)
         # self.jobs.remove(job)
 
     async def mark_job_complete(self, job):
