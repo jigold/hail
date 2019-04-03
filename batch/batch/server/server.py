@@ -2,7 +2,7 @@ import sys
 import os
 import time
 import random
-import sched
+# import sched
 import uuid
 import json
 from collections import Counter
@@ -15,7 +15,6 @@ import uvloop
 import asyncio
 import aiohttp_jinja2
 import jinja2
-import pymysql
 from aiohttp import web
 from asyncinit import asyncinit
 
@@ -28,13 +27,15 @@ from .database import Database
 
 uvloop.install()
 
-s = sched.scheduler()
+# s = sched.scheduler()
 
-
-def schedule(ttl, fun, args=(), kwargs=None):
-    if kwargs is None:
-        kwargs = {}
-    s.enter(ttl, 1, fun, args, kwargs) ## FIXME???
+#
+# def schedule(ttl, fun, args=()):
+#     # if kwargs is None:
+#     #     kwargs = {}
+#     print(args)
+#     asyncio.get_event_loop().call_later(ttl, fun, args)
+    # s.enter(ttl, 1, fun, args, kwargs) ## FIXME???
 
 
 if not os.path.exists('logs'):
@@ -788,7 +789,9 @@ class Batch:
                                             ttl=self.ttl,
                                             is_open=self.is_open)
         batch_id_batch[self.id] = self  # FIXME: delete
-        schedule(self.ttl, self.close)
+        await self.close()
+        # schedule(self.ttl, self.close)
+        # asyncio.get_event_loop().call_later(ttl, self.close)
 
     async def delete(self):
         del batch_id_batch[self.id]
@@ -889,7 +892,8 @@ async def delete_batch(request):
 @routes.post('/batches/{batch_id}/close')
 async def close_batch(request):
     batch_id = int(request.match_info['batch_id'])
-    batch = batch_id_batch.get(batch_id)
+    # batch = batch_id_batch.get(batch_id)
+    batch = await Batch.from_db(batch_id)
     if not batch:
         abort(404)
     await batch.close()
@@ -915,7 +919,7 @@ async def pod_changed(request):
 
     pod_name = parameters['pod_name']
 
-    job = pod_name_job.get(pod_name)
+    job = pod_name_job.get(pod_name) # FIXME
 
     if job and not job.is_complete():
         try:
@@ -948,7 +952,7 @@ async def refresh_k8s_state(request):  # pylint: disable=W0613
         pod_name = pod.metadata.name
         seen_pods.add(pod_name)
 
-        job = pod_name_job.get(pod_name)
+        job = pod_name_job.get(pod_name)  # FIXME
         if job and not job.is_complete():
             await update_job_with_pod(job, pod)
 
@@ -1026,12 +1030,12 @@ def polling_event_loop(port):
         time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
-def scheduling_loop():
-    while True:
-        try:
-            s.run(blocking=False)
-        except Exception as exc:  # pylint: disable=W0703
-            log.error(f'Could not run scheduled jobs due to: {exc}')
+# def scheduling_loop():
+#     while True:
+#         try:
+#             s.run(blocking=False)
+#         except Exception as exc:  # pylint: disable=W0703
+#             log.error(f'Could not run scheduled jobs due to: {exc}')
 
 
 def serve(db_config_path, port=5000):
@@ -1041,8 +1045,8 @@ def serve(db_config_path, port=5000):
     polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop, port))
     polling_thread.start()
 
-    scheduling_thread = threading.Thread(target=run_forever, args=(scheduling_loop,))
-    scheduling_thread.start()
+    # scheduling_thread = threading.Thread(target=run_forever, args=(scheduling_loop,))
+    # scheduling_thread.start()
 
     # debug/reloader must run in main thread
     # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread
