@@ -1,22 +1,20 @@
 import os
-import yaml
-
-import cerberus
 
 import hailjwt as hj
 
-from . import api, schemas
+from . import api
 from .poll_until import poll_until
 
 
 class Job:
-    def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
+    def __init__(self, client, batch, id, attributes=None, parent_ids=None, _status=None):
         if parent_ids is None:
             parent_ids = []
         if attributes is None:
             attributes = {}
 
         self.client = client
+        self.batch = batch
         self.id = id
         self.attributes = attributes
         self.parent_ids = parent_ids
@@ -34,7 +32,7 @@ class Job:
         return self._status
 
     def status(self):
-        self._status = self.client._get_job(self.id)
+        self._status = self.client._get_job(self.batch.id, self.id)
         return self._status
 
     def wait(self):
@@ -45,23 +43,25 @@ class Job:
         return self._status
 
     def log(self):
-        return self.client._get_job_log(self.id)
+        return self.client._get_job_log(self.batch.id, self.id)
 
 
 class Batch:
-    def __init__(self, client, id, attributes):
+    def __init__(self, client, id):
         self.client = client
         self.id = id
-        self.attributes = attributes
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
-                   service_account_name=None, attributes=None, callback=None, parent_ids=None,
+                   service_account_name=None, attributes=None, callback=None, parents=None,
                    input_files=None, output_files=None, always_run=False):
-        if parent_ids is None:
-            parent_ids = []
+
+        if parents is None:
+            parents = []
+        parent_ids = [p.id for p in parents]
+
         return self.client._create_job(
-            image, command, args, env, ports, resources, tolerations, volumes, security_context,
+            self, image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, self.id, callback, parent_ids, input_files,
             output_files, always_run)
 
@@ -111,6 +111,7 @@ class BatchClient:
                            headers=headers)
 
     def _create_job(self,  # pylint: disable=R0912
+                    batch,
                     image,
                     command,
                     args,
@@ -179,15 +180,16 @@ class BatchClient:
         j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
                                 parent_ids, input_files, output_files, always_run)
         return Job(self,
-                   j['id'],
+                   batch,
+                   j['job_id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []))
 
-    def _get_job(self, id):
-        return self.api.get_job(self.url, id)
+    def _get_job(self, batch_id, job_id):
+        return self.api.get_job(self.url, batch_id, job_id)
 
-    def _get_job_log(self, id):
-        return self.api.get_job_log(self.url, id)
+    def _get_job_log(self, batch_id, job_id):
+        return self.api.get_job_log(self.url, batch_id, job_id)
 
     def _get_batch(self, batch_id):
         return self.api.get_batch(self.url, batch_id)
@@ -203,60 +205,23 @@ class BatchClient:
 
     def list_batches(self, complete=None, success=None, attributes=None):
         batches = self.api.list_batches(self.url, complete=complete, success=success, attributes=attributes)
-        return [Batch(self,
-                      j['id'],
-                      attributes=j.get('attributes'))
-                for j in batches]
+        return [Batch(self, b['id']) for b in batches]
 
-    def get_job(self, id):
+    def get_job(self, batch_id, job_id):
         # make sure job exists
-        j = self._get_job(id)
+        j = self._get_job(batch_id, job_id)
         return Job(self,
-                   j['id'],
+                   Batch(self, j['batch_id']),
+                   j['job_id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []),
                    _status=j)
 
     def get_batch(self, id):
-        j = self._get_batch(id)
-        return Batch(self,
-                     j['id'],
-                     j.get('attributes'))
+        # make sure batch exists
+        self._get_batch(id)
+        return Batch(self, id)
 
     def create_batch(self, attributes=None, callback=None, ttl=None):
         batch = self.api.create_batch(self.url, attributes, callback, ttl)
-        return Batch(self, batch['id'], batch.get('attribute'))
-
-    job_yaml_schema = {
-        'spec': schemas.pod_spec,
-        'type': {'type': 'string', 'allowed': ['execute']},
-        'name': {'type': 'string'},
-        'dependsOn': {'type': 'list', 'schema': {'type': 'string'}},
-    }
-    job_yaml_validator = cerberus.Validator(job_yaml_schema)
-
-    def create_batch_from_file(self, file):
-        job_id_by_name = {}
-
-        # pylint confused by f-strings
-        def job_id_by_name_or_error(id, self_id):  # pylint: disable=unused-argument
-            job = job_id_by_name.get(id)
-            if job:
-                return job
-            raise ValueError(
-                '"{self_id}" must appear in the file after its dependency "{id}"')
-
-        batch = self.create_batch()
-        for doc in yaml.safe_load(file):
-            if not BatchClient.job_yaml_validator.validate(doc):
-                raise BatchClient.job_yaml_validator.errors
-            spec = doc['spec']
-            type = doc['type']
-            name = doc['name']
-            dependsOn = doc.get('dependsOn', [])
-            if type == 'execute':
-                job = batch.create_job(
-                    parent_ids=[job_id_by_name_or_error(x, name) for x in dependsOn],
-                    **spec)
-                job_id_by_name[name] = job.id
-        return batch
+        return Batch(self, batch['id'])

@@ -176,7 +176,7 @@ class Test(unittest.TestCase):
         j = b.create_job('alpine', ['true'])
         b.close()
 
-        j2 = self.batch.get_job(j.id)
+        j2 = b.get_job(j.id)
         status2 = j2.status()
         assert(status2['id'] == j.id)
 
@@ -278,8 +278,8 @@ class Test(unittest.TestCase):
     def test_authorized_users_only(self):
         endpoints = [
             (requests.post, '/jobs/create'),
-            (requests.get, '/jobs/0'),
-            (requests.get, '/jobs/0/log'),
+            (requests.get, '/batches/0/jobs/0'),
+            (requests.get, '/batches/0/jobs/0/log'),
             (requests.get, '/batches'),
             (requests.post, '/batches/create'),
             (requests.get, '/batches/0'),
