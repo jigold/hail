@@ -284,7 +284,7 @@ class Job:
         assert self._state == 'Cancelled' or self._state == 'Pending'
         return None
 
-    async def _mark_job_task_complete(self, task_name, log, exit_code):
+    async def _mark_job_task_complete(self, task_name, log, exit_code, new_state):
         assert self._pod_name is not None
         self.exit_codes[self._task_idx] = exit_code
 
@@ -301,7 +301,9 @@ class Job:
         await db.jobs.update_with_log_ec(*self.id, task_name, uri, exit_code,
                                          task_idx=self._task_idx,
                                          pod_name=None,
-                                         duration=self.duration)
+                                         duration=self.duration,
+                                         state=new_state)
+
         err = await app['k8s'].delete_pod(self._pod_name)
         if err is not None:
             traceback.print_tb(err.__traceback__)
@@ -443,10 +445,7 @@ class Job:
     async def notify_children(self, new_state):
         children = [Job.from_record(record) for record in await db.jobs.get_children(*self.id)]
         for child in children:
-            if child:
-                await child.parent_new_state(new_state, *self.id)
-            else:
-                log.info(f'missing child: {child.id}')
+            await child.parent_new_state(new_state, *self.id)
 
     async def parent_new_state(self, new_state, parent_batch_id, parent_job_id):
         assert parent_batch_id == self.batch_id
@@ -523,11 +522,11 @@ class Job:
                 await self.mark_unscheduled()
                 return
 
-        await self._mark_job_task_complete(task_name, pod_log, exit_code)
-
         if exit_code == 0:
             if self._has_next_task():
-                await self.set_state('Ready')
+                new_state = 'Ready'
+                await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state)
+                await self.set_state(new_state)
                 await self._create_pod()
                 return
             new_state = 'Success'
@@ -536,6 +535,7 @@ class Job:
         else:
             new_state = 'Failed'
 
+        await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state)
         await self._delete_pvc()
         await self.set_state(new_state)
 
