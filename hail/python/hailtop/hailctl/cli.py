@@ -13,6 +13,9 @@ def print_help():
     subs.add_parser('dataproc',
                     help='Manage Google Dataproc clusters configured for Hail.',
                     description='Manage Google Dataproc clusters configured for Hail.')
+    subs.add_parser('dataproc',
+                    help='Manage Google Dataproc clusters configured for Hail.',
+                    description='Manage Google Dataproc clusters configured for Hail.')
     main_parser.print_help()
 
 
