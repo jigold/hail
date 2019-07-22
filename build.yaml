@@ -525,7 +525,6 @@ steps:
     - batch_image
     - batch_database
     - create_batch_tables
-    - deploy_router
  - kind: deploy
    name: deploy_batch_pods
    namespace:

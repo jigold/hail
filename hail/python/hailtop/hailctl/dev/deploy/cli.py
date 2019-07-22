@@ -17,6 +17,7 @@ profiles = {
         'create_batch_tables2',
         'deploy_batch',
         'deploy_batch_pods',
+        'deploy_router',
         'test_batch_image',
         'test_batch'
     ]
