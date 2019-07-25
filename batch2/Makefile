@@ -1,4 +1,7 @@
-.PHONY: build-agent
+.PHONY: build-agent push-agent \
+  create-agent-instance-template delete-agent-instance-template \
+  create-agent-instance-group delete-agent-instance-group \
+  clean deploy-agents
 # build
 #  push push-test \
 #  run-docker run \
@@ -13,18 +16,14 @@ BATCH_IMAGE = gcr.io/$(PROJECT)/batch:$(shell docker images -q --no-trunc batch 
 BATCH_AGENT_LATEST = gcr.io/$(PROJECT)/batch-agent:latest
 BATCH_AGENT_IMAGE = gcr.io/$(PROJECT)/batch-agent:$(shell docker images -q --no-trunc batch-agent | sed -e 's,[^:]*:,,')
 
-# build docker images
-#build:
-#	make -C ../docker build
-#	-docker pull $(BATCH_LATEST)
-#	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
-#	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),base ..
+BATCH_AGENT_TEMPLATE ?= batch2-agent-template-1
+BATCH_AGENT_INSTANCE_GROUP ?= batch2-agents
 
 build-agent:
 	make -C ../docker build
 	-docker pull $(BATCH_AGENT_LATEST)
 	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.agent Dockerfile.agent.out
-	docker build -t batch-agent -f Dockerfile.agent.out ..
+	docker build -t batch-agent -f Dockerfile.agent.out --cache-from batch-agent,$(BATCH_AGENT_LATEST),base ..
 
 push-agent: build-agent
 	docker tag batch-agent $(BATCH_AGENT_LATEST)
@@ -32,7 +31,26 @@ push-agent: build-agent
 	docker tag batch-agent $(BATCH_AGENT_IMAGE)
 	docker push $(BATCH_AGENT_IMAGE)
 
-# Create instance template
+create-agent-instance-template: push-agent
+	gcloud compute instance-templates create-with-container $(BATCH_AGENT_TEMPLATE) \
+	     --container-image $(BATCH_AGENT_LATEST) \
+	     --machine-type n1-standard-1 \
+	     --preemptible
+
+delete-agent-instance-template:
+	gcloud compute instance-templates delete --quiet $(BATCH_AGENT_TEMPLATE)
+
+create-agent-instance-group: create-agent-instance-template
+	gcloud compute instance-groups managed create $(BATCH_AGENT_INSTANCE_GROUP) \
+	    --base-instance-name batch2-agent \
+	    --size 1 \
+	    --template $(BATCH_AGENT_TEMPLATE)
+
+delete-agent-instance-group:
+	gcloud compute instance-groups managed delete --quiet $(BATCH_AGENT_INSTANCE_GROUP)
+
+deploy-agents: create-agent-instance-group
 
 # Create managed instance group
-
+clean: delete-agent-instance-group
+clean: delete-agent-instance-template
