@@ -24,7 +24,7 @@ build-agent:
 	make -C ../docker build
 	-docker pull $(BATCH_AGENT_LATEST)
 	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.agent Dockerfile.agent.out
-	docker build -t batch-agent -f Dockerfile.agent .
+	docker build -t batch-agent -f Dockerfile.agent.out ..
 
 push-agent: build-agent
 	docker tag batch-agent $(BATCH_AGENT_LATEST)
