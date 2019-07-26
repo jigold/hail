@@ -35,7 +35,8 @@ create-agent-instance-template: push-agent
 	gcloud compute instance-templates create-with-container $(BATCH_AGENT_TEMPLATE) \
 	     --container-image $(BATCH_AGENT_LATEST) \
 	     --machine-type n1-standard-1 \
-	     --preemptible
+	     --preemptible \
+	     --tags batch2-agent
 
 delete-agent-instance-template:
 	gcloud compute instance-templates delete --quiet $(BATCH_AGENT_TEMPLATE)
