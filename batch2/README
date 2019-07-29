@@ -9,3 +9,9 @@ gcloud compute --project=hail-vdc firewall-rules create gke-vdc-43c5f824-to-batc
     --source-ranges=10.32.0.0/14 \
     --target-tags=batch2-agent
 
+gcloud compute --project=hail-vdc firewall-rules create batch2-agents-to-gke-vdc-43c5f824 --direction=INGRESS --priority=1000 --network=default --action=ALLOW --rules=tcp --source-tags=batch2-agent
+
+gcloud compute --project=hail-vdc firewall-rules create NAME --direction=INGRESS --priority=1000 --network=default --action=ALLOW --rules=tcp --source-tags=batch2-agent --target-tags=gke-vdc-43c5f824-node
+
+
+gcloud compute firewall-rules create "vdc-to-all-vms-on-network" --network="default" --source-ranges="10.32.0.0/14" --allow=tcp,udp,icmp,esp,ah,sctp
