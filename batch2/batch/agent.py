@@ -21,5 +21,9 @@ async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
 
 
+@routes.get('/helloworld')
+async def run_helloworld(request):  # pylint: disable=W0613
+    
+
 app.add_routes(routes)
 web.run_app(app, host='0.0.0.0', port=5000)
