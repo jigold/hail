@@ -30,6 +30,8 @@ push-agent: build-agent
 	docker push $(BATCH_AGENT_LATEST)
 	docker tag batch-agent $(BATCH_AGENT_IMAGE)
 	docker push $(BATCH_AGENT_IMAGE)
+	echo $(BATCH_AGENT_IMAGE)
+	echo $(BATCH_AGENT_LATEST)
 
 create-agent-instance-template: push-agent
 	gcloud compute instance-templates create-with-container $(BATCH_AGENT_TEMPLATE) \
