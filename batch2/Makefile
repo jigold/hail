@@ -31,21 +31,31 @@ push-agent: build-agent
 	docker tag batch-agent $(BATCH_AGENT_IMAGE)
 	docker push $(BATCH_AGENT_IMAGE)
 
-create-agent-instance-template: push-agent
-	gcloud compute instance-templates create-with-container $(BATCH_AGENT_TEMPLATE) \
-	     --container-image $(BATCH_AGENT_LATEST) \
+# create-agent-instance-template: push-agent
+# 	gcloud compute instance-templates create-with-container $(BATCH_AGENT_TEMPLATE) \
+# 	     --container-image $(BATCH_AGENT_LATEST) \
+# 	     --machine-type n1-standard-1 \
+# 	     --preemptible \
+# 	     --tags batch2-agent
+
+create-agent-instance-template:  # push-agent
+	gcloud compute instance-templates create $(BATCH_AGENT_TEMPLATE) \
+	     --image ubuntu-minimal-1804-bionic-v20190723 \
+	     --image-project ubuntu-os-cloud \
 	     --machine-type n1-standard-1 \
 	     --preemptible \
 	     --tags batch2-agent
 
-delete-agent-instance-template:
-	gcloud compute instance-templates delete --quiet $(BATCH_AGENT_TEMPLATE)
+#gcloud compute --project=hail-vdc instances create foo --zone=us-central1-a --machine-type=n1-standard-1 --subnet=default --network-tier=PREMIUM --maintenance-policy=MIGRATE --service-account=859893752941-compute@developer.gserviceaccount.com --scopes=https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/trace.append --image=ubuntu-minimal-1804-bionic-v20190723 --image-project=ubuntu-os-cloud --boot-disk-size=10GB --boot-disk-type=pd-standard --boot-disk-device-name=foo
 
 create-agent-instance-group: create-agent-instance-template
 	gcloud compute instance-groups managed create $(BATCH_AGENT_INSTANCE_GROUP) \
 	    --base-instance-name batch2-agent \
 	    --size 1 \
 	    --template $(BATCH_AGENT_TEMPLATE)
+
+delete-agent-instance-template:
+	gcloud compute instance-templates delete --quiet $(BATCH_AGENT_TEMPLATE)
 
 delete-agent-instance-group:
 	gcloud compute instance-groups managed delete --quiet $(BATCH_AGENT_INSTANCE_GROUP)
