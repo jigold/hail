@@ -22,38 +22,38 @@ async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
 
 
-@routes.get('/api/v1alpha/containers')
-async def list_containers(request):  # pylint: disable=W0613
-    return jsonify(dc.containers.list(all=True))
-
-
-@routes.get('/api/v1alpha/containers/{name}')
-async def get_container(request):
-    name = request.match_info['name']
-    try:
-        container = dc.containers.get(name)
-    except docker.errors.NotFound:
-        abort(404)
-    return jsonify(container.attrs)
-
-
-@routes.delete('/api/v1alpha/containers/{name}/delete')
-async def delete_container(request):
-    name = request.match_info['name']
-    try:
-        container = dc.containers.get(name)
-        container.stop()
-        container.remove()
-    except docker.errors.NotFound:
-        abort(404)
-    return jsonify({})
-
-
-@routes.post('/api/v1alpha/containers/create')
-async def run_container(request):
-    parameters = await request.json()
-    container = dc.containers.run(parameters['image'], command=parameters['command'], detach=True)
-    return jsonify({'name': container.name})
+# @routes.get('/api/v1alpha/containers')
+# async def list_containers(request):  # pylint: disable=W0613
+#     return jsonify(dc.containers.list(all=True))
+#
+#
+# @routes.get('/api/v1alpha/containers/{name}')
+# async def get_container(request):
+#     name = request.match_info['name']
+#     try:
+#         container = dc.containers.get(name)
+#     except docker.errors.NotFound:
+#         abort(404)
+#     return jsonify(container.attrs)
+#
+#
+# @routes.delete('/api/v1alpha/containers/{name}/delete')
+# async def delete_container(request):
+#     name = request.match_info['name']
+#     try:
+#         container = dc.containers.get(name)
+#         container.stop()
+#         container.remove()
+#     except docker.errors.NotFound:
+#         abort(404)
+#     return jsonify({})
+#
+#
+# @routes.post('/api/v1alpha/containers/create')
+# async def run_container(request):
+#     parameters = await request.json()
+#     container = dc.containers.run(parameters['image'], command=parameters['command'], detach=True)
+#     return jsonify({'name': container.name})
 
 #
 # async def container_changed(container):
