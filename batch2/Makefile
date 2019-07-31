@@ -56,8 +56,8 @@ push-agent: build-agent
 
 # deploy-agents: create-agent-instance-group
 
-deploy-agent:
-	gcloud compute --project=hail-vdc instances create batch-agent \
+deploy-vm:
+	gcloud compute --project=hail-vdc instances create batch-agent-2 \
 		--zone us-central1-a \
 		--machine-type n1-standard-1 \
 		--scopes default \
@@ -67,9 +67,20 @@ deploy-agent:
 		--tags batch2-agent \
 		--preemptible \
 		--async \
-		--metadata-from-file startup-script=init-script.sh
+		--metadata-from-file startup-script=scripts/vm-init.sh
 
-delete-agent:
+deploy-agent:
+	gcloud compute --project=hail-vdc instances create batch-agent-3 \
+		--zone us-central1-a \
+		--machine-type n1-standard-1 \
+		--scopes default \
+		--image batch-agent-1 \
+		--boot-disk-size 10GB \
+		--tags batch2-agent \
+		--preemptible \
+		--async
+
+delete-vm:
 	gcloud compute instances delete batch-agent \
 		--quiet
 
