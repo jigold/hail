@@ -22,6 +22,12 @@ async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
 
 
+@routes.get('/helloworld')
+async def run_helloworld(request):  # pylint: disable=W0613
+    container = dc.containers.run('helloworld', detach=True)
+    return jsonify({'name': container.name})
+
+
 # @routes.get('/api/v1alpha/containers')
 # async def list_containers(request):  # pylint: disable=W0613
 #     return jsonify(dc.containers.list(all=True))

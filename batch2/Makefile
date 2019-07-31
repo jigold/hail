@@ -54,6 +54,18 @@ delete-agent-instance-group:
 
 deploy-agents: create-agent-instance-group
 
+deploy-agent:
+	gcloud compute --project=hail-vdc instances create batch-agent \
+		--zone us-central1-a \
+		--machine-type n1-standard-1 \
+		--scopes default \
+		--image ubuntu-minimal-1804-bionic-v20190723 \
+		--image-project ubuntu-os-cloud \
+		--boot-disk-size 10GB
+
+delete-agent:
+	gcloud compute instances delete batch-agent
+
 # Create managed instance group
 clean: delete-agent-instance-group
 clean: delete-agent-instance-template
