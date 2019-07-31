@@ -28,9 +28,9 @@ async def run_helloworld(request):  # pylint: disable=W0613
     return jsonify({'name': container.name})
 
 
-# @routes.get('/api/v1alpha/containers')
-# async def list_containers(request):  # pylint: disable=W0613
-#     return jsonify(dc.containers.list(all=True))
+@routes.get('/api/v1alpha/containers')
+async def list_containers(request):  # pylint: disable=W0613
+    return jsonify(dc.containers.list(all=True))
 #
 #
 # @routes.get('/api/v1alpha/containers/{name}')
