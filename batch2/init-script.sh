@@ -1,9 +1,10 @@
+#! /bin/bash
 
-sudo apt update
+sudo apt-get update
 
-sudo apt install python3-pip
+# sudo apt-get install -y python3-pip
 
-sudo apt-get install \
+sudo apt-get install -y \
     apt-transport-https \
     ca-certificates \
     curl \
@@ -16,10 +17,10 @@ sudo add-apt-repository \
    $(lsb_release -cs) \
    stable"
 
-sudo apt-get install docker-ce
+sudo apt-get install -y docker-ce
 
-sudo groupadd docker # fails bc already exists
+# sudo groupadd docker # fails bc already exists
 
-sudo usermod -aG docker $USER
+# sudo usermod -aG docker $USER
 
-sudo su - $USER
+# sudo su - $USER

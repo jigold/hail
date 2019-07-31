@@ -33,39 +33,48 @@ push-agent: build-agent
 	echo $(BATCH_AGENT_IMAGE)
 	echo $(BATCH_AGENT_LATEST)
 
-create-agent-instance-template: push-agent
-	gcloud compute instance-templates create-with-container $(BATCH_AGENT_TEMPLATE) \
-	     --container-image $(BATCH_AGENT_LATEST) \
-	     --machine-type n1-standard-1 \
-	     --preemptible \
-	     --tags batch2-agent
+# create-agent-instance-template: # push-agent
+# 	gcloud compute instance-templates create-with-container $(BATCH_AGENT_TEMPLATE) \
+# 	     --container-image $(BATCH_AGENT_LATEST) \
+# 	     --machine-type n1-standard-1 \
+# 	     --preemptible \
+# 	     --tags batch2-agent \
+# 	     --container-privileged \
+# 	     --container-mount-host-path=host-path=/var/run/docker.sock,mount-path=/var/run/docker.sock
 
-create-agent-instance-group: create-agent-instance-template
-	gcloud compute instance-groups managed create $(BATCH_AGENT_INSTANCE_GROUP) \
-	    --base-instance-name batch2-agent \
-	    --size 1 \
-	    --template $(BATCH_AGENT_TEMPLATE)
+# create-agent-instance-group: create-agent-instance-template
+# 	gcloud compute instance-groups managed create $(BATCH_AGENT_INSTANCE_GROUP) \
+# 	    --base-instance-name batch2-agent \
+# 	    --size 1 \
+# 	    --template $(BATCH_AGENT_TEMPLATE)
 
-delete-agent-instance-template:
-	gcloud compute instance-templates delete --quiet $(BATCH_AGENT_TEMPLATE)
+# delete-agent-instance-template:
+# 	gcloud compute instance-templates delete --quiet $(BATCH_AGENT_TEMPLATE)
 
-delete-agent-instance-group:
-	gcloud compute instance-groups managed delete --quiet $(BATCH_AGENT_INSTANCE_GROUP)
+# delete-agent-instance-group:
+# 	gcloud compute instance-groups managed delete --quiet $(BATCH_AGENT_INSTANCE_GROUP)
 
-deploy-agents: create-agent-instance-group
+# deploy-agents: create-agent-instance-group
 
 deploy-agent:
 	gcloud compute --project=hail-vdc instances create batch-agent \
 		--zone us-central1-a \
 		--machine-type n1-standard-1 \
 		--scopes default \
-		--image ubuntu-minimal-1804-bionic-v20190723 \
+		--image ubuntu-1804-bionic-v20190722a \
 		--image-project ubuntu-os-cloud \
-		--boot-disk-size 10GB
+		--boot-disk-size 10GB \
+		--tags batch2-agent \
+		--preemptible \
+		--async \
+		--metadata-from-file startup-script=init-script.sh
 
 delete-agent:
-	gcloud compute instances delete batch-agent
+	gcloud compute instances delete batch-agent \
+		--quiet
 
 # Create managed instance group
-clean: delete-agent-instance-group
-clean: delete-agent-instance-template
+# clean: delete-agent-instance-group
+# clean: delete-agent-instance-template
+
+clean: delete-agent

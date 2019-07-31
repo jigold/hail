@@ -24,7 +24,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 @routes.get('/helloworld')
 async def run_helloworld(request):  # pylint: disable=W0613
-    container = dc.containers.run('helloworld', detach=True)
+    container = dc.containers.run('hello-world', detach=True)
     return jsonify({'name': container.name})
 
 
