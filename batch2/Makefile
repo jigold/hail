@@ -10,8 +10,8 @@
 
 PROJECT := $(shell gcloud config get-value project)
 
-BATCH_LATEST = gcr.io/$(PROJECT)/batch:latest
-BATCH_IMAGE = gcr.io/$(PROJECT)/batch:$(shell docker images -q --no-trunc batch | sed -e 's,[^:]*:,,')
+BATCH_LATEST = gcr.io/$(PROJECT)/batch2:latest
+BATCH_IMAGE = gcr.io/$(PROJECT)/batch2:$(shell docker images -q --no-trunc batch2 | sed -e 's,[^:]*:,,')
 
 BATCH_AGENT_LATEST = gcr.io/$(PROJECT)/batch-agent:latest
 BATCH_AGENT_IMAGE = gcr.io/$(PROJECT)/batch-agent:$(shell docker images -q --no-trunc batch-agent | sed -e 's,[^:]*:,,')
@@ -19,11 +19,25 @@ BATCH_AGENT_IMAGE = gcr.io/$(PROJECT)/batch-agent:$(shell docker images -q --no-
 BATCH_AGENT_TEMPLATE ?= batch2-agent-template-1
 BATCH_AGENT_INSTANCE_GROUP ?= batch2-agents
 
+build-batch:
+	make -C ../docker build
+	-docker pull $(BATCH_LATEST)
+	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
+	docker build -t batch2 -f Dockerfile.out --cache-from batch2,$(BATCH_LATEST),base ..
+
 build-agent:
 	make -C ../docker build
 	-docker pull $(BATCH_AGENT_LATEST)
 	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.agent Dockerfile.agent.out
 	docker build -t batch-agent -f Dockerfile.agent.out --cache-from batch-agent,$(BATCH_AGENT_LATEST),base ..
+
+push-batch: build-batch
+	docker tag batch-agent $(BATCH_LATEST)
+	docker push $(BATCH_LATEST)
+	docker tag batch-agent $(BATCH_IMAGE)
+	docker push $(BATCH_IMAGE)
+	echo $(BATCH_IMAGE)
+	echo $(BATCH_LATEST)
 
 push-agent: build-agent
 	docker tag batch-agent $(BATCH_AGENT_LATEST)
@@ -70,15 +84,19 @@ deploy-vm:
 		--metadata-from-file startup-script=scripts/vm-init.sh
 
 deploy-agent:
-	gcloud compute --project=hail-vdc instances create batch-agent-3 \
+	gcloud compute --project=hail-vdc instances create batch-agent-8 \
 		--zone us-central1-a \
 		--machine-type n1-standard-1 \
-		--scopes default \
+		--scopes https://www.googleapis.com/auth/cloud-platform \
 		--image batch-agent-1 \
 		--boot-disk-size 10GB \
 		--tags batch2-agent \
 		--preemptible \
-		--async
+		--async \
+		--metadata=startup-script='set -ex; export HOME=/root; docker run -v /var/run/docker.sock:/var/run/docker.sock --network=host -d ${BATCH_AGENT_LATEST}'
+
+deploy-batch:
+	kubectl -n jigold apply -f deployment.yaml
 
 delete-vm:
 	gcloud compute instances delete batch-agent \
