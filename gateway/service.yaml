@@ -18,3 +18,28 @@ spec:
     app: gateway
   loadBalancerIP: "{{ global.ip }}"
   type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: internal-gateway
+  labels:
+    app: internal-gateway
+  annotations:
+    cloud.google.com/load-balancer-type: "Internal"
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    app: gateway
+  loadBalancerSourceRanges:
+  - "{{ global.pod_cidr }}"
+  loadBalancerIP: "{{ global.internal_ip }}"
+  type: LoadBalancer
