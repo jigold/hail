@@ -6,7 +6,6 @@ GATEWAY_IMAGE = gcr.io/$(PROJECT)/gateway:$(shell docker images -q --no-trunc ga
 DOMAIN ?= hail.is
 IP ?= 35.224.105.117
 INTERNAL_IP ?= 10.128.0.57
-POD_CIDR ?= 10.32.0.0/14
 
 build:
 	docker pull ubuntu:18.04
