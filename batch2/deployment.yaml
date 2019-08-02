@@ -41,21 +41,3 @@ spec:
         operator: "Equal"
         value: "true"
         effect: "NoSchedule"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: batch2
-  labels:
-    app: batch2
-  annotations:
-    cloud.google.com/load-balancer-type: "Internal"    
-spec:
-  type: LoadBalancer
-  loadBalancerIP: "10.128.0.57"
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 5000
-  selector:
-    app: batch2
