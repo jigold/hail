@@ -9,6 +9,8 @@ from aiohttp import web
 from .utils import abort, jsonify
 from .batch_configuration import REFRESH_INTERVAL_IN_SECONDS
 
+BATCH_LEADER = os.environ.get('BATCH_LEADER')
+
 uvloop.install()
 
 dc = docker.from_env()
