@@ -34,10 +34,12 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `durations` TEXT(65535),
   `input_files` TEXT(65535),
   `output_files` TEXT(65535),
+  `instance` VARCHAR(100),
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_state` ON `jobs` (`state`);
+CREATE INDEX `jobs_instance` ON `jobs` (`instance`);
 
 CREATE TABLE IF NOT EXISTS `jobs-parents` (
   `batch_id` BIGINT NOT NULL,
