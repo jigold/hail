@@ -20,7 +20,24 @@ profiles = {
         'deploy_batch_pods',
         'test_batch_image',
         'test_batch'
-    ]
+    ],
+    "batch2_test": [
+        'default_ns',
+        'deploy_batch2_sa',
+        'batch_pods_ns',
+        'deploy_batch2_output_sa',
+        'base_image',
+        'create_accounts',
+        'batch2_image',
+        'batch2_database',
+        'create_batch2_tables_image',
+        'create_batch2_tables',
+        'create_batch2_tables2',
+        'deploy_batch2',
+        'deploy_batch_pods',
+        'test_batch2_image',
+        'test_batch2'
+    ],
 }
 
 def init_parser(parser):
