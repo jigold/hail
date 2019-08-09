@@ -15,20 +15,14 @@ class Driver:
 
         # add instance name to jobs table
 
-
     async def delete_pod(self, name):
         pass
-
 
     async def read_log(self, pod_name, container_name):
         return "foo"
 
-
     async def read_pod_status(self, pod_name, container_name):
         return "foo"
 
-
     async def list_pods(self):
         pass
-
-
