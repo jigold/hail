@@ -35,7 +35,7 @@ spec:
             cpu: "1"
         env:
          - name: HAIL_POD_NAMESPACE
-           value: "{{ batch2_pods_ns.name }}"
+           value: "{{ batch_pods_ns.name }}"
          - name: HAIL_JWT_SECRET_KEY_FILE
            value: /jwt-secret-key/secret-key
          - name: BATCH_IMAGE
