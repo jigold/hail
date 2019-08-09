@@ -1,8 +1,8 @@
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
-  name: batch
-  namespace: {{ batch_pods_ns.name }}
+  name: batch2
+  namespace: {{ batch2_pods_ns.name }}
 provisioner: kubernetes.io/gce-pd
 parameters:
   type: pd-standard
@@ -11,9 +11,9 @@ parameters:
 apiVersion: v1
 kind: ResourceQuota
 metadata:
-  name: batch-storage-class-quota
-  namespace: {{ batch_pods_ns.name }}
+  name: batch2-storage-class-quota
+  namespace: {{ batch2_pods_ns.name }}
 spec:
   hard:
-    batch.storageclass.storage.k8s.io/requests.storage: 100Ti
-    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 100000
+    batch2.storageclass.storage.k8s.io/requests.storage: 100Ti
+    batch2.storageclass.storage.k8s.io/persistentvolumeclaims: 100000

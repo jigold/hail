@@ -1,45 +1,45 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: batch
+  name: batch2
 ---
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
-  name: batch
+  name: batch2
   labels:
-    app: batch
+    app: batch2
     hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
-      app: batch
+      app: batch2
   replicas: 1
   template:
     metadata:
       labels:
-        app: batch
+        app: batch2
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
     spec:
-      serviceAccountName: batch
+      serviceAccountName: batch2
 {% if deploy %}
       priorityClassName: production
 {% endif %}
       containers:
-      - name: batch
-        image: "{{ batch_image.image }}"
+      - name: batch2
+        image: "{{ batch2_image.image }}"
         resources:
           requests:
             memory: "1G"
             cpu: "1"
         env:
          - name: HAIL_POD_NAMESPACE
-           value: "{{ batch_pods_ns.name }}"
+           value: "{{ batch2_pods_ns.name }}"
          - name: HAIL_JWT_SECRET_KEY_FILE
            value: /jwt-secret-key/secret-key
          - name: BATCH_IMAGE
-           value: "{{ batch_image.image }}"
+           value: "{{ batch2_image.image }}"
 {% if deploy %}
          - name: HAIL_INSTANCE_ID
            value: cd50b95a89914efb897965a5e982a29d
@@ -47,7 +47,7 @@ spec:
         ports:
          - containerPort: 5000
         volumeMounts:
-         - name: batch-user-secret
+         - name: batch2-user-secret
            mountPath: /batch-user-secret
            readOnly: true
          - name: jwt-secret-key
@@ -66,10 +66,10 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
       volumes:
-       - name: batch-user-secret
+       - name: batch2-user-secret
          secret:
            optional: false
-           secretName: "{{ batch_database.user_secret_name }}"
+           secretName: "{{ batch2_database.user_secret_name }}"
        - name: jwt-secret-key
          secret:
            optional: false
@@ -91,13 +91,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: batch
+  name: batch2
   labels:
-    app: batch
+    app: batch2
 spec:
   ports:
   - port: 80
     protocol: TCP
     targetPort: 5000
   selector:
-    app: batch
+    app: batch2
