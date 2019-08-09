@@ -24,9 +24,8 @@ profiles = {
     "batch2_test": [
         'default_ns',
         'deploy_batch_sa',
-        'deploy_batch2_sa',
         'batch_pods_ns',
-        'deploy_batch2_output_sa',
+        'deploy_batch_output_sa',
         'base_image',
         'create_accounts',
         'batch2_image',
