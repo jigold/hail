@@ -34,7 +34,7 @@ profiles = {
         'create_batch2_tables',
         'create_batch2_tables2',
         'deploy_batch2',
-        'deploy_batch2_pods',
+        'deploy_batch_pods',
         'test_batch2_image',
         'test_batch2'
     ],
