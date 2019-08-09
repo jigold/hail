@@ -26,7 +26,6 @@ profiles = {
         'deploy_batch_sa',
         'deploy_batch2_sa',
         'batch_pods_ns',
-        'batch2_pods_ns',
         'deploy_batch2_output_sa',
         'base_image',
         'create_accounts',
