@@ -16,13 +16,6 @@ steps:
    config: batch/service-account.yaml
    dependsOn:
     - default_ns
- - kind: deploy
-   name: deploy_batch2_sa
-   namespace:
-     valueFrom: default_ns.name
-   config: batch2/service-account.yaml
-   dependsOn:
-    - default_ns   
  - kind: createNamespace
    name: batch_pods_ns
    namespaceName: batch-pods
@@ -36,19 +29,6 @@ steps:
    dependsOn:
     - default_ns
     - deploy_batch_sa
- - kind: createNamespace
-   name: batch2_pods_ns
-   namespaceName: batch2-pods
-   adminServiceAccount:
-     name: batch2
-     namespace:
-       valueFrom: default_ns.name
-   public: false
-   secrets:
-    - test-gsa-key
-   dependsOn:
-    - default_ns
-    - deploy_batch2_sa    
  - kind: deploy
    name: deploy_batch_output_sa
    namespace:
@@ -56,13 +36,6 @@ steps:
    config: batch/output-service-account.yaml
    dependsOn:
     - batch_pods_ns
- - kind: deploy
-   name: deploy_batch2_output_sa
-   namespace:
-     valueFrom: batch2_pods_ns.name
-   config: batch2/output-service-account.yaml
-   dependsOn:
-    - batch2_pods_ns    
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
@@ -86,7 +59,6 @@ steps:
      # batch
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -
-     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ batch2_pods_ns.name }} apply -f -     
      python3 -c "
      import jwt
      with open('secret-key', 'rb') as f:
@@ -121,7 +93,6 @@ steps:
      "
      kubectl -n {{ default_ns.name }} --ignore-not-found=true delete secret test-jwt
      kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
-     kubectl -n {{ batch2_pods_ns.name }} create secret generic test-jwt --from-file=./jwt     
    serviceAccount: ci-agent
    scopes:
     - test
@@ -129,7 +100,6 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
-    - batch2_pods_ns
     - base_image
  - kind: buildImage
    name: hail_build_image
@@ -635,13 +605,6 @@ steps:
    dependsOn:
     - batch_pods_ns
  - kind: deploy
-   name: deploy_batch2_pods
-   namespace:
-     valueFrom: batch2_pods_ns.name
-   config: batch2/batch-pods-deployment.yaml
-   dependsOn:
-    - batch2_pods_ns    
- - kind: deploy
    name: deploy_batch2
    namespace:
      valueFrom: default_ns.name
@@ -652,8 +615,8 @@ steps:
       for: alive
    dependsOn:
     - default_ns
-    - batch2_pods_ns
-    - deploy_batch2_output_sa
+    - batch_pods_ns
+    - deploy_batch_output_sa
     - create_accounts
     - batch2_image
     - batch2_database
@@ -695,7 +658,7 @@ steps:
  - kind: deploy
    name: test_batch2
    namespace:
-     valueFrom: batch2_pods_ns.name
+     valueFrom: batch_pods_ns.name
    config: batch2/test-batch-pod.yaml
    wait:
     - kind: Pod
@@ -704,9 +667,9 @@ steps:
       timeout: 900
    dependsOn:
     - default_ns
-    - batch2_pods_ns
+    - batch_pods_ns
     - deploy_batch2
-    - deploy_batch2_pods
+    - deploy_batch_pods
     - test_batch2_image    
  - kind: runImage
    name: setup_pipeline
