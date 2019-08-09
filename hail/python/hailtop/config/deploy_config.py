@@ -104,7 +104,7 @@ class DeployConfig:
 deploy_config = None
 
 
-def get_deploy_config():
+def get_deploy_config(_config=None):
     global deploy_config
 
     if not deploy_config:
