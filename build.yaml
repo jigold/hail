@@ -616,7 +616,8 @@ steps:
     - name: test-gsa-key
       mountPath: /test-gsa-key
    dependsOn:
-    - batch2_image    
+    - base_image   
+    - batch2_image
  - kind: deploy
    name: deploy_batch2
    namespace:
