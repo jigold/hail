@@ -1297,7 +1297,7 @@ async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
     # app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
-    app['driver'] = Driver()
+    # app['driver'] = Driver()
     app['log_store'] = LogStore(pool, INSTANCE_ID)
 
     # asyncio.ensure_future(polling_event_loop())
