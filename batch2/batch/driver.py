@@ -1,24 +1,48 @@
 import asyncio
+import aiohttp
 
 
 class Driver:
-    # needs an event queue
-    # needs a scheduler instance
-    
-    def create_pod(self, spec, secrets):
-        # get free instance
+    def __init__(self):
+        self._session = aiohttp.ClientSession(raise_for_status=True,
+                                              timeout=aiohttp.ClientTimeout(total=60))
+
+        self._cookies = None
+        self._headers = None
+        self.url = 'batch-agent-8:5000'
+
+    async def _get(self, path, params=None):
+        response = await self._session.get(
+            self.url + path, params=params, cookies=self._cookies, headers=self._headers)
+        return await response.json()
+
+    async def _post(self, path, json=None):
+        response = await self._session.post(
+            self.url + path, json=json, cookies=self._cookies, headers=self._headers)
+        return await response.json()
+
+    async def _patch(self, path):
+        await self._session.patch(
+            self.url + path, cookies=self._cookies, headers=self._headers)
+
+    async def _delete(self, path):
+        await self._session.delete(
+            self.url + path, cookies=self._cookies, headers=self._headers)
+
+    async def create_pod(self, spec):
+        await self._post('/api/v1alpha/pods/create', json=spec)
+
         # submit request to that instance
         # update db
+
+    async def delete_pod(self, name):
         pass
 
-    def delete_pod(self, name):
+    async def read_pod_log(self, name, container):
         pass
 
-    def read_pod_log(self, name, container):
+    async def read_pod_status(self, name):
         pass
 
-    def read_pod_status(self, name):
-        pass
-
-    def list_pods(self):
+    async def list_pods(self):
         pass
