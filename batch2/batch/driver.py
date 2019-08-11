@@ -17,7 +17,7 @@ class Driver:
         self.url = 'batch-agent-8:5000'
 
         self.compute_client = googleapiclient.discovery.build('compute', 'v1')
-        log.info(self.compute_client.instances().get(project='vdc', zone='us-central1-a', instance=self.instance).execute())
+        log.info(self.compute_client.instances().get(project='hail-vdc', zone='us-central1-a', instance=self.instance).execute())
 
     async def _get(self, path, params=None):
         response = await self._session.get(
