@@ -1,5 +1,6 @@
 import asyncio
 import aiohttp
+import googleapiclient.discovery
 
 
 class Driver:
@@ -9,7 +10,11 @@ class Driver:
 
         self._cookies = None
         self._headers = None
+        self.instance = 'batch-agent-8'
         self.url = 'batch-agent-8:5000'
+
+        self.compute_client = googleapiclient.discovery.build('compute', 'v1')
+        print(self.compute_client.instances().get(project='vdc', zone='us-central1-a', instance=self.instance).execute())
 
     async def _get(self, path, params=None):
         response = await self._session.get(
