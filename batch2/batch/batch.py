@@ -1266,8 +1266,8 @@ async def polling_event_loop():
     await asyncio.sleep(1)
     while True:
         try:
-            pass
-            # app['driver'] = Driver()
+            # pass
+            app['driver'] = Driver()
             # await refresh_k8s_state()
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'Could not poll due to exception: {exc}')
@@ -1299,9 +1299,9 @@ async def on_startup(app):
     app['blocking_pool'] = pool
     # app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
     app['driver'] = None
-    # app['log_store'] = LogStore(pool, INSTANCE_ID)
+    app['log_store'] = LogStore(pool, INSTANCE_ID)
 
-    # asyncio.ensure_future(polling_event_loop())
+    asyncio.ensure_future(polling_event_loop())
     # asyncio.ensure_future(kube_event_loop())
     # asyncio.ensure_future(db_cleanup_event_loop())
 
