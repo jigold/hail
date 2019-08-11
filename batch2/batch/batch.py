@@ -1266,7 +1266,8 @@ async def polling_event_loop():
     await asyncio.sleep(1)
     while True:
         try:
-            app['driver'] = Driver()
+            pass
+            # app['driver'] = Driver()
             # await refresh_k8s_state()
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'Could not poll due to exception: {exc}')
