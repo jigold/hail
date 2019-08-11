@@ -31,7 +31,7 @@ from .k8s import K8s
 from .globals import states, complete_states, valid_state_transitions
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
     HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, QUEUE_SIZE, MAX_PODS
-# from .driver import Driver
+from .driver import Driver
 
 from . import schemas
 
@@ -1005,7 +1005,6 @@ async def get_batch(request, userdata):
     return jsonify(await _get_batch(batch_id, user, limit=limit, offset=offset))
 
 
-
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @prom_async_time(REQUEST_TIME_PATCH_CANCEL_BATCH)
 @rest_authenticated_users_only
@@ -1263,14 +1262,15 @@ class DeblockedIterator:
 #     log.info('k8s state refresh complete')
 
 #
-# async def polling_event_loop():
-#     await asyncio.sleep(1)
-#     while True:
-#         try:
-#             await refresh_k8s_state()
-#         except Exception as exc:  # pylint: disable=W0703
-#             log.exception(f'Could not poll due to exception: {exc}')
-#         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
+async def polling_event_loop():
+    await asyncio.sleep(1)
+    while True:
+        try:
+            app['driver'] = Driver()
+            # await refresh_k8s_state()
+        except Exception as exc:  # pylint: disable=W0703
+            log.exception(f'Could not poll due to exception: {exc}')
+        await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
 async def db_cleanup_event_loop():
@@ -1297,10 +1297,10 @@ async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
     # app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
-    # app['driver'] = Driver()
-    # app['log_store'] = LogStore(pool, INSTANCE_ID)
+    app['driver'] = None
+    app['log_store'] = LogStore(pool, INSTANCE_ID)
 
-    # asyncio.ensure_future(polling_event_loop())
+    asyncio.ensure_future(polling_event_loop())
     # asyncio.ensure_future(kube_event_loop())
     # asyncio.ensure_future(db_cleanup_event_loop())
 
