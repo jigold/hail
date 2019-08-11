@@ -613,7 +613,7 @@ steps:
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
      gcloud compute ssh --zone us-central1-a batch-agent-8 --command "docker run -v /var/run/docker.sock:/var/run/docker.sock {{batch2_image.image}}" # docker stop \$(docker ps -a -q); docker rm \$(docker ps -a -q);
    secrets:
-    - name: test-gsa-key
+    - name: jigold-gsa-key
       mountPath: /test-gsa-key
    dependsOn:
     - base_image   
