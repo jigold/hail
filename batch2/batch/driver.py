@@ -3,7 +3,7 @@ import aiohttp
 import googleapiclient.discovery
 import logging
 
-log = logging.getLogger('driver')
+# log = logging.getLogger('driver')
 
 
 class Driver:
