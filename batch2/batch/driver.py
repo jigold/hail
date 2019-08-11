@@ -5,7 +5,7 @@ class Driver:
     # needs an event queue
     # needs a scheduler instance
     
-    def create_pod(self, body):
+    def create_pod(self, spec, secrets):
         # get free instance
         # submit request to that instance
         # update db
@@ -22,9 +22,3 @@ class Driver:
 
     def list_pods(self):
         pass
-
-        # for instance in instance pool:
-        #     send request of list_pods to each instance
-
-
-class InstancePool:
