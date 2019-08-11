@@ -31,7 +31,7 @@ from .k8s import K8s
 from .globals import states, complete_states, valid_state_transitions
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
     HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, QUEUE_SIZE, MAX_PODS
-# from .driver import Driver
+from .driver import Driver
 
 from . import schemas
 
