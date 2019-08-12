@@ -48,6 +48,8 @@ class Driver:
             self.url + path, cookies=self._cookies, headers=self._headers)
 
     async def create_pod(self, spec):
+        log.info('calling create pod')
+        log.info(spec)
         await self._post('/api/v1alpha/pods/create', json=spec)
 
         # submit request to that instance
