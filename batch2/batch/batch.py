@@ -198,6 +198,10 @@ class Job:
                         }),
             spec=pod_spec)
 
+        secret = v1.read_namespaced_secret('example', 'jigold')
+        log.info(secret.data)
+        log.info(secret.metadata)
+
         _, err = await app['driver'].create_pod(spec=pod_template.to_dict())
         if err is not None:
             if err.status == 409:
