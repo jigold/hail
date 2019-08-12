@@ -36,7 +36,8 @@ profiles = {
         'deploy_batch2',
         'deploy_batch_pods',
         'test_batch2_image',
-        'test_batch2'
+        'test_batch2',
+        'setup_batch2_agent'
     ],
 }
 

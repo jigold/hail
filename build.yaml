@@ -604,6 +604,20 @@ steps:
    config: batch/batch-pods-deployment.yaml
    dependsOn:
     - batch_pods_ns
+ - kind: runImage
+   name: setup_batch2_agent
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -e
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     gcloud compute ssh --zone us-central1-a batch-agent-8 --command "docker run -v /var/run/docker.sock:/var/run/docker.sock -p 5000:5000 {{batch2_image.image}}" # docker stop \$(docker ps -a -q); docker rm \$(docker ps -a -q);
+   secrets:
+    - name: test-gsa-key
+      mountPath: /test-gsa-key
+   dependsOn:
+    - base_image
+    - batch2_image
  - kind: deploy
    name: deploy_batch2
    namespace:
@@ -621,6 +635,7 @@ steps:
     - batch2_image
     - batch2_database
     - create_batch2_tables
+    - setup_batch2_agent
  - kind: deploy
    name: deploy_image_fetcher
    namespace:
