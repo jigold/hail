@@ -50,7 +50,7 @@ class Container:
             'Binds': [f'{volume}:/io'],
             'name': name,
             'Cmd': command,
-            'Image': image,
+            'Image': 'ffdsfdsfa' # image,
         }
         # spec.update(extra_params)
         print(f'creating container {name}')

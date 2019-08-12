@@ -13,6 +13,7 @@ class Driver:
     def __init__(self, batch_gsa_key=None):
         self._session = aiohttp.ClientSession(raise_for_status=True,
                                               timeout=aiohttp.ClientTimeout(total=60))
+        self.event_queue = asyncio.Queue()
 
         self._cookies = None
         self._headers = None
