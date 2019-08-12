@@ -53,13 +53,13 @@ class Container:
             'Image': image,
         }
         # spec.update(extra_params)
-        log.info(f'creating container {name}')
+        print(f'creating container {name}')
         # add correct volume mounts and secret mounts
         try:
             c = await docker.containers.create(config=spec)
         except DockerError as err:
-            if err.status == 404 and 'Image' in config:
-                await docker.pull(config['Image'])  # FIXME: this may fail with repo and tag specified
+            if err.status == 404 and 'Image' in spec:
+                await docker.pull(spec['Image'])  # FIXME: this may fail with repo and tag specified
                 c = await docker.containers.create(config=spec)
             else:
                 raise err
@@ -123,7 +123,7 @@ class BatchPod:
     @staticmethod
     async def create(config):
         name = config['metadata']['name']
-        log.info(f'creating batch pod {name}')
+        print(f'creating batch pod {name}')
         volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
         containers = await asyncio.gather(*[Container.create(container_config, volume.name, name)
                                             for container_config in config['spec']['containers']])
@@ -183,7 +183,7 @@ class BatchPod:
 @routes.post('/api/v1alpha/pods/create')
 async def create_pod(request):
     config = await request.json()
-    log.info(config)
+    print(config)
     bp = await BatchPod.create(config)
     batch_pods[bp.name] = bp
     await bp.run()
