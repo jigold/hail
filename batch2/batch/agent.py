@@ -2,6 +2,7 @@ import os
 from shlex import quote as shq
 import time
 import random
+import json
 import logging
 import asyncio
 import aiohttp
@@ -31,26 +32,32 @@ batch_pods = {}
 
 class Container:
     @staticmethod
-    async def create(config, volume, secrets=None):
-        name = config['name']
-        cores = config.get('cores', 1)
-        spec = config['spec']
+    async def create(config, volume, pod_name, secrets=None):
+        name = pod_name + '-' + config['name']
+        image = config['image']
+        command = config['command']
+        cores = 1
 
-        extra_params = {
+        # cores = config['resources']['requests']['cpu']
+        # if cores is None:
+        #     cores = '1'
+
+        spec = {
             "AttachStdin": False,
             "AttachStdout": False,
             "AttachStderr": False,
             "Tty": False,
             'OpenStdin': False,
-            'Binds': [f'{volume}:/io']
+            'Binds': [f'{volume}:/io'],
+            'name': name,
+            'Cmd': command,
+            'Image': image,
         }
-        spec.update(extra_params)
-
+        # spec.update(extra_params)
+        log.info(f'creating container {name}')
         # add correct volume mounts and secret mounts
         try:
-            start = time.time()
             c = await docker.containers.create(config=spec)
-            print(f'create_container: {time.time() - start} seconds')
         except DockerError as err:
             if err.status == 404 and 'Image' in config:
                 await docker.pull(config['Image'])  # FIXME: this may fail with repo and tag specified
@@ -116,11 +123,11 @@ class Container:
 class BatchPod:
     @staticmethod
     async def create(config):
-        name = config['name']
+        name = config['metadata']['name']
+        log.info(f'creating batch pod {name}')
         volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
-        containers = await asyncio.gather(*[Container.create(container_config, volume.name)
-                                            for container_config in config['containers']])
-
+        containers = await asyncio.gather(*[Container.create(container_config, volume.name, name)
+                                            for container_config in config['spec']['containers']])
         return BatchPod(name, containers, volume)
 
     def __init__(self, name, containers, volume):
@@ -175,8 +182,10 @@ class BatchPod:
 
 
 @routes.post('/api/v1alpha/pods/create')
-async def run_pod(request):
+async def create_pod(request):
     config = await request.json()
+    config = json.loads(config)
+    log.info(config)
     bp = await BatchPod.create(config)
     batch_pods[bp.name] = bp
     await bp.run()
