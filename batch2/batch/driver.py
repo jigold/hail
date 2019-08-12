@@ -4,6 +4,7 @@ import aiohttp
 import googleapiclient.discovery
 import logging
 import google.oauth2.service_account
+import requests
 
 log = logging.getLogger('driver')
 
@@ -24,6 +25,7 @@ class Driver:
             batch_gsa_key)
         self.compute_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
         log.info(self.compute_client.instances().get(project='hail-vdc', zone='us-central1-a', instance=self.instance).execute())
+        log.info(requests.get(self.url + '/healthcheck'))
 
     async def _get(self, path, params=None):
         response = await self._session.get(
