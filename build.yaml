@@ -543,7 +543,7 @@ steps:
    script: |
      ./delete-batch-tables.sql
    scopes:
-    - deploy
+    - dev
    dependsOn:
     - batch2_tables_image   
  - kind: deploy
@@ -559,7 +559,8 @@ steps:
    dependsOn:
      - default_ns
      - batch2_tables_image
-     - batch2_database     
+     - batch2_database
+     - delete_batch2_tables
  - kind: deploy
    name: create_batch_tables_2
    namespace:
