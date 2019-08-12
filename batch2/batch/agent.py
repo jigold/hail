@@ -2,7 +2,6 @@ import os
 from shlex import quote as shq
 import time
 import random
-import json
 import logging
 import asyncio
 import aiohttp
@@ -48,7 +47,7 @@ class Container:
             "AttachStderr": False,
             "Tty": False,
             'OpenStdin': False,
-            'Binds': [f'{volume}:/io'],
+            # 'Binds': [f'{volume}:/io'],
             'name': name,
             'Cmd': command,
             'Image': image,
@@ -125,12 +124,12 @@ class BatchPod:
     async def create(config):
         name = config['metadata']['name']
         log.info(f'creating batch pod {name}')
-        volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
+        # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
         containers = await asyncio.gather(*[Container.create(container_config, volume.name, name)
                                             for container_config in config['spec']['containers']])
-        return BatchPod(name, containers, volume)
+        return BatchPod(name, containers, volume=None)
 
-    def __init__(self, name, containers, volume):
+    def __init__(self, name, containers, volume=None):
         # self.config = config
         self.name = name
         # self.volumes = {Volume(vol_config) for vol_config in config['volumes']}
@@ -184,7 +183,6 @@ class BatchPod:
 @routes.post('/api/v1alpha/pods/create')
 async def create_pod(request):
     config = await request.json()
-    config = json.loads(config)
     log.info(config)
     bp = await BatchPod.create(config)
     batch_pods[bp.name] = bp
