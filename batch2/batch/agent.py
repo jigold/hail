@@ -59,7 +59,7 @@ class Container:
             c = await docker.containers.create(config=spec)
         except DockerError as err:
             if err.status == 404 and 'Image' in spec:
-                await docker.pull(spec['Image'])  # FIXME: this may fail with repo and tag specified
+                await docker.pull(spec['Image'])  # FIXME: figure out errors
                 c = await docker.containers.create(config=spec)
             else:
                 raise err
