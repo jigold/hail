@@ -536,16 +536,22 @@ steps:
      - default_ns
      - create_batch_tables_image
      - batch_database
- - kind: runImage
+ - kind: deploy
    name: delete_batch2_tables
-   image:
-     valueFrom: batch2_tables_image.image
-   script: |
-     ./delete-batch-tables.sql
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/delete-batch-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: delete-batch2-tables
+      for: completed
+      timeout: 120
    scopes:
-    - dev
+     - dev
    dependsOn:
-    - batch2_tables_image   
+     - default_ns
+     - batch2_tables_image
+     - batch2_database
  - kind: deploy
    name: create_batch2_tables
    namespace:
