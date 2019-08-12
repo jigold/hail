@@ -517,8 +517,8 @@ steps:
    dependsOn:
     - base_image
  - kind: buildImage
-   name: create_batch2_tables_image
-   dockerFile: batch2/Dockerfile.create-tables
+   name: batch2_tables_image
+   dockerFile: batch2/Dockerfile.tables
    contextPath: batch2
    dependsOn:
     - base_image
@@ -536,6 +536,16 @@ steps:
      - default_ns
      - create_batch_tables_image
      - batch_database
+ - kind: runImage
+   name: delete_batch2_tables
+   image:
+     valueFrom: batch2_tables_image.image
+   script: |
+     ./delete-batch-tables.sql
+   scopes:
+    - deploy
+   dependsOn:
+    - batch2_tables_image   
  - kind: deploy
    name: create_batch2_tables
    namespace:
@@ -548,7 +558,7 @@ steps:
       timeout: 120
    dependsOn:
      - default_ns
-     - create_batch2_tables_image
+     - batch2_tables_image
      - batch2_database     
  - kind: deploy
    name: create_batch_tables_2
@@ -577,7 +587,7 @@ steps:
       timeout: 120
    dependsOn:
      - default_ns
-     - create_batch2_tables_image
+     - batch2_tables_image
      - batch2_database
      - create_batch2_tables
  - kind: deploy

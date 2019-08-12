@@ -5,7 +5,7 @@ metadata:
 spec:
   containers:
   - name: create-batch2-tables
-    image: "{{ create_batch2_tables_image.image }}"
+    image: "{{ batch2_tables_image.image }}"
     command:
      - /bin/bash
      - -c
