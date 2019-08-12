@@ -13,7 +13,7 @@ from aiodocker.exceptions import DockerError
 
 # from hailtop import gear
 
-from .utils import check_shell, check_shell_output, CalledProcessError, jsonify
+from .utils import check_shell, check_shell_output, CalledProcessError, jsonify, abort
 from .semaphore import NullWeightedSemaphore, WeightedSemaphore
 
 # gear.configure_logging()
@@ -184,9 +184,12 @@ class BatchPod:
 async def create_pod(request):
     config = await request.json()
     print(config)
-    bp = await BatchPod.create(config)
-    batch_pods[bp.name] = bp
-    await bp.run()
+    try:
+        bp = await BatchPod.create(config)
+        batch_pods[bp.name] = bp
+        asyncio.ensure_future(bp.run())
+    except DockerError as err:
+        return web.Response(body=err.message, status=err.status)
     return web.Response()
 
 
@@ -194,8 +197,15 @@ async def create_pod(request):
 async def get_container_log(request):
     pod_name = request.match_info['pod_name']
     container_name = request.match_info['container_name']
+
+    if pod_name not in batch_pods:
+        abort(404, 'unknown pod name')
     bp = batch_pods[pod_name]
+
+    if container_name not in bp.containers:
+        abort(404, 'unknown container name')
     result = await bp.log(container_name)
+
     return jsonify(result)
 
 
@@ -210,8 +220,12 @@ async def get_pod_status(request):
 @routes.post('/api/v1alpha/pods/{pod_name}/delete')
 async def delete_pod(request):
     pod_name = request.match_info['pod_name']
+
+    if pod_name not in batch_pods:
+        abort(404, 'unknown pod name')
     bp = batch_pods[pod_name]
-    await bp.delete()
+
+    asyncio.ensure_future(bp.delete())
     del batch_pods[pod_name]
     return web.Response()
 

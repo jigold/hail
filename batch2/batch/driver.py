@@ -50,13 +50,15 @@ class Driver:
     async def create_pod(self, spec):
         log.info('calling create pod')
         log.info(spec)
-        await self._post('/api/v1alpha/pods/create', json=spec)
+        result = await self._post('/api/v1alpha/pods/create', json=spec)
+        log.info(result)
 
         # submit request to that instance
         # update db
 
     async def delete_pod(self, name):
-        pass
+        log.info('calling delete pod')
+        await self._post(f'/api/v1alpha/pods/{name}/delete')
 
     async def read_pod_log(self, name, container):
         pass
