@@ -1,13 +1,15 @@
+import os
 import asyncio
 import aiohttp
 import googleapiclient.discovery
 import logging
+import google.oauth2.service_account
 
 log = logging.getLogger('driver')
 
 
 class Driver:
-    def __init__(self):
+    def __init__(self, batch_gsa_key=None):
         self._session = aiohttp.ClientSession(raise_for_status=True,
                                               timeout=aiohttp.ClientTimeout(total=60))
 
@@ -16,7 +18,11 @@ class Driver:
         self.instance = 'batch-agent-8'
         self.url = 'batch-agent-8:5000'
 
-        self.compute_client = googleapiclient.discovery.build('compute', 'v1')
+        if batch_gsa_key is None:
+            batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
+        credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+            batch_gsa_key)
+        self.compute_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
         log.info(self.compute_client.instances().get(project='hail-vdc', zone='us-central1-a', instance=self.instance).execute())
 
     async def _get(self, path, params=None):
