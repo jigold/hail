@@ -17,14 +17,16 @@ class Driver:
         self._cookies = None
         self._headers = None
         self.instance = 'batch-agent-8'
-        self.url = 'http://batch-agent-8:5000'
+        self.url = 'http://10.128.0.95:5000'
 
         if batch_gsa_key is None:
             batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
         credentials = google.oauth2.service_account.Credentials.from_service_account_file(
             batch_gsa_key)
         self.compute_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        log.info(self.compute_client.instances().get(project='hail-vdc', zone='us-central1-a', instance=self.instance).execute())
+        result = self.compute_client.instances().get(project='hail-vdc', zone='us-central1-a', instance=self.instance).execute()
+        log.info(result)
+
         log.info(requests.get(self.url + '/healthcheck'))
 
     async def _get(self, path, params=None):
