@@ -198,7 +198,7 @@ class Job:
                         }),
             spec=pod_spec)
 
-        _, err = await app['driver'].create_pod(body=pod_template)
+        _, err = await app['driver'].create_pod(spec=pod_template.to_dict())
         if err is not None:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.id}')
