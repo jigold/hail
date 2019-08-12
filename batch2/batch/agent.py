@@ -47,7 +47,7 @@ class Container:
             "AttachStderr": False,
             "Tty": False,
             'OpenStdin': False,
-            # 'Binds': [f'{volume}:/io'],
+            'Binds': [f'{volume}:/io'],
             'name': name,
             'Cmd': command,
             'Image': image,
@@ -124,12 +124,12 @@ class BatchPod:
     async def create(config):
         name = config['metadata']['name']
         log.info(f'creating batch pod {name}')
-        # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
+        volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
         containers = await asyncio.gather(*[Container.create(container_config, volume.name, name)
                                             for container_config in config['spec']['containers']])
-        return BatchPod(name, containers, volume=None)
+        return BatchPod(name, containers, volume)
 
-    def __init__(self, name, containers, volume=None):
+    def __init__(self, name, containers, volume):
         # self.config = config
         self.name = name
         # self.volumes = {Volume(vol_config) for vol_config in config['volumes']}
