@@ -141,8 +141,11 @@ class BatchPod:
         self.exit_codes = [None for _ in self.containers]
         self.durations = [None for _ in self.containers]
 
+        self.running = False
+
     async def run(self, semaphore=None):
         # volume = await docker.volumes.create()
+        self.running = True
 
         if not semaphore:
             semaphore = NullWeightedSemaphore()
@@ -159,6 +162,7 @@ class BatchPod:
                 if container.exit_code != 0:
                     break
 
+        self.running = False
         return
 
     async def delete(self):
@@ -189,6 +193,7 @@ async def create_pod(request):
         batch_pods[bp.name] = bp
         asyncio.ensure_future(bp.run())
     except DockerError as err:
+        print(err)
         return web.Response(body=err.message, status=err.status)
     return web.Response()
 
