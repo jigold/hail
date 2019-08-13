@@ -101,6 +101,7 @@ class Container:
             }
         else:
             status = self._container._container
+            print(status)
             if status['State']['Status'] == 'running':
                 state['running'] = {
                     'started_at': status['State']['StartedAt']
