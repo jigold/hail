@@ -106,11 +106,11 @@ class Container:
                 }
             elif status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead
                 state['terminated'] = {
-                    'container_id': status['Id'],
-                    'exit_code': status['State']['ExitCode'],
-                    'finished_at': status['State']['FinishedAt'],
+                    'containerId': status['Id'],
+                    'exitCode': status['State']['ExitCode'],
+                    'finishedAt': status['State']['FinishedAt'],
                     'message': status['State']['Error'],
-                    'started_at': status['State']['StartedAt']
+                    'startedAt': status['State']['StartedAt']
                 }
             else:
                 raise Exception(f'unknown docker state {status["State"]["Status"]}')
@@ -207,7 +207,7 @@ class BatchPod:
                 'name': self.name
             },
             'status': {
-                'container_statuses': [c.to_dict() for _, c in self.containers.items()],
+                'containerStatuses': [c.to_dict() for _, c in self.containers.items()],
                 'phase': phase
                 # 'start_time': None
             }

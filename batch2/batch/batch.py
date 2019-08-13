@@ -1283,6 +1283,8 @@ async def refresh_batch_pods():
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
 
     pods = await app['driver'].list_pods()
+    for pod in pods:
+        log.info(pod.status.container_statuses)
 
     log.info(pods)
 
