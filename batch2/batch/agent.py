@@ -131,12 +131,16 @@ class BatchPod:
     async def create(config, secrets):
         name = config['metadata']['name']
         token = uuid.uuid4().hex
+        secrets_dir = f'/batch/pods/{name}/{token}/secrets'
+        os.makedirs(secrets_dir)
+
         print(f'creating batch pod {name}')
 
         secret_paths = {}
         for secret_name, secret in secrets.items():
             print(f'creating secret {secret_name}')
-            path = f'/batch/pods/{name}/{token}/secrets/{secret_name}'
+
+            path = f'{secrets_dir}/{secret_name}'
             for file_name, data in secret.items():
                 print(f'creating secret {secret_name} at path {path}/{file_name}')
                 with open(f'{path}/{file_name}', 'w') as f:
@@ -146,7 +150,7 @@ class BatchPod:
 
         volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
 
-        containers = await asyncio.gather(*[Container.create(container_config, volume.name, name, secrets)
+        containers = await asyncio.gather(*[Container.create(container_config, volume.name, name, secret_paths)
                                             for container_config in config['spec']['containers']])
         return BatchPod(name, containers, volume, secrets)
 
