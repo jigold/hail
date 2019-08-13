@@ -91,9 +91,29 @@ class Container:
         logs = await self._container.log(stderr=True, stdout=True)
         return "".join(logs)
 
-    def to_dict(self):
-        print(self.status())
+    async def to_dict(self):
+        status = await docker.containers.get(self._container._id)
+        # print(self.status())
         state = {}
+        if status['State']['running']:
+            state['running'] = {
+                'started_at': status['State']['StartedAt']
+            }
+        elif status['State']['exited']:
+            state['terminated'] = {
+                'container_id': status['Id'],
+                'exit_code': status['State']['ExitCode'],
+                'finished_at': status['State']['FinishedAt'],
+                'message': status['State']['Error'],
+                # 'reason': None,
+                # 'signal': None,
+                'started_at': status['State']['StartedAt']
+            }
+        else:
+            state['waiting'] = {
+                'message': None,
+                'reason': None
+            }
         # if self.running:
         #     state['running'] = {}
         # elif self.terminated:
@@ -101,22 +121,22 @@ class Container:
         # else:
         #     state['waiting'] = {}
 
-        # return {
-        #     'container_id': self._container._id,
-        #     'image': self._container._,
-        #     # 'image_id': None,
-        #     # 'last_state': None,
-        #     'name': self.name,
-        #     # 'ready': None,
-        #     # 'restart_count': None,
-        #     'state': state
-        # }
         return {
-            'status': self.status(),
+            # 'container_id': status['Id'],
+            # 'image': status['Image'],
+            # 'image_id': None,
+            # 'last_state': None,
             'name': self.name,
-            'exit_code': self.exit_code,
-            'duration': self.duration
+            # 'ready': None,
+            # 'restart_count': status['RestartCount'],
+            'state': state
         }
+        # return {
+        #     'status': self.status(),
+        #     'name': self.name,
+        #     'exit_code': self.exit_code,
+        #     'duration': self.duration
+        # }
 
 
 class BatchPod:

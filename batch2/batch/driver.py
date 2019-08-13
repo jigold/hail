@@ -5,18 +5,20 @@ import googleapiclient.discovery
 import logging
 import google.oauth2.service_account
 import requests
+import kubernetes as kube
 
 log = logging.getLogger('driver')
 
 
 class Driver:
-    def __init__(self, batch_gsa_key=None):
+    def __init__(self, v1, batch_gsa_key=None):
         self._session = aiohttp.ClientSession(raise_for_status=True,
                                               timeout=aiohttp.ClientTimeout(total=60))
         self.event_queue = asyncio.Queue()
 
         self._cookies = None
         self._headers = None
+        self.v1 = v1
         self.instance = 'batch-agent-8'
         self.url = 'http://10.128.0.95:5000'
 
@@ -71,3 +73,5 @@ class Driver:
     async def list_pods(self):
         result = await self._get('/api/v1alpha/pods')
         log.info(result)
+        return [self.v1.api_client._ApiClient__deserialize(data, kube.client.V1Pod)
+                for data in result]
