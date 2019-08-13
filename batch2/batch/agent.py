@@ -37,13 +37,13 @@ class Container:
         self.name = spec['name']
         self.spec = spec
         self.cores = 1
-        self.image = self.spec['image']
+        # self.image = self.spec['image']
         # self.log_path = log_path
         # self.status_path = status_path
-        self.exit_code = None
-        self.duration = None
+        # self.exit_code = None
+        # self.duration = None
 
-    async def run(self, secrets):
+    async def create(self, secrets):
         image = self.spec['image']
         command = self.spec['command']
 
@@ -68,15 +68,51 @@ class Container:
             'Image': image,
         }
 
-        self._container = await docker.containers.run(config)
+        try:
+            self._container = await docker.containers.create(config)
+        except DockerError as err:
+            if err.status == 404:
+                await docker.pull(config['Image'])
+                self._container = await docker.containers.create(config)
+            else:
+                raise err
+
+    async def run(self):
+        # image = self.spec['image']
+        # command = self.spec['command']
+        #
+        # volume_mounts = []
+        # for mount in self.spec['volume_mounts']:
+        #     mount_name = mount['name']
+        #     mount_path = mount['mount_path']
+        #     if mount_name in secrets:
+        #         secret_path = secrets[mount_name]
+        #         volume_mounts.append(f'{secret_path}:{mount_path}')
+        #     else:
+        #         raise Exception(f'unknown secret {mount_name} specified in volume_mounts')
+        #
+        # config = {
+        #     "AttachStdin": False,
+        #     "AttachStdout": False,
+        #     "AttachStderr": False,
+        #     "Tty": False,
+        #     'OpenStdin': False,
+        #     'Binds': volume_mounts,
+        #     'Cmd': command,
+        #     'Image': image,
+        # }
+        #
+        # self._container = await docker.containers.run(config)
+
+        await self._container.start()
         await self._container.wait()
         self._container = await docker.containers.get(self._container._id)
 
-        self.exit_code = self._container['State']['ExitCode']
-
-        started = dateutil.parser.parse(self._container['State']['StartedAt'])
-        finished = dateutil.parser.parse(self._container['State']['FinishedAt'])
-        self.duration = (finished - started).total_seconds()
+        # self.exit_code = self._container['State']['ExitCode']
+        #
+        # started = dateutil.parser.parse(self._container['State']['StartedAt'])
+        # finished = dateutil.parser.parse(self._container['State']['FinishedAt'])
+        # self.duration = (finished - started).total_seconds()
 
         # await check_shell(f'docker logs {self.container._id} 2>&1 | gsutil cp - {shq(self.log_path)}')
         # await check_shell(f'docker inspect {self.container._id} | gsutil cp - {shq(self.status_path)}')
@@ -93,33 +129,30 @@ class Container:
         return "".join(logs)
 
     def to_dict(self):
+        assert self._container is not None
+
+        status = self._container._container
+        print(status)
+
         state = {}
-        if self._container is None:
-            state['waiting'] = {
-                'message': None,
-                'reason': None
+        if status['State']['Status'] == 'running':
+            state['running'] = {
+                'started_at': status['State']['StartedAt']
+            }
+        elif status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead
+            state['terminated'] = {
+                # 'containerId': status['Id'],
+                'exitCode': status['State']['ExitCode'],
+                'finishedAt': status['State']['FinishedAt'],
+                'message': status['State']['Error'],
+                'startedAt': status['State']['StartedAt']
             }
         else:
-            status = self._container._container
-            print(status)
-            if status['State']['Status'] == 'running':
-                state['running'] = {
-                    'started_at': status['State']['StartedAt']
-                }
-            elif status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead
-                state['terminated'] = {
-                    # 'containerId': status['Id'],
-                    'exitCode': status['State']['ExitCode'],
-                    'finishedAt': status['State']['FinishedAt'],
-                    'message': status['State']['Error'],
-                    'startedAt': status['State']['StartedAt']
-                }
-            else:
-                raise Exception(f'unknown docker state {status["State"]["Status"]}')
+            raise Exception(f'unknown docker state {status["State"]["Status"]}')
 
-        return {  # FIXME: status not defined if waiting...
+        return {
             'containerID': f'docker://{status["Id"]}',
-            'image': self.image,
+            'image': self.spec['image'],
             'imageID': status['Image'],
             # 'last_state': None,
             'name': self.name,
@@ -158,29 +191,34 @@ class BatchPod:
         self.volumes = []
         self.exit_codes = [None for _ in self.containers]
         self.durations = [None for _ in self.containers]
-        self.running = False
+        self.phase = 'Pending'
 
     async def run(self, semaphore=None):
         # volume = await docker.volumes.create()
         # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
-        self.running = True
 
         secrets = self._create_secrets()
+
+        for _, container in self.containers.items():
+            await container.create(secrets)
+
+        self.phase = 'Running'
 
         if not semaphore:
             semaphore = NullWeightedSemaphore()
 
-        for idx, (_, container) in enumerate(self.containers.items()):
+        for _, container in self.containers.items():
             async with semaphore(container.cores):
-                await container.run(secrets)
+                await container.run()
 
                 self.exit_codes.append(container.exit_code)
                 self.durations.append(container.duration)
 
                 if container.exit_code != 0:
+                    self.phase = 'Failed'
                     break
 
-        self.running = False
+        self.phase = 'Succeeded'
 
         # FIXME: send success message back to driver
 
@@ -197,21 +235,19 @@ class BatchPod:
         return await c.status()
 
     def to_dict(self):
-        if self.running:
-            phase = 'Running'
-        elif all([c.exit_code == 0 for _, c in self.containers.items()]):
-            phase = 'Succeeded'
+        if self.phase == 'Pending':
+            container_statuses = None
         else:
-            phase = 'Failed'
+            container_statuses = [c.to_dict() for _, c in self.containers.items()]
 
         return {
             'metadata': {
                 'name': self.name
             },
             'status': {
-                'containerStatuses': [c.to_dict() for _, c in self.containers.items()],
-                'phase': phase
-                # 'start_time': None
+                'containerStatuses': container_statuses,
+                'phase': self.phase
+                # 'startTime': None
             }
         }
 
