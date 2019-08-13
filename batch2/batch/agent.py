@@ -118,9 +118,9 @@ class Container:
                 raise Exception(f'unknown docker state {status["State"]["Status"]}')
 
         return {  # FIXME: status not defined if waiting...
-            'containerId': f'docker://{status["Id"]}',
+            'containerID': f'docker://{status["Id"]}',
             'image': self.image,
-            'imageId': status['Image'],
+            'imageID': status['Image'],
             # 'last_state': None,
             'name': self.name,
             'ready': False,
