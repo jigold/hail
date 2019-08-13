@@ -92,28 +92,28 @@ class Container:
         return "".join(logs)
 
     def to_dict(self):
-        status = self.status()
-
         state = {}
-        if status['State']['running']:
-            state['running'] = {
-                'started_at': status['State']['StartedAt']
-            }
-        elif status['State']['exited']:
-            state['terminated'] = {
-                'container_id': status['Id'],
-                'exit_code': status['State']['ExitCode'],
-                'finished_at': status['State']['FinishedAt'],
-                'message': status['State']['Error'],
-                # 'reason': None,
-                # 'signal': None,
-                'started_at': status['State']['StartedAt']
-            }
-        else:
+        if self._container is None:
             state['waiting'] = {
                 'message': None,
                 'reason': None
             }
+        else:
+            status = self._container._container
+            if status['State']['Status'] == 'running':
+                state['running'] = {
+                    'started_at': status['State']['StartedAt']
+                }
+            elif status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead
+                state['terminated'] = {
+                    'container_id': status['Id'],
+                    'exit_code': status['State']['ExitCode'],
+                    'finished_at': status['State']['FinishedAt'],
+                    'message': status['State']['Error'],
+                    'started_at': status['State']['StartedAt']
+                }
+            else:
+                raise Exception(f'unknown docker state {status["State"]["Status"]}')
 
         return {
             # 'container_id': status['Id'],
