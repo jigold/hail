@@ -91,9 +91,9 @@ class Container:
         logs = await self._container.log(stderr=True, stdout=True)
         return "".join(logs)
 
-    async def to_dict(self):
-        status = await docker.containers.get(self._container._id)
-        # print(self.status())
+    def to_dict(self):
+        status = self.status()
+
         state = {}
         if status['State']['running']:
             state['running'] = {
@@ -114,12 +114,6 @@ class Container:
                 'message': None,
                 'reason': None
             }
-        # if self.running:
-        #     state['running'] = {}
-        # elif self.terminated:
-        #     state['terminated'] = {}
-        # else:
-        #     state['waiting'] = {}
 
         return {
             # 'container_id': status['Id'],
@@ -200,10 +194,23 @@ class BatchPod:
         c = self.containers[container_name]
         return await c.status()
 
-    def to_dict(self):  # FIXME: This should be similar to V1Pod
+    def to_dict(self):
+        if self.running:
+            phase = 'Running'
+        elif all([c.exit_code == 0 for _, c in self.containers.items()]):
+            phase = 'Succeeded'
+        else:
+            phase = 'Failed'
+
         return {
-            'name': self.name,
-            'containers': [c.to_dict() for _, c in self.containers.items()]
+            'metadata': {
+                'name': self.name
+            },
+            'status': {
+                'container_statuses': [c.to_dict() for _, c in self.containers.items()],
+                'phase': phase
+                # 'start_time': None
+            }
         }
 
 
