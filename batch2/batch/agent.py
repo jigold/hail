@@ -31,7 +31,74 @@ routes = web.RouteTableDef()
 batch_pods = {}
 
 
-# class Container2:
+class Container:
+    def __init__(self, spec):
+        self._container = None
+        self.name = spec['name']
+        self.spec = spec
+        # self.log_path = log_path
+        # self.status_path = status_path
+        self.exit_code = None
+        self.duration = None
+
+    async def run(self, secrets):
+        image = self.spec['image']
+        command = self.spec['command']
+
+        volume_mounts = []
+        for mount in self.spec['volume_mounts']:
+            mount_name = mount['name']
+            mount_path = mount['mount_path']
+            if mount_name in secrets:
+                secret_path = secrets[mount_name]
+                volume_mounts.append(f'{secret_path}:{mount_path}')
+            else:
+                raise Exception(f'unknown secret {mount_name} specified in volume_mounts')
+
+        config = {
+            "AttachStdin": False,
+            "AttachStdout": False,
+            "AttachStderr": False,
+            "Tty": False,
+            'OpenStdin': False,
+            'Binds': volume_mounts,
+            'Cmd': command,
+            'Image': image,
+        }
+
+        self._container = await docker.containers.run(config)
+        await self._container.wait()
+        self._container = await docker.containers.get(self._container._id)
+
+        self.exit_code = self._container['State']['ExitCode']
+
+        started = dateutil.parser.parse(self._container['State']['StartedAt'])
+        finished = dateutil.parser.parse(self._container['State']['FinishedAt'])
+        self.duration = (finished - started).total_seconds()
+
+        # await check_shell(f'docker logs {self.container._id} 2>&1 | gsutil cp - {shq(self.log_path)}')
+        # await check_shell(f'docker inspect {self.container._id} | gsutil cp - {shq(self.status_path)}')
+
+    async def delete(self):
+        await self._container.stop()
+        await self._container.delete()
+
+    def status(self):
+        return self._container._container
+
+    async def log(self):
+        logs = await self._container.log(stderr=True, stdout=True)
+        return "".join(logs)
+
+    def to_dict(self):
+        return {
+            'name': self.name,
+            'exit_code': self.exit_code,
+            'duration': self.duration
+        }
+
+
+# class Container:
 #     @staticmethod
 #     async def create(config, volume, pod_name, secrets):
 #         name = pod_name + '-' + config['name']
@@ -44,7 +111,7 @@ batch_pods = {}
 #             mount_name = mount['name']
 #             mount_path = mount['mount_path']
 #             if mount_name in secrets:
-#                 secret_path = secrets['mount_name']
+#                 secret_path = secrets[mount_name]
 #                 volume_mounts.append(f'{secret_path}:{mount_path}')
 #             else:
 #                 raise Exception(f'unknown secret {mount_name} specified in volume_mounts')
@@ -59,7 +126,7 @@ batch_pods = {}
 #             "AttachStderr": False,
 #             "Tty": False,
 #             'OpenStdin': False,
-#             'Binds': [f'{volume}:/io'],
+#             'Binds': volume_mounts, # [f'{volume}:/io'],
 #             'name': name,
 #             'Cmd': command,
 #             'Image': image,
@@ -77,9 +144,9 @@ batch_pods = {}
 #                 raise err
 #         return Container(c, name, cores)
 #
-#     def __init__(self, spec):
-#         self._container = None
-#         self.name = spec['name']
+#     def __init__(self, container, name, cores, log_path=None):
+#         self.container = container
+#         self.name = name
 #         self.cores = cores
 #         self.log_path = log_path
 #         # self.status_path = status_path
@@ -87,27 +154,34 @@ batch_pods = {}
 #         self.duration = None
 #
 #     async def run(self):
-#         self._container = await docker.containers.run(self.config)
-#         await self._container.wait()
-#         self._container = await docker.containers.get(self._container._id)
+#         start = time.time()
+#         await self.container.start()
+#         await self.reload()
+#         if self.container['State']['Status'] != 'exited':
+#             await self.container.wait()
+#             await self.reload()
 #
-#         self.exit_code = self._container['State']['ExitCode']
+#         # FIXME
+#         self.exit_code = self.container['State']['ExitCode']
 #
-#         started = dateutil.parser.parse(self._container['State']['StartedAt'])
-#         finished = dateutil.parser.parse(self._container['State']['FinishedAt'])
+#         started = dateutil.parser.parse(self.container['State']['StartedAt'])
+#         finished = dateutil.parser.parse(self.container['State']['FinishedAt'])
 #         self.duration = (finished - started).total_seconds()
 #
 #         # await check_shell(f'docker logs {self.container._id} 2>&1 | gsutil cp - {shq(self.log_path)}')
 #         # await check_shell(f'docker ... | gsutil cp - {shq(self.status_path)}')
 #
 #     async def delete(self):
-#         await self._container.delete()
+#         await self.container.delete()
+#
+#     async def reload(self):
+#         self.container = await docker.containers.get(self.container._id)
 #
 #     def status(self):
-#         return self._container._container
+#         return self.container._container
 #
 #     async def log(self):
-#         logs = await self._container.log(stderr=True, stdout=True)
+#         logs = await self.container.log(stderr=True, stdout=True)
 #         return "".join(logs)
 #
 #     def to_dict(self):
@@ -119,131 +193,118 @@ batch_pods = {}
 #         }
 
 
-class Container:
-    @staticmethod
-    async def create(config, volume, pod_name, secrets):
-        name = pod_name + '-' + config['name']
-        image = config['image']
-        command = config['command']
-        cores = 1
+class BatchPod:
+    def _create_secrets(self):
+        secret_paths = {}
+        for secret_name, secret in self.secrets.items():
+            path = f'/batch/pods/{self.name}/{self.token}/secrets/{secret_name}'
+            os.makedirs(path)
 
-        volume_mounts = []
-        for mount in config['volume_mounts']:
-            mount_name = mount['name']
-            mount_path = mount['mount_path']
-            if mount_name in secrets:
-                secret_path = secrets[mount_name]
-                volume_mounts.append(f'{secret_path}:{mount_path}')
-            else:
-                raise Exception(f'unknown secret {mount_name} specified in volume_mounts')
+            for file_name, data in secret.items():
+                with open(f'{path}/{file_name}', 'w') as f:
+                    f.write(base64.b64decode(data).decode())
+            secret_paths[secret_name] = path
+        return secret_paths
 
-        # cores = config['resources']['requests']['cpu']
-        # if cores is None:
-        #     cores = '1'
+    def __init__(self, parameters):
+        self.spec = parameters['spec']
+        self.secrets = parameters['secrets']
+        self.name = self.spec['metadata']['name']
+        self.token = uuid.uuid4().hex
 
-        spec = {
-            "AttachStdin": False,
-            "AttachStdout": False,
-            "AttachStderr": False,
-            "Tty": False,
-            'OpenStdin': False,
-            'Binds': volume_mounts, # [f'{volume}:/io'],
-            'name': name,
-            'Cmd': command,
-            'Image': image,
-        }
-        # spec.update(extra_params)
-        print(f'creating container {name}')
+        self.containers = {cspec['name']: Container(cspec) for cspec in self.spec['spec']['containers']}
+        self.volumes = []
+        self.exit_codes = [None for _ in self.containers]
+        self.durations = [None for _ in self.containers]
+        self.running = False
 
-        try:
-            c = await docker.containers.create(config=spec)
-        except DockerError as err:
-            if err.status == 404 and 'Image' in spec:
-                await docker.pull(spec['Image'])  # FIXME: figure out errors
-                c = await docker.containers.create(config=spec)
-            else:
-                raise err
-        return Container(c, name, cores)
+    async def run(self, semaphore=None):
+        # volume = await docker.volumes.create()
+        # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
+        self.running = True
 
-    def __init__(self, container, name, cores, log_path=None):
-        self.container = container
-        self.name = name
-        self.cores = cores
-        self.log_path = log_path
-        # self.status_path = status_path
-        self.exit_code = None
-        self.duration = None
+        secrets = self._create_secrets()
 
-    async def run(self):
-        start = time.time()
-        await self.container.start()
-        await self.reload()
-        if self.container['State']['Status'] != 'exited':
-            await self.container.wait()
-            await self.reload()
+        if not semaphore:
+            semaphore = NullWeightedSemaphore()
 
-        # FIXME
-        self.exit_code = self.container['State']['ExitCode']
+        for idx, (_, container) in enumerate(self.containers.items()):
+            async with semaphore(container.cores):
+                await container.run(secrets)
 
-        started = dateutil.parser.parse(self.container['State']['StartedAt'])
-        finished = dateutil.parser.parse(self.container['State']['FinishedAt'])
-        self.duration = (finished - started).total_seconds()
+                self.exit_codes.append(container.exit_code)
+                self.durations.append(container.duration)
 
-        # await check_shell(f'docker logs {self.container._id} 2>&1 | gsutil cp - {shq(self.log_path)}')
-        # await check_shell(f'docker ... | gsutil cp - {shq(self.status_path)}')
+                if container.exit_code != 0:
+                    break
+
+        self.running = False
+
+        # FIXME: send success message back to driver
 
     async def delete(self):
-        await self.container.delete()
+        await asyncio.gather(*[c.delete() for _, c in self.containers.items()])
+        # await self.volume.delete()
 
-    async def reload(self):
-        self.container = await docker.containers.get(self.container._id)
+    async def log(self, container_name):
+        c = self.containers[container_name]
+        return await c.log()
 
-    def status(self):
-        return self.container._container
+    async def container_status(self, container_name):
+        c = self.containers[container_name]
+        return await c.status()
 
-    async def log(self):
-        logs = await self.container.log(stderr=True, stdout=True)
-        return "".join(logs)
-
-    def to_dict(self):
+    async def to_dict(self):  # FIXME: This should be similar to V1Pod
         return {
             'name': self.name,
-            'exit_code': self.exit_code,
-            'duration': self.duration,
-            # 'status': self.status()
+            'containers': [c.to_dict() for _, c in self.containers.items()]
         }
 
 
-# class BatchPod2:
-#     def _create_secrets(self, secrets):
+# class BatchPod:
+#     @staticmethod
+#     async def create(config, secrets):
+#         name = config['metadata']['name']
+#         token = uuid.uuid4().hex
+#
+#         print(f'creating batch pod {name}')
+#
 #         secret_paths = {}
 #         for secret_name, secret in secrets.items():
 #             print(f'creating secret {secret_name}')
 #
-#             path = f'/batch/pods/{self.name}/{self.token}/secrets/{secret_name}'
+#             path = f'/batch/pods/{name}/{token}/secrets/{secret_name}'
 #             os.makedirs(path)
 #
 #             for file_name, data in secret.items():
 #                 print(f'creating secret {secret_name} at path {path}/{file_name}')
 #                 with open(f'{path}/{file_name}', 'w') as f:
 #                     f.write(base64.b64decode(data).decode())
+#                     print(f'wrote secret')
 #             secret_paths[secret_name] = path
-#         return secret_paths
 #
-#     def __init__(self, pod_spec, secrets):
-#         # self.pod_spec = pod_spec
-#         self.name = pod_spec['metadata']['name']
-#         self.token = uuid.uuid4().hex
-#         self.secrets = self._create_secrets(secrets)
-#         self.containers = {spec['name']: Container2(spec, self.secrets) for spec in pod_spec['spec']['containers']}
-#         self.volumes = []
+#         volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
+#
+#         containers = await asyncio.gather(*[Container.create(container_config, volume.name, name, secret_paths)
+#                                             for container_config in config['spec']['containers']])
+#         return BatchPod(name, containers, volume, secrets)
+#
+#     def __init__(self, name, containers, volume, secrets):
+#         # self.config = config
+#         self.name = name
+#         # self.volumes = {Volume(vol_config) for vol_config in config['volumes']}
+#         # self.secrets = {Secret(secret_config) for secret_config in config['secrets']}
+#         self.secrets = secrets
+#         self.containers = {c.name: c for c in containers}
+#         self.volume = volume
+#
 #         self.exit_codes = [None for _ in self.containers]
 #         self.durations = [None for _ in self.containers]
+#
 #         self.running = False
 #
 #     async def run(self, semaphore=None):
 #         # volume = await docker.volumes.create()
-#         # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
 #         self.running = True
 #
 #         if not semaphore:
@@ -265,7 +326,7 @@ class Container:
 #
 #     async def delete(self):
 #         await asyncio.gather(*[c.delete() for _, c in self.containers.items()])
-#         # await self.volume.delete()
+#         await self.volume.delete()
 #
 #     async def log(self, container_name):
 #         c = self.containers[container_name]
@@ -282,96 +343,11 @@ class Container:
 #         }
 
 
-class BatchPod:
-    @staticmethod
-    async def create(config, secrets):
-        name = config['metadata']['name']
-        token = uuid.uuid4().hex
-
-        print(f'creating batch pod {name}')
-
-        secret_paths = {}
-        for secret_name, secret in secrets.items():
-            print(f'creating secret {secret_name}')
-
-            path = f'/batch/pods/{name}/{token}/secrets/{secret_name}'
-            os.makedirs(path)
-
-            for file_name, data in secret.items():
-                print(f'creating secret {secret_name} at path {path}/{file_name}')
-                with open(f'{path}/{file_name}', 'w') as f:
-                    f.write(base64.b64decode(data).decode())
-                    print(f'wrote secret')
-            secret_paths[secret_name] = path
-
-        volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
-
-        containers = await asyncio.gather(*[Container.create(container_config, volume.name, name, secret_paths)
-                                            for container_config in config['spec']['containers']])
-        return BatchPod(name, containers, volume, secrets)
-
-    def __init__(self, name, containers, volume, secrets):
-        # self.config = config
-        self.name = name
-        # self.volumes = {Volume(vol_config) for vol_config in config['volumes']}
-        # self.secrets = {Secret(secret_config) for secret_config in config['secrets']}
-        self.secrets = secrets
-        self.containers = {c.name: c for c in containers}
-        self.volume = volume
-
-        self.exit_codes = [None for _ in self.containers]
-        self.durations = [None for _ in self.containers]
-
-        self.running = False
-
-    async def run(self, semaphore=None):
-        # volume = await docker.volumes.create()
-        self.running = True
-
-        if not semaphore:
-            semaphore = NullWeightedSemaphore()
-
-        for idx, (_, container) in enumerate(self.containers.items()):
-            async with semaphore(container.cores):
-                await container.run()
-                ec = container.exit_code
-
-                self.exit_codes.append(container.exit_code)
-                self.durations.append(container.duration)
-
-                if container.exit_code != 0:
-                    break
-
-        self.running = False
-        return
-
-    async def delete(self):
-        await asyncio.gather(*[c.delete() for _, c in self.containers.items()])
-        await self.volume.delete()
-
-    async def log(self, container_name):
-        c = self.containers[container_name]
-        return await c.log()
-
-    async def container_status(self, container_name):
-        c = self.containers[container_name]
-        return await c.status()
-
-    async def to_dict(self):
-        return {
-            'name': self.name,
-            'containers': [c.to_dict() for _, c in self.containers.items()]
-        }
-
-
 @routes.post('/api/v1alpha/pods/create')
 async def create_pod(request):
     parameters = await request.json()
-    config = parameters['spec']
-    secrets = parameters['secrets']
-    print(config)
     try:
-        bp = await BatchPod.create(config, secrets)  # FIXME: this is blocking
+        bp = BatchPod(parameters)
         batch_pods[bp.name] = bp
         asyncio.ensure_future(bp.run())
     except DockerError as err:
@@ -398,13 +374,13 @@ async def get_container_log(request):
 
     return jsonify(result)
 
-
-@routes.post('/api/v1alpha/pods/{pod_name}/status')
-async def get_pod_status(request):
-    pod_name = request.match_info['pod_name']
-    bp = batch_pods[pod_name]
-    await bp.log()
-    return web.Response()
+#
+# @routes.post('/api/v1alpha/pods/{pod_name}/status')
+# async def get_pod_status(request):
+#     pod_name = request.match_info['pod_name']
+#     bp = batch_pods[pod_name]
+#     await bp.log()
+#     return web.Response()
 
 
 @routes.post('/api/v1alpha/pods/{pod_name}/delete')
