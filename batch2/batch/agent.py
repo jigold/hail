@@ -36,6 +36,7 @@ class Container:
         self._container = None
         self.name = spec['name']
         self.spec = spec
+        self.cores = 1
         # self.log_path = log_path
         # self.status_path = status_path
         self.exit_code = None
