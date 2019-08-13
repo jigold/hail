@@ -147,7 +147,7 @@ class Container:
             "AttachStderr": False,
             "Tty": False,
             'OpenStdin': False,
-            'Binds': [f'{volume}:/io'],
+            'Binds': volume_mounts, # [f'{volume}:/io'],
             'name': name,
             'Cmd': command,
             'Image': image,
