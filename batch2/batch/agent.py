@@ -131,8 +131,6 @@ class BatchPod:
     async def create(config, secrets):
         name = config['metadata']['name']
         token = uuid.uuid4().hex
-        secrets_dir = f'/batch/pods/{name}/{token}/secrets'
-        os.makedirs(secrets_dir)
 
         print(f'creating batch pod {name}')
 
@@ -140,7 +138,9 @@ class BatchPod:
         for secret_name, secret in secrets.items():
             print(f'creating secret {secret_name}')
 
-            path = f'{secrets_dir}/{secret_name}'
+            path = f'/batch/pods/{name}/{token}/secrets/{secret_name}'
+            os.makedirs(path)
+            
             for file_name, data in secret.items():
                 print(f'creating secret {secret_name} at path {path}/{file_name}')
                 with open(f'{path}/{file_name}', 'w') as f:
@@ -215,7 +215,7 @@ async def create_pod(request):
     secrets = parameters['secrets']
     print(config)
     try:
-        bp = await BatchPod.create(config, secrets)
+        bp = await BatchPod.create(config, secrets)  # FIXME: this is blocking
         batch_pods[bp.name] = bp
         asyncio.ensure_future(bp.run())
     except DockerError as err:
