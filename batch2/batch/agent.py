@@ -92,11 +92,30 @@ class Container:
         return "".join(logs)
 
     def to_dict(self):
+        print(self.status())
+        state = {}
+        # if self.running:
+        #     state['running'] = {}
+        # elif self.terminated:
+        #     state['terminated'] = {}
+        # else:
+        #     state['waiting'] = {}
+
         return {
+            'container_id': self._container._id,
+            'image': self._container._,
+            # 'image_id': None,
+            # 'last_state': None,
             'name': self.name,
-            'exit_code': self.exit_code,
-            'duration': self.duration
+            # 'ready': None,
+            # 'restart_count': None,
+            'state': state
         }
+        # return {
+        #     'name': self.name,
+        #     'exit_code': self.exit_code,
+        #     'duration': self.duration
+        # }
 
 
 class BatchPod:
@@ -180,7 +199,7 @@ async def create_pod(request):
     except Exception as err:
         print(err)
         raise err
-    return web.Response()
+    return jsonify({})
 
 
 @routes.post('/api/v1alpha/pods/{pod_name}/containers/{container_name}/log')
