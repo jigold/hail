@@ -48,10 +48,11 @@ class Driver:
         await self._session.delete(
             self.url + path, cookies=self._cookies, headers=self._headers)
 
-    async def create_pod(self, spec):
+    async def create_pod(self, spec, secrets):
         log.info('calling create pod')
         log.info(spec)
-        result = await self._post('/api/v1alpha/pods/create', json=spec)
+        body = {'spec': spec, 'secrets': secrets}
+        result = await self._post('/api/v1alpha/pods/create', json=body)
         log.info(result)
 
         # submit request to that instance
