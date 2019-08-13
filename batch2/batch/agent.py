@@ -37,6 +37,7 @@ class Container:
         self.name = spec['name']
         self.spec = spec
         self.cores = 1
+        self.image = self.spec['image']
         # self.log_path = log_path
         # self.status_path = status_path
         self.exit_code = None
@@ -106,7 +107,7 @@ class Container:
                 }
             elif status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead
                 state['terminated'] = {
-                    'containerId': status['Id'],
+                    # 'containerId': status['Id'],
                     'exitCode': status['State']['ExitCode'],
                     'finishedAt': status['State']['FinishedAt'],
                     'message': status['State']['Error'],
@@ -116,13 +117,13 @@ class Container:
                 raise Exception(f'unknown docker state {status["State"]["Status"]}')
 
         return {
-            # 'container_id': status['Id'],
-            # 'image': status['Image'],
-            # 'image_id': None,
+            'container_id': f'docker://{status["Id"]}',
+            'image': self.image,
+            'image_id': status['Image'],
             # 'last_state': None,
             'name': self.name,
-            # 'ready': None,
-            # 'restart_count': status['RestartCount'],
+            'ready': False,
+            'restart_count': status['RestartCount'],
             'state': state
         }
         # return {
