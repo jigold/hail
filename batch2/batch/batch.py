@@ -203,10 +203,11 @@ class Job:
 
         secrets = {}
         for volume in pod_template.spec.volumes:
+            volume_name = volume.name
             if volume.secret is not None:
                 secret_name = volume.secret.secret_name
                 secret = v1.read_namespaced_secret(secret_name, BATCH_NAMESPACE)
-                secrets[secret_name] = secret.data
+                secrets[volume_name] = secret.data
 
         _, err = await app['driver'].create_pod(spec=pod_template.to_dict(),
                                                 secrets=secrets)
