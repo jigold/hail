@@ -222,7 +222,7 @@ async def delete_pod(request):
 
 @routes.get('/api/v1alpha/pods')
 async def list_pods(request):
-    pods = {bp.to_dict() for bp in batch_pods}
+    pods = [bp.to_dict() for _, bp in batch_pods.items()]
     return jsonify(pods)
 
 
