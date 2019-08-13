@@ -72,7 +72,7 @@ class Container:
             self._container = await docker.containers.create(config)
         except DockerError as err:
             if err.status == 404:
-                await docker.pull(config['Image'])
+                await docker.pull(config['Image'])  # FIXME: if image not able to be pulled make ImagePullBackOff
                 self._container = await docker.containers.create(config)
             else:
                 raise err
@@ -80,32 +80,6 @@ class Container:
         self._container = await docker.containers.get(self._container._id)
 
     async def run(self):
-        # image = self.spec['image']
-        # command = self.spec['command']
-        #
-        # volume_mounts = []
-        # for mount in self.spec['volume_mounts']:
-        #     mount_name = mount['name']
-        #     mount_path = mount['mount_path']
-        #     if mount_name in secrets:
-        #         secret_path = secrets[mount_name]
-        #         volume_mounts.append(f'{secret_path}:{mount_path}')
-        #     else:
-        #         raise Exception(f'unknown secret {mount_name} specified in volume_mounts')
-        #
-        # config = {
-        #     "AttachStdin": False,
-        #     "AttachStdout": False,
-        #     "AttachStderr": False,
-        #     "Tty": False,
-        #     'OpenStdin': False,
-        #     'Binds': volume_mounts,
-        #     'Cmd': command,
-        #     'Image': image,
-        # }
-        #
-        # self._container = await docker.containers.run(config)
-
         await self._container.start()
         await self._container.wait()
         self._container = await docker.containers.get(self._container._id)
