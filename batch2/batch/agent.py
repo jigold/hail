@@ -101,21 +101,22 @@ class Container:
         # else:
         #     state['waiting'] = {}
 
-        return {
-            'container_id': self._container._id,
-            'image': self._container._,
-            # 'image_id': None,
-            # 'last_state': None,
-            'name': self.name,
-            # 'ready': None,
-            # 'restart_count': None,
-            'state': state
-        }
         # return {
+        #     'container_id': self._container._id,
+        #     'image': self._container._,
+        #     # 'image_id': None,
+        #     # 'last_state': None,
         #     'name': self.name,
-        #     'exit_code': self.exit_code,
-        #     'duration': self.duration
+        #     # 'ready': None,
+        #     # 'restart_count': None,
+        #     'state': state
         # }
+        return {
+            'status': self.status(),
+            'name': self.name,
+            'exit_code': self.exit_code,
+            'duration': self.duration
+        }
 
 
 class BatchPod:
