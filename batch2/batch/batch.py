@@ -30,7 +30,8 @@ from .datetime_json import JSON_ENCODER
 from .k8s import K8s
 from .globals import states, complete_states, valid_state_transitions
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
-    HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, QUEUE_SIZE, MAX_PODS
+    HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, QUEUE_SIZE, MAX_PODS, \
+    BATCH_NAMESPACE
 from .driver import Driver
 
 from . import schemas
@@ -125,7 +126,8 @@ class JobStateWriteFailure(Exception):
 
 
 class Job:
-    def _copy_container(self, name, files):
+    @staticmethod
+    def _copy_container(name, files):
         sh_expression = f"""
                 set -ex
                 gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData
@@ -147,8 +149,8 @@ class Job:
         assert self._state in states
         assert self._state == 'Running'
 
-        input_container = self._copy_container('input', self.input_files)
-        output_container = self._copy_container('output', self.output_files)
+        input_container = Job._copy_container('input', self.input_files)
+        output_container = Job._copy_container('output', self.output_files)
 
         volumes = [
             kube.client.V1Volume(
@@ -167,7 +169,7 @@ class Job:
 
         if self._pvc_name is not None:
             volumes.append(kube.client.V1Volume(
-                persistent_volume_claim=kube.client.V1EmptyDirVolumeSource(
+                empty_dir=kube.client.V1EmptyDirVolumeSource(
                     size_limit=self._pvc_size),
                 name=self._pvc_name))
             volume_mounts.append(kube.client.V1VolumeMount(
@@ -175,7 +177,6 @@ class Job:
                 name=self._pvc_name))
 
         pod_spec = v1.api_client._ApiClient__deserialize(self._pod_spec, kube.client.V1PodSpec)
-        pod_spec.containers = [input_container, pod_spec.containers[0], output_container]
 
         if pod_spec.volumes is None:
             pod_spec.volumes = []
@@ -185,6 +186,8 @@ class Job:
             if container.volume_mounts is None:
                 container.volume_mounts = []
             container.volume_mounts.extend(volume_mounts)
+
+        pod_spec.containers = [input_container, pod_spec.containers[0], output_container]
 
         pod_template = kube.client.V1Pod(
             metadata=kube.client.V1ObjectMeta(
@@ -198,11 +201,15 @@ class Job:
                         }),
             spec=pod_spec)
 
-        secret = v1.read_namespaced_secret('example', 'jigold')
-        log.info(secret.data)
-        log.info(secret.metadata)
+        secrets = {}
+        for volume in pod_template.spec.volumes:
+            if volume.secret is not None:
+                secret_name = volume.secret.secret_name
+                secret = v1.read_namespaced_secret(secret_name, BATCH_NAMESPACE)
+                secrets[secret_name] = secret.data
 
-        _, err = await app['driver'].create_pod(spec=pod_template.to_dict())
+        _, err = await app['driver'].create_pod(spec=pod_template.to_dict(),
+                                                secrets=secrets)
         if err is not None:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.id}')

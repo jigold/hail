@@ -5,6 +5,8 @@ import random
 import logging
 import asyncio
 import aiohttp
+import base64
+import uuid
 from aiohttp import web
 import uvloop
 import aiodocker
@@ -31,11 +33,21 @@ batch_pods = {}
 
 class Container:
     @staticmethod
-    async def create(config, volume, pod_name, secrets=None):
+    async def create(config, volume, pod_name, secrets):
         name = pod_name + '-' + config['name']
         image = config['image']
         command = config['command']
         cores = 1
+
+        volume_mounts = []
+        for mount in config['volume_mounts']:
+            mount_name = mount['name']
+            mount_path = mount['mount_path']
+            if mount_name in secrets:
+                secret_path = secrets['mount_name']
+                volume_mounts.append(f'{secret_path}:{mount_path}')
+            else:
+                raise Exception(f'unknown secret {mount_name} specified in volume_mounts')
 
         # cores = config['resources']['requests']['cpu']
         # if cores is None:
@@ -50,11 +62,11 @@ class Container:
             'Binds': [f'{volume}:/io'],
             'name': name,
             'Cmd': command,
-            'Image': 'ffdsfdsfa' # image,
+            'Image': image,
         }
         # spec.update(extra_params)
         print(f'creating container {name}')
-        # add correct volume mounts and secret mounts
+
         try:
             c = await docker.containers.create(config=spec)
         except DockerError as err:
@@ -121,22 +133,33 @@ class Container:
 
 class BatchPod:
     @staticmethod
-    async def create(config):
+    async def create(config, secrets):
         name = config['metadata']['name']
+        token = uuid.uuid4().hex
         print(f'creating batch pod {name}')
-        volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
-        containers = await asyncio.gather(*[Container.create(container_config, volume.name, name)
-                                            for container_config in config['spec']['containers']])
-        return BatchPod(name, containers, volume)
 
-    def __init__(self, name, containers, volume):
+        secret_paths = {}
+        for secret_name, secret in secrets.items():
+            path = f'/batch/pods/{name}/{token}/secrets/{secret_name}'
+            for file_name, data in secret.items():
+                with open(f'{path}/{file_name}', 'w') as f:
+                    f.write(base64.b64decode(data))
+            secret_paths[secret_name] = path
+
+        volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
+
+        containers = await asyncio.gather(*[Container.create(container_config, volume.name, name, secrets)
+                                            for container_config in config['spec']['containers']])
+        return BatchPod(name, containers, volume, secrets)
+
+    def __init__(self, name, containers, volume, secrets):
         # self.config = config
         self.name = name
         # self.volumes = {Volume(vol_config) for vol_config in config['volumes']}
         # self.secrets = {Secret(secret_config) for secret_config in config['secrets']}
+        self.secrets = secrets
         self.containers = {c.name: c for c in containers}
         self.volume = volume
-        # self.container_idx = -1
 
         self.exit_codes = [None for _ in self.containers]
         self.durations = [None for _ in self.containers]
@@ -152,7 +175,6 @@ class BatchPod:
 
         for idx, (_, container) in enumerate(self.containers.items()):
             async with semaphore(container.cores):
-            # self.container_idx += 1
                 await container.run()
                 ec = container.exit_code
 
@@ -186,10 +208,12 @@ class BatchPod:
 
 @routes.post('/api/v1alpha/pods/create')
 async def create_pod(request):
-    config = await request.json()
+    parameters = await request.json()
+    config = parameters['spec']
+    secrets = parameters['secrets']
     print(config)
     try:
-        bp = await BatchPod.create(config)
+        bp = await BatchPod.create(config, secrets)
         batch_pods[bp.name] = bp
         asyncio.ensure_future(bp.run())
     except DockerError as err:
