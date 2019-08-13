@@ -40,7 +40,7 @@ class Container:
         # self.image = self.spec['image']
         # self.log_path = log_path
         # self.status_path = status_path
-        # self.exit_code = None
+        self.exit_code = None
         # self.duration = None
 
     async def create(self, secrets):
@@ -109,8 +109,7 @@ class Container:
         await self._container.start()
         await self._container.wait()
         self._container = await docker.containers.get(self._container._id)
-
-        # self.exit_code = self._container['State']['ExitCode']
+        self.exit_code = self._container['State']['ExitCode']
         #
         # started = dateutil.parser.parse(self._container['State']['StartedAt'])
         # finished = dateutil.parser.parse(self._container['State']['FinishedAt'])
@@ -193,8 +192,8 @@ class BatchPod:
 
         self.containers = {cspec['name']: Container(cspec) for cspec in self.spec['spec']['containers']}
         self.volumes = []
-        self.exit_codes = [None for _ in self.containers]
-        self.durations = [None for _ in self.containers]
+        # self.exit_codes = [None for _ in self.containers]
+        # self.durations = [None for _ in self.containers]
         self.phase = 'Pending'
 
     async def run(self, semaphore=None):
@@ -211,20 +210,17 @@ class BatchPod:
         if not semaphore:
             semaphore = NullWeightedSemaphore()
 
+        last_ec = None
         for _, container in self.containers.items():
             async with semaphore(container.cores):
                 await container.run()
-
-                self.exit_codes.append(container.exit_code)
-                self.durations.append(container.duration)
-
-                if container.exit_code != 0:
-                    self.phase = 'Failed'
+                last_ec = container.exit_code
+                if last_ec != 0:
                     break
 
-        self.phase = 'Succeeded'
+        self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
 
-        # FIXME: send success message back to driver
+        # FIXME: send message back to driver
 
     async def delete(self):
         await asyncio.gather(*[c.delete() for _, c in self.containers.items()])
