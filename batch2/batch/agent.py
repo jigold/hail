@@ -77,6 +77,8 @@ class Container:
             else:
                 raise err
 
+        self._container = await docker.containers.get(self._container._id)
+
     async def run(self):
         # image = self.spec['image']
         # command = self.spec['command']
