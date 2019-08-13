@@ -137,7 +137,9 @@ class Container:
         print(status)
 
         state = {}
-        if status['State']['Status'] == 'running':
+        if status['State']['Status'] == 'created':
+            state['waiting'] = {}
+        elif status['State']['Status'] == 'running':
             state['running'] = {
                 'started_at': status['State']['StartedAt']
             }
