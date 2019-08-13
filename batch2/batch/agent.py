@@ -160,7 +160,7 @@ class BatchPod:
         c = self.containers[container_name]
         return await c.status()
 
-    async def to_dict(self):  # FIXME: This should be similar to V1Pod
+    def to_dict(self):  # FIXME: This should be similar to V1Pod
         return {
             'name': self.name,
             'containers': [c.to_dict() for _, c in self.containers.items()]
