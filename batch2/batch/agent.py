@@ -125,11 +125,6 @@ class Container:
             # 'status': self.status()
         }
 
-#
-#
-# class Secret:
-#     pass
-
 
 class BatchPod:
     @staticmethod
@@ -140,10 +135,13 @@ class BatchPod:
 
         secret_paths = {}
         for secret_name, secret in secrets.items():
+            print(f'creating secret {secret_name}')
             path = f'/batch/pods/{name}/{token}/secrets/{secret_name}'
             for file_name, data in secret.items():
+                print(f'creating secret {secret_name} at path {path}/{file_name}')
                 with open(f'{path}/{file_name}', 'w') as f:
                     f.write(base64.b64decode(data))
+                    print(f'wrote secret')
             secret_paths[secret_name] = path
 
         volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
