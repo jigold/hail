@@ -217,6 +217,9 @@ async def create_pod(request):
     except DockerError as err:
         print(err)
         return web.Response(body=err.message, status=err.status)
+    except Exception as err:
+        print(err)
+        raise err
     return web.Response()
 
 
