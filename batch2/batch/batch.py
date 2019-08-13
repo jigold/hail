@@ -1274,13 +1274,24 @@ class DeblockedIterator:
 #     await refresh_k8s_pods()
 #     log.info('k8s state refresh complete')
 
-#
+
+async def refresh_batch_pods():
+    log.info('refreshing batch pods')
+
+    # if we do this after we get pods, we will pick up jobs created
+    # while listing pods and unnecessarily restart them
+    pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
+
+    pods = await app['driver'].list_pods()
+
+    log.info(pods)
+
+
 async def polling_event_loop():
     await asyncio.sleep(1)
     while True:
         try:
-            # pass
-            app['driver'] = Driver()
+            await refresh_batch_pods()
             # await refresh_k8s_state()
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'Could not poll due to exception: {exc}')
@@ -1311,7 +1322,7 @@ async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
     # app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
-    app['driver'] = None
+    app['driver'] = Driver()
     app['log_store'] = LogStore(pool, INSTANCE_ID)
 
     asyncio.ensure_future(polling_event_loop())

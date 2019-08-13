@@ -69,4 +69,5 @@ class Driver:
         pass
 
     async def list_pods(self):
-        pass
+        result = await self._get('/api/v1alpha/pods')
+        log.info(result)

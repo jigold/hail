@@ -220,6 +220,12 @@ async def delete_pod(request):
     return web.Response()
 
 
+@routes.get('/api/v1alpha/pods')
+async def list_pods(request):
+    pods = {bp.to_dict() for bp in batch_pods}
+    return jsonify(pods)
+
+
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
