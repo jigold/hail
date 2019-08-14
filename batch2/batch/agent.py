@@ -17,6 +17,7 @@ from aiodocker.exceptions import DockerError
 
 from .utils import check_shell, check_shell_output, CalledProcessError, jsonify, abort
 from .semaphore import NullWeightedSemaphore, WeightedSemaphore
+from .log_store import LogStore
 
 # gear.configure_logging()
 log = logging.getLogger('batch2-agent')
@@ -40,6 +41,7 @@ class Container:
         # self.log_path = log_path
         # self.status_path = status_path
         self.exit_code = None
+        self.started = False
 
     async def create(self, secrets):
         image = self.spec['image']
@@ -82,14 +84,17 @@ class Container:
 
         self._container = await docker.containers.get(self._container._id)
 
-    async def run(self):
+    async def run(self, log_directory):
         await self._container.start()
+        self.started = True
         await self._container.wait()
         self._container = await docker.containers.get(self._container._id)
         self.exit_code = self._container['State']['ExitCode']
 
-        # await check_shell(f'docker logs {self.container._id} 2>&1 | gsutil cp - {shq(self.log_path)}')
-        # await check_shell(f'docker inspect {self.container._id} | gsutil cp - {shq(self.status_path)}')
+        log_path = LogStore.container_log_path(log_directory, self.name)
+        status_path = LogStore.container_status_path(log_directory, self.name)
+        await check_shell(f'docker logs {self._container._id} 2>&1 | gsutil cp - {shq(log_path)}')
+        await check_shell(f'docker inspect {self._container._id} | gsutil cp - {shq(status_path)}')
 
     async def delete(self):
         if self._container is not None:
@@ -154,6 +159,7 @@ class BatchPod:
         self.metadata = self.spec['metadata']
         self.name = self.metadata['name']
         self.token = uuid.uuid4().hex
+        self.output_directory = self.metadata['labels']['output_directory']
 
         self.containers = {cspec['name']: Container(cspec) for cspec in self.spec['spec']['containers']}
         self.volumes = []
@@ -178,7 +184,7 @@ class BatchPod:
         last_ec = None
         for _, container in self.containers.items():
             async with semaphore(container.cores):
-                await container.run()
+                await container.run(self.output_directory)
                 last_ec = container.exit_code
                 if last_ec != 0:
                     break
@@ -246,13 +252,14 @@ async def get_container_log(request):
 
     return jsonify(result)
 
-#
-# @routes.post('/api/v1alpha/pods/{pod_name}/status')
-# async def get_pod_status(request):
-#     pod_name = request.match_info['pod_name']
-#     bp = batch_pods[pod_name]
-#     await bp.log()
-#     return web.Response()
+
+@routes.post('/api/v1alpha/pods/{pod_name}')
+async def get_pod(request):
+    pod_name = request.match_info['pod_name']
+    if pod_name not in batch_pods:
+        abort(404, 'unknown pod name')
+    bp = batch_pods[pod_name]
+    return jsonify(bp.to_dict())
 
 
 @routes.delete('/api/v1alpha/pods/{pod_name}/delete')
