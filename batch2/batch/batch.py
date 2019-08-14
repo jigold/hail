@@ -1244,12 +1244,10 @@ async def refresh_pods():
     log.info(f'batch had {len(pods)} pods')
 
     seen_pods = set()
-
-    async def see_pod(pod):
+    for pod in pods:
         pod_name = pod.metadata.name
         seen_pods.add(pod_name)
-        await pod_changed(pod)
-    asyncio.gather(*[see_pod(pod) for pod in pods])
+        asyncio.ensure_future(pod_changed(pod))
 
     log.info('restarting running jobs with pods not seen in batch')
 
