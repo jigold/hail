@@ -70,9 +70,14 @@ class Container:
             self._container = await docker.containers.create(config)
         except DockerError as err:
             if err.status == 404:
-                await docker.pull(config['Image'])  # FIXME: if image not able to be pulled make ImagePullBackOff
-                self._container = await docker.containers.create(config)
+                try:
+                    await docker.pull(config['Image'])  # FIXME: if image not able to be pulled make ImagePullBackOff
+                    self._container = await docker.containers.create(config)
+                except DockerError as err:
+                    print(err)
+                    raise err
             else:
+                print(err)
                 raise err
 
         self._container = await docker.containers.get(self._container._id)
@@ -87,8 +92,9 @@ class Container:
         # await check_shell(f'docker inspect {self.container._id} | gsutil cp - {shq(self.status_path)}')
 
     async def delete(self):
-        await self._container.stop()
-        await self._container.delete()
+        if self._container is not None:
+            await self._container.stop()
+            await self._container.delete()
 
     def status(self):
         return self._container._container
@@ -159,8 +165,10 @@ class BatchPod:
 
         secrets = self._create_secrets()
 
-        for _, container in self.containers.items():
+        print(f'running pod {self.name}')
+        for cname, container in self.containers.items():
             await container.create(secrets)
+            print(f'created container {cname} for pod {self.name}')
 
         self.phase = 'Running'
 
