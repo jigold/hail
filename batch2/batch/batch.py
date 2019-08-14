@@ -1241,7 +1241,7 @@ async def refresh_pods():
         log.info(f'could not refresh pods due to {err}, will try again later')
         return
 
-    log.info(f'batch had {len(pods.items)} pods')
+    log.info(f'batch had {len(pods)} pods')
 
     seen_pods = set()
 
@@ -1249,7 +1249,7 @@ async def refresh_pods():
         pod_name = pod.metadata.name
         seen_pods.add(pod_name)
         await pod_changed(pod)
-    asyncio.gather(*[see_pod(pod) for pod in pods.items])
+    asyncio.gather(*[see_pod(pod) for pod in pods])
 
     log.info('restarting running jobs with pods not seen in batch')
 
