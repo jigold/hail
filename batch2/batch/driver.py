@@ -76,4 +76,5 @@ class Driver:
             log.info(result)
             return [self.v1.api_client._ApiClient__deserialize(data, kube.client.V1Pod) for data in result], None
         except Exception as err:
+            log.info(err)
             return None, err
