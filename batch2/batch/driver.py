@@ -19,8 +19,8 @@ class Driver:
         self._cookies = None
         self._headers = None
         self.v1 = v1
-        self.instance = 'batch-agent-8'
-        self.url = 'http://10.128.0.95:5000'
+        self.instance = 'batch-agent-9'
+        self.url = 'http://10.128.0.122:5000'
 
         # if batch_gsa_key is None:
         #     batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
