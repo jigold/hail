@@ -71,7 +71,9 @@ class Driver:
         pass
 
     async def list_pods(self):
-        result = await self._get('/api/v1alpha/pods')
-        log.info(result)
-        return [self.v1.api_client._ApiClient__deserialize(data, kube.client.V1Pod)
-                for data in result]
+        try:
+            result = await self._get('/api/v1alpha/pods')
+            log.info(result)
+            return [self.v1.api_client._ApiClient__deserialize(data, kube.client.V1Pod) for data in result], None
+        except Exception as err:
+            return None, err
