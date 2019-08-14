@@ -47,9 +47,11 @@ class Driver:
         await self._session.delete(
             self.url + path, cookies=self._cookies, headers=self._headers)
 
-    async def create_pod(self, spec, secrets):
+    async def create_pod(self, spec, secrets, output_directory):
         try:
-            body = {'spec': spec, 'secrets': secrets}
+            body = {'spec': spec,
+                    'secrets': secrets,
+                    'output_directory': output_directory}
             await self._post('/api/v1alpha/pods/create', json=body)
             return None
         except Exception as err:

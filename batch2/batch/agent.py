@@ -93,6 +93,8 @@ class Container:
 
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
+        print(log_path)
+        print(status_path)
         await check_shell(f'docker logs {self._container._id} 2>&1 | gsutil cp - {shq(log_path)}')
         await check_shell(f'docker inspect {self._container._id} | gsutil cp - {shq(status_path)}')
 
@@ -156,10 +158,11 @@ class BatchPod:
     def __init__(self, parameters):
         self.spec = parameters['spec']
         self.secrets = parameters['secrets']
+        self.output_directory = parameters['output_directory']
+
         self.metadata = self.spec['metadata']
         self.name = self.metadata['name']
         self.token = uuid.uuid4().hex
-        self.output_directory = self.metadata['labels']['output_directory']
 
         self.containers = {cspec['name']: Container(cspec) for cspec in self.spec['spec']['containers']}
         self.volumes = []

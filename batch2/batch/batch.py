@@ -89,7 +89,7 @@ routes = web.RouteTableDef()
 
 db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
 
-tasks = ('setup', 'main', 'cleanup')
+tasks = ('input', 'main', 'output')
 
 
 def abort(code, reason=None):
@@ -196,8 +196,7 @@ class Job:
                         'hail.is/batch-instance': INSTANCE_ID,
                         'batch_id': str(self.batch_id),
                         'job_id': str(self.job_id),
-                        'user': self.user,
-                        'output_directory': self.directory
+                        'user': self.user
                         }),
             spec=pod_spec)
 
@@ -210,7 +209,8 @@ class Job:
                 secrets[volume_name] = secret.data
 
         err = await app['driver'].create_pod(spec=pod_template.to_dict(),
-                                             secrets=secrets)
+                                             secrets=secrets,
+                                             output_directory=self.directory)
         if err is not None:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.id}')
