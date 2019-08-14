@@ -22,15 +22,12 @@ class Driver:
         self.instance = 'batch-agent-8'
         self.url = 'http://10.128.0.95:5000'
 
-        if batch_gsa_key is None:
-            batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
-        credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-            batch_gsa_key)
-        self.compute_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        result = self.compute_client.instances().get(project='hail-vdc', zone='us-central1-a', instance=self.instance).execute()
-        log.info(result)
-
-        log.info(requests.get(self.url + '/healthcheck'))
+        # if batch_gsa_key is None:
+        #     batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
+        # credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+        #     batch_gsa_key)
+        # self.compute_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
+        # result = self.compute_client.instances().get(project='hail-vdc', zone='us-central1-a', instance=self.instance).execute()
 
     async def _get(self, path, params=None):
         response = await self._session.get(
@@ -52,32 +49,37 @@ class Driver:
 
     async def create_pod(self, spec, secrets):
         try:
-            log.info('calling create pod')
-            log.info(spec)
             body = {'spec': spec, 'secrets': secrets}
-            result = await self._post('/api/v1alpha/pods/create', json=body)
-            log.info(result)
+            await self._post('/api/v1alpha/pods/create', json=body)
             return None
         except Exception as err:
             return err
 
-        # submit request to that instance
-        # update db
-
     async def delete_pod(self, name):
         log.info('calling delete pod')
-        await self._delete(f'/api/v1alpha/pods/{name}/delete')
+        try:
+            await self._delete(f'/api/v1alpha/pods/{name}/delete')
+            return None
+        except Exception as err:
+            return err
 
     async def read_pod_log(self, name, container):
-        pass
+        try:
+            result = await self._get(f'/api/v1alpha/pods/{name}/containers/{container}/log')
+            return result, None
+        except Exception as err:
+            return None, err
 
     async def read_pod_status(self, name):
-        pass
+        try:
+            result = await self._get(f'/api/v1alpha/pods/{name}')
+            return result, None
+        except Exception as err:
+            return None, err
 
     async def list_pods(self):
         try:
             result = await self._get('/api/v1alpha/pods')
-            log.info(result)
             return [self.v1.api_client._ApiClient__deserialize(data, kube.client.V1Pod) for data in result], None
         except Exception as err:
             log.info(err)

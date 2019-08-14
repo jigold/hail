@@ -197,7 +197,7 @@ class Job:
                         'batch_id': str(self.batch_id),
                         'job_id': str(self.job_id),
                         'user': self.user,
-                        'uuid': uuid.uuid4().hex
+                        'output_directory': self.directory
                         }),
             spec=pod_spec)
 
@@ -229,37 +229,36 @@ class Job:
         if self._state in ('Pending', 'Cancelled'):
             return None
 
-        async def _read_log_from_gcs():
-            pod_logs, err = await app['log_store'].read_gs_file(self.directory,
-                                                                LogStore.log_file_name)
+        async def _read_log_from_gcs(task_name):
+            pod_log, err = await app['log_store'].read_gs_file(LogStore.container_log_path(self.directory, task_name))
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read log for {self.id} '
                          f'due to {err}')
                 return None
-            return json.loads(pod_logs)
+            return pod_log
 
         async def _read_log_from_agent(task_name):
             pod_log, err = await app['driver'].read_pod_log(self._pod_name, container=task_name)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read log for {self.id} '
-                         f'due to {err}; will still try to load other tasks')
+                         f'due to {err}; will still try to load other containers')
             return task_name, pod_log
 
         if self._state == 'Running':
             future_logs = asyncio.gather(*[_read_log_from_agent(task) for task in tasks])
             return {k: v for k, v in await future_logs}
         if self._state in ('Error', 'Failed', 'Success'):
-            return await _read_log_from_gcs()
+            future_logs = asyncio.gather(*[_read_log_from_gcs(task) for task in tasks])
+            return {k: v for k, v in await future_logs}
 
-    async def _read_pod_statuses(self):
+    async def _read_pod_status(self):
         if self._state in ('Pending', 'Cancelled'):
             return None
 
         async def _read_pod_status_from_gcs():
-            pod_status, err = await app['log_store'].read_gs_file(self.directory,
-                                                                  LogStore.pod_status_file_name)
+            pod_status, err = await app['log_store'].read_gs_file(LogStore.pod_status_path(self.directory))
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read pod status for {self.id} '
@@ -480,9 +479,11 @@ class Job:
         if failed:
             if failure_reason is not None:
                 container_logs['setup'] = failure_reason
-                err = await app['log_store'].write_gs_file(self.directory,
-                                                           LogStore.log_file_name,
-                                                           json.dumps(container_logs))
+                err = await app['log_store'].write_gs_file(LogStore.container_log_path(self.directory, 'input'),
+                                                           failure_reason)
+                # err = await app['log_store'].write_gs_file(self.directory,
+                #                                            LogStore.log_file_name,
+                #                                            json.dumps(container_logs))
                 if err is not None:
                     traceback.print_tb(err.__traceback__)
                     log.info(f'job {self.id} will have a missing log due to {err}')
@@ -672,7 +673,7 @@ async def _get_pod_status(batch_id, job_id, user):
     if not job:
         abort(404)
 
-    pod_statuses = await job._read_pod_statuses()
+    pod_statuses = await job._read_pod_status()
     if pod_statuses:
         return JSON_ENCODER.encode(pod_statuses)
     abort(404)
