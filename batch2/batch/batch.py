@@ -304,16 +304,16 @@ class Job:
 
         return None
 
-    # @staticmethod
-    # async def from_k8s_labels(pod):
-    #     if pod.metadata.labels is None:
-    #         return None
-    #     if not set(['batch_id', 'job_id', 'user']).issubset(set(pod.metadata.labels)):
-    #         return None
-    #     batch_id = pod.metadata.labels['batch_id']
-    #     job_id = pod.metadata.labels['job_id']
-    #     user = pod.metadata.labels['user']
-    #     return await Job.from_db(batch_id, job_id, user)
+    @staticmethod
+    async def from_pod(pod):
+        if pod.metadata.labels is None:
+            return None
+        if not {'batch_id', 'job_id', 'user'}.issubset(set(pod.metadata.labels)):
+            return None
+        batch_id = pod.metadata.labels['batch_id']
+        job_id = pod.metadata.labels['job_id']
+        user = pod.metadata.labels['user']
+        return await Job.from_db(batch_id, job_id, user)
 
     @staticmethod
     async def from_db(batch_id, job_id, user):
@@ -1133,7 +1133,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
     log.info(f'update job {job.id if job else "None"} with pod {pod.metadata.name if pod else "None"}')
     if job and job._state == 'Pending':
         if pod:
-            log.error('job {job.id} has pod {pod.metadata.name}, ignoring')
+            log.error(f'job {job.id} has pod {pod.metadata.name}, ignoring')
         return
 
     if pod and (not job or job.is_complete()):
@@ -1158,8 +1158,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
                         container_status.state.waiting.message)
             return None
 
-        all_container_statuses = pod.status.init_container_statuses or []
-        all_container_statuses.extend(pod.status.container_statuses or [])
+        all_container_statuses = pod.status.container_statuses or []
 
         image_pull_back_off_reasons = []
         for container_status in all_container_statuses:
@@ -1172,10 +1171,10 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
                                     failure_reason="\n".join(image_pull_back_off_reasons))
             return
 
-    # if not pod and not app['pod_throttler'].is_queued(job):
-    #     log.info(f'job {job.id} no pod found, rescheduling')
-    #     await job.mark_unscheduled()
-    #     return
+    if not pod:
+        log.info(f'job {job.id} no pod found, rescheduling')
+        await job.mark_unscheduled()
+        return
 
     if pod and pod.status and pod.status.reason == 'Evicted':
         POD_EVICTIONS.inc()
@@ -1205,11 +1204,11 @@ class DeblockedIterator:
         return blocking_to_async(app['blocking_pool'], self.it.__next__)
 
 
-# async def pod_changed(pod):
-#     job = await Job.from_k8s_labels(pod)
-#     await update_job_with_pod(job, pod)
-#
-#
+async def pod_changed(pod):
+    job = await Job.from_pod(pod)
+    await update_job_with_pod(job, pod)
+
+
 # async def kube_event_loop():
 #     while True:
 #         try:
@@ -1275,26 +1274,65 @@ class DeblockedIterator:
 #     log.info('k8s state refresh complete')
 
 
-async def refresh_batch_pods():
-    log.info('refreshing batch pods')
+async def refresh_pods():
+    log.info(f'refreshing pods')
 
     # if we do this after we get pods, we will pick up jobs created
     # while listing pods and unnecessarily restart them
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
 
-    pods = await app['driver'].list_pods()
-    for pod in pods:
-        log.info(pod.status.container_statuses)
+    pods, err = await app['driver'].list_pods()
+    if err is not None:
+        traceback.print_tb(err.__traceback__)
+        log.info(f'could not refresh pods due to {err}, will try again later')
+        return
 
-    log.info(pods)
+    log.info(f'batch had {len(pods.items)} pods')
+
+    seen_pods = set()
+
+    async def see_pod(pod):
+        pod_name = pod.metadata.name
+        seen_pods.add(pod_name)
+        await pod_changed(pod)
+    asyncio.gather(*[see_pod(pod) for pod in pods.items])
+
+    log.info('restarting running jobs with pods not seen in batch')
+
+    async def restart_job(job):
+        log.info(f'restarting job {job.id}')
+        await update_job_with_pod(job, None)
+    asyncio.gather(*[restart_job(job)
+                     for job in pod_jobs
+                     if job._pod_name not in seen_pods])
+
+#
+# async def refresh_batch_state():  # pylint: disable=W0613
+#     log.info('started batch state refresh')
+#     await refresh_pods()
+#     log.info('batch state refresh complete')
+
+
+# async def refresh_batch_pods():
+#     log.info('refreshing batch pods')
+#
+#     # if we do this after we get pods, we will pick up jobs created
+#     # while listing pods and unnecessarily restart them
+#     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
+#
+#     pods = await app['driver'].list_pods()
+#     for pod in pods:
+#         log.info(pod.status.container_statuses)
+#
+#     log.info(pods)
 
 
 async def polling_event_loop():
     await asyncio.sleep(1)
     while True:
         try:
-            await refresh_batch_pods()
-            # await refresh_k8s_state()
+            # await refresh_batch_pods()
+            await refresh_pods()
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'Could not poll due to exception: {exc}')
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)

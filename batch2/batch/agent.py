@@ -161,13 +161,12 @@ class BatchPod:
     def __init__(self, parameters):
         self.spec = parameters['spec']
         self.secrets = parameters['secrets']
-        self.name = self.spec['metadata']['name']
+        self.metadata = self.spec['metadata']
+        self.name = self.metadata['name']
         self.token = uuid.uuid4().hex
 
         self.containers = {cspec['name']: Container(cspec) for cspec in self.spec['spec']['containers']}
         self.volumes = []
-        # self.exit_codes = [None for _ in self.containers]
-        # self.durations = [None for _ in self.containers]
         self.phase = 'Pending'
 
     async def run(self, semaphore=None):
@@ -215,9 +214,7 @@ class BatchPod:
             container_statuses = [c.to_dict() for _, c in self.containers.items()]
 
         return {
-            'metadata': {
-                'name': self.name
-            },
+            'metadata': self.metadata,
             'status': {
                 'containerStatuses': container_statuses,
                 'phase': self.phase
