@@ -209,8 +209,8 @@ class Job:
                 secret = v1.read_namespaced_secret(secret_name, BATCH_NAMESPACE)
                 secrets[volume_name] = secret.data
 
-        _, err = await app['driver'].create_pod(spec=pod_template.to_dict(),
-                                                secrets=secrets)
+        err = await app['driver'].create_pod(spec=pod_template.to_dict(),
+                                             secrets=secrets)
         if err is not None:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.id}')
