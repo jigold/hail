@@ -498,75 +498,31 @@ class Job:
 
             new_state = 'Error'
         else:
-            pod_results, _ = await app['log_store'].read_gs_file(self.directory, LogStore.results_file_name)
+            def process_container(status):
+                state = status.state
+                if state.terminated:
+                    ec = state.terminated.exit_code
+                    duration = (state.terminated.finished_at - state.terminated.started_at).total_seconds()
+                    return ec, duration
+                return None, None
 
-            if pod_results is None:
-                if pod.status.init_container_statuses is None:
-                    log.error(f'no init container statuses, will reschedule {self.id}, {pod}')
-                    await self.mark_unscheduled()
-                    return
+            exit_codes, durations = zip(*[process_container(status) for status in pod.status.container_statuses])
+            exit_codes = list(exit_codes)
+            durations = list(durations)
 
-                setup_container = pod.status.init_container_statuses[0]
-                assert setup_container.name == 'setup'
-                setup_terminated = setup_container.state.terminated
+            # if pod is not None:
+            #     pod_status = JSON_ENCODER.encode(pod.status.to_dict())
+            #     err = await app['log_store'].write_gs_file(self.directory,
+            #                                                LogStore.pod_status_file_name,
+            #                                                pod_status)
+            #     if err is not None:
+            #         traceback.print_tb(err.__traceback__)
+            #         log.info(f'job {self.id} will have a missing pod status due to {err}')
 
-                if setup_terminated.exit_code != 0:
-                    if setup_terminated.finished_at is not None and setup_terminated.started_at is not None:
-                        durations[0] = (setup_terminated.finished_at - setup_terminated.started_at).total_seconds()
-                    else:
-                        log.warning(f'setup container terminated but has no timing information. {setup_container.to_str()}')
-
-                    container_log, err = await app['k8s'].read_pod_log(pod.metadata.name, container='setup')
-                    if err:
-                        await self.mark_unscheduled()
-
-                    container_logs['setup'] = container_log
-                    exit_codes[0] = setup_terminated.exit_code
-
-                    await app['log_store'].write_gs_file(self.directory,
-                                                         LogStore.log_file_name,
-                                                         json.dumps(container_logs))
-
-                    pod_status, err = await app['k8s'].read_pod_status(pod.metadata.name)
-                    if err:
-                        await self.mark_unscheduled()
-                    else:
-                        assert pod_status is not None
-                        await app['log_store'].write_gs_file(self.directory,
-                                                             LogStore.pod_status_file_name,
-                                                             JSON_ENCODER.encode(pod_status.to_dict()))
-
-                    new_state = 'Failed'
-                else:
-                    # cleanup sidecar container must have failed (error in copying outputs doesn't cause a non-zero exit code)
-                    cleanup_container = [status for status in pod.status.container_statuses if status.name == 'cleanup'][0]
-                    container_log, err = await app['k8s'].read_pod_log(pod.metadata.name, container='cleanup')
-                    if err:
-                        container_log = f'no log due to {err}'
-                    log.error(f'cleanup container failed: {cleanup_container}, log: {container_log}')
-                    assert cleanup_container.state.terminated.exit_code == 0, container_log
-                    # log.info(f'rescheduling job {self.id} -- cleanup container failed')
-                    # await self.mark_unscheduled()
-                    return
+            if pod.status.phase == 'Succeeded':
+                new_state = 'Success'
             else:
-                pod_results = json.loads(pod_results)
-
-                exit_codes = pod_results['exit_codes']
-                durations = pod_results['durations']
-
-                if pod is not None:
-                    pod_status = JSON_ENCODER.encode(pod.status.to_dict())
-                    err = await app['log_store'].write_gs_file(self.directory,
-                                                               LogStore.pod_status_file_name,
-                                                               pod_status)
-                    if err is not None:
-                        traceback.print_tb(err.__traceback__)
-                        log.info(f'job {self.id} will have a missing pod status due to {err}')
-
-                if all([ec == 0 for ec in exit_codes]):
-                    new_state = 'Success'
-                else:
-                    new_state = 'Failed'
+                new_state = 'Failed'
 
         assert new_state is not None
         n_updated = await db.jobs.update_record(*self.id,
@@ -610,8 +566,6 @@ class Job:
             batch = await Batch.from_db(self.batch_id, self.user)
             if batch is not None:
                 await batch.mark_job_complete(self)
-
-        await app['log_store'].delete_gs_file(self.directory, LogStore.results_file_name)
 
     def to_dict(self):
         result = {
