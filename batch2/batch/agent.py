@@ -37,11 +37,9 @@ class Container:
         self.name = spec['name']
         self.spec = spec
         self.cores = 1
-        # self.image = self.spec['image']
         # self.log_path = log_path
         # self.status_path = status_path
         self.exit_code = None
-        # self.duration = None
 
     async def create(self, secrets):
         image = self.spec['image']
@@ -84,10 +82,6 @@ class Container:
         await self._container.wait()
         self._container = await docker.containers.get(self._container._id)
         self.exit_code = self._container['State']['ExitCode']
-        #
-        # started = dateutil.parser.parse(self._container['State']['StartedAt'])
-        # finished = dateutil.parser.parse(self._container['State']['FinishedAt'])
-        # self.duration = (finished - started).total_seconds()
 
         # await check_shell(f'docker logs {self.container._id} 2>&1 | gsutil cp - {shq(self.log_path)}')
         # await check_shell(f'docker inspect {self.container._id} | gsutil cp - {shq(self.status_path)}')
@@ -118,7 +112,6 @@ class Container:
             }
         elif status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead
             state['terminated'] = {
-                # 'containerId': status['Id'],
                 'exitCode': status['State']['ExitCode'],
                 'finishedAt': status['State']['FinishedAt'],
                 'message': status['State']['Error'],
@@ -131,18 +124,11 @@ class Container:
             'containerID': f'docker://{status["Id"]}',
             'image': self.spec['image'],
             'imageID': status['Image'],
-            # 'last_state': None,
             'name': self.name,
             'ready': False,
             'restartCount': status['RestartCount'],
             'state': state
         }
-        # return {
-        #     'status': self.status(),
-        #     'name': self.name,
-        #     'exit_code': self.exit_code,
-        #     'duration': self.duration
-        # }
 
 
 class BatchPod:
