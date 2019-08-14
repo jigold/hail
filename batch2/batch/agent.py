@@ -263,7 +263,7 @@ async def get_container_log(request):
 #     return web.Response()
 
 
-@routes.post('/api/v1alpha/pods/{pod_name}/delete')
+@routes.delete('/api/v1alpha/pods/{pod_name}/delete')
 async def delete_pod(request):
     pod_name = request.match_info['pod_name']
 
@@ -273,7 +273,7 @@ async def delete_pod(request):
 
     asyncio.ensure_future(bp.delete())
     del batch_pods[pod_name]
-    return web.Response()
+    return jsonify({})
 
 
 @routes.get('/api/v1alpha/pods')
