@@ -99,10 +99,8 @@ class Container:
 
     def to_dict(self):
         assert self._container is not None
-
         status = self._container._container
-        print(status)
-
+        
         state = {}
         if status['State']['Status'] == 'created':
             state['waiting'] = {}
