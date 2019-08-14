@@ -235,8 +235,7 @@ class Job:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read log for {self.id} '
                          f'due to {err}')
-                return None
-            return pod_log
+            return task_name, pod_log
 
         async def _read_log_from_agent(task_name):
             pod_log, err = await app['driver'].read_pod_log(self._pod_name, container=task_name)
