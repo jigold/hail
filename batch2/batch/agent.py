@@ -71,8 +71,10 @@ class Container:
         except DockerError as err:
             if err.status == 404:
                 try:
+                    start = time.time()
                     await docker.pull(config['Image'])  # FIXME: if image not able to be pulled make ImagePullBackOff
                     self._container = await docker.containers.create(config)
+                    print(f'took {time.time() - start} seconds to pull image')
                 except DockerError as err:
                     raise err
             else:
