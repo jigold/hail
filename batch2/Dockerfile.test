@@ -5,7 +5,7 @@ COPY hail/python/hailtop /hailtop/hailtop/
 RUN python3 -m pip install --no-cache-dir /hailtop \
   && rm -rf /hailtop
 
-COPY batch/test/ /test/
+COPY batch2/test/ /test/
 RUN python3 -m pip install --no-cache-dir pytest-instafail==0.4.1
 
 CMD ["python3", "-m", "pytest", "-s", "-v", "--instafail", "/test/"]
