@@ -72,7 +72,7 @@ class Container:
 
         try:
             start = time.time()
-            self._container = await docker.containers.create(config)
+            self._container = await docker.containers.create(config, name=self.id)
             print(f'took {time.time() - start} seconds to create container {self.id}')
         except DockerError as err:
             if err.status == 404:
