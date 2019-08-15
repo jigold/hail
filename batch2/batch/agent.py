@@ -178,7 +178,7 @@ class BatchPod:
     def _cleanup_secrets(self):
         for name, path in self.secret_paths.items():
             shutil.rmtree(path, ignore_errors=True)
-            del self.secret_paths[name]
+        self.secret_paths = {}
 
     def __init__(self, parameters):
         self.spec = parameters['spec']
