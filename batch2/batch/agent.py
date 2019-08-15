@@ -176,10 +176,10 @@ class BatchPod:
         self._run_task = asyncio.ensure_future(self.run())
 
     async def run(self, semaphore=None):
-        # volume = await docker.volumes.create()
-        # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
-
         try:
+            # volume = await docker.volumes.create()
+            # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
+
             self.secret_paths = self._create_secrets()
 
             for cname, container in self.containers.items():
@@ -207,24 +207,14 @@ class BatchPod:
     async def cleanup(self):
         await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
         await self._cleanup_secrets()
+        # await self.volume.delete()
 
     async def delete(self):
-        print(f'deleting containers for pod {self.name}')
         self._run_task.cancel()
         try:
             await self._run_task
         finally:
             await asyncio.shield(self.cleanup())
-        # await self.volume.delete()
-
-        # if not self._run_task.done():
-        #     self._run_task.cancel()
-        #     try:
-        #         await self._run_task
-        #     finally:
-        #         await self.cleanup()
-        # else:
-        #     await self.cleanup()
 
     async def log(self, container_name):
         c = self.containers[container_name]
