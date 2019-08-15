@@ -202,7 +202,6 @@ class Job:
                 secret = v1.read_namespaced_secret(secret_name, BATCH_NAMESPACE)
                 secrets[volume_name] = secret.data
 
-        log.info(pod_template.to_dict())
         err = await app['driver'].create_pod(spec=pod_template.to_dict(),
                                              secrets=secrets,
                                              output_directory=self.directory)

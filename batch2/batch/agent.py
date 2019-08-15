@@ -179,13 +179,13 @@ class BatchPod:
         self.secret_paths = {}
 
     async def _create_volumes(self):
-        print(self.spec)
+        pass
 
     async def _cleanup_volumes(self):
-        for volume in self.volumes:
-            await volume.delete()
+        pass
 
     def __init__(self, parameters):
+        print(parameters['spec'])
         self.spec = parameters['spec']
         self.secrets = parameters['secrets']
         self.secret_paths = {}
