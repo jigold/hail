@@ -93,9 +93,10 @@ class Container:
 
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
+
         print(log_path)
         print(status_path)
-        await check_shell(f'docker logs {self._container._id} 2>&1 | gsutil cp - {shq(log_path)}')
+        await check_shell(f'docker logs {self._container._id} 2>&1 | gsutil cp - {shq(log_path)}')  # WHY did this just work without permissions?
         await check_shell(f'docker inspect {self._container._id} | gsutil cp - {shq(status_path)}')
 
     async def delete(self):
