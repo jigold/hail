@@ -7,6 +7,7 @@ import asyncio
 import aiohttp
 import base64
 import uuid
+import shutil
 from aiohttp import web
 import uvloop
 import aiodocker
@@ -94,18 +95,28 @@ class Container:
 
     async def run(self, log_directory):
         start = time.time()
+
+        start2 = time.time()
         await self._container.start()
+        print(f'took {time.time() - start2} seconds to start container for {self.id}')
 
         self.started = True
+        start2 = time.time()
         await self._container.wait()
+        print(f'took {time.time() - start2} seconds to wait on container for {self.id}')
         self._container = await docker.containers.get(self._container._id)
         self.exit_code = self._container['State']['ExitCode']
 
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
 
+        start2 = time.time()
         await check_shell(f'docker logs {self._container._id} 2>&1 | gsutil cp - {shq(log_path)}')  # WHY did this work without permissions?
+        print(f'took {time.time() - start2} seconds to upload log for {self.id}')
+        start2 = time.time()
         await check_shell(f'docker inspect {self._container._id} | gsutil cp - {shq(status_path)}')
+        print(f'took {time.time() - start2} seconds to upload status container for {self.id}')
+        
         print(f'took {time.time() - start} seconds to run container for {self.id}')
 
     async def delete(self):
@@ -167,8 +178,7 @@ class BatchPod:
 
     def _cleanup_secrets(self):
         for name, path in self.secret_paths.items():
-            if os.path.exists(path):
-                os.rmdir(path)
+            shutil.rmtree(path, ignore_errors=True)
             del self.secret_paths[name]
 
     def __init__(self, parameters):
