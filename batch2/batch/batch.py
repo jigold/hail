@@ -89,7 +89,7 @@ routes = web.RouteTableDef()
 
 db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
 
-tasks = ('input', 'main', 'output')
+tasks = ('setup', 'main', 'cleanup')
 
 
 def abort(code, reason=None):
@@ -149,8 +149,8 @@ class Job:
         assert self._state in states
         assert self._state == 'Running'
 
-        input_container = Job._copy_container('input', self.input_files)
-        output_container = Job._copy_container('output', self.output_files)
+        input_container = Job._copy_container('setup', self.input_files)
+        output_container = Job._copy_container('cleanup', self.output_files)
 
         volumes = [
             kube.client.V1Volume(
@@ -233,7 +233,7 @@ class Job:
             pod_log, err = await app['log_store'].read_gs_file(LogStore.container_log_path(self.directory, task_name))
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read log for {self.id} '
+                log.info(f'ignoring: could not read log for {self.id}, {task_name} '
                          f'due to {err}')
             return task_name, pod_log
 
@@ -241,14 +241,15 @@ class Job:
             pod_log, err = await app['driver'].read_pod_log(self._pod_name, container=task_name)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read log for {self.id} '
+                log.info(f'ignoring: could not read log for {self.id}, {task_name} '
                          f'due to {err}; will still try to load other containers')
             return task_name, pod_log
 
         if self._state == 'Running':
             future_logs = asyncio.gather(*[_read_log_from_agent(task) for task in tasks])
             return {k: v for k, v in await future_logs}
-        if self._state in ('Error', 'Failed', 'Success'):
+        else:
+            assert self._state in ('Error', 'Failed', 'Success')
             future_logs = asyncio.gather(*[_read_log_from_gcs(task) for task in tasks])
             return {k: v for k, v in await future_logs}
 
@@ -256,24 +257,30 @@ class Job:
         if self._state in ('Pending', 'Cancelled'):
             return None
 
-        async def _read_pod_status_from_gcs():
-            pod_status, err = await app['log_store'].read_gs_file(LogStore.pod_status_path(self.directory))
+        async def _read_status_from_gcs(task_name):
+            status, err = await app['log_store'].read_gs_file(LogStore.container_status_path(self.directory, task_name))
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read pod status for {self.id} '
+                log.info(f'ignoring: could not read container status for {self.id} '
                          f'due to {err}')
                 return None
-            return json.loads(pod_status)
+            return task_name, status
 
-        if self._state == 'Running':
-            pod_status, err = await app['driver'].read_pod_status(self._pod_name)
+        async def _read_status_from_agent(task_name):
+            status, err = await app['driver'].read_container_status(self._pod_name, container=task_name)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not get pod status for {self.id} '
-                         f'due to {err}')
-            return pod_status
-        assert self._state in ('Error', 'Failed', 'Success')
-        return await _read_pod_status_from_gcs()
+                log.info(f'ignoring: could not read container status for {self.id} '
+                         f'due to {err}; will still try to load other containers')
+            return task_name, status
+
+        if self._state == 'Running':
+            future_statuses = asyncio.gather(*[_read_status_from_agent(task) for task in tasks])
+            return {k: v for k, v in await future_statuses}
+        else:
+            assert self._state in ('Error', 'Failed', 'Success')
+            future_statuses = asyncio.gather(*[_read_status_from_gcs(task) for task in tasks])
+            return {k: v for k, v in await future_statuses}
 
     async def _delete_gs_files(self):
         errs = await app['log_store'].delete_gs_files(self.directory)
@@ -478,23 +485,14 @@ class Job:
         if failed:
             if failure_reason is not None:
                 container_logs['setup'] = failure_reason
-                err = await app['log_store'].write_gs_file(LogStore.container_log_path(self.directory, 'input'),
-                                                           failure_reason)
+                err = await app['log_store'].write_gs_file(LogStore.container_log_path(self.directory, 'setup'),
+                                                           failure_reason)  # FIXME
                 # err = await app['log_store'].write_gs_file(self.directory,
                 #                                            LogStore.log_file_name,
                 #                                            json.dumps(container_logs))
                 if err is not None:
                     traceback.print_tb(err.__traceback__)
                     log.info(f'job {self.id} will have a missing log due to {err}')
-
-            if pod is not None:
-                pod_status = JSON_ENCODER.encode(pod.status.to_dict())
-                err = await app['log_store'].write_gs_file(self.directory,
-                                                           LogStore.pod_status_file_name,
-                                                           pod_status)
-                if err is not None:
-                    traceback.print_tb(err.__traceback__)
-                    log.info(f'job {self.id} will have a missing pod status due to {err}')
 
             new_state = 'Error'
         else:
@@ -506,18 +504,9 @@ class Job:
                     return ec, duration
                 return None, None
 
-            exit_codes, durations = zip(*[process_container(status) for status in pod.status.container_statuses])
+            exit_codes, durations = zip(*[process_container(status) for status in pod.status.container_statuses])  # FIXME: use gear unzip
             exit_codes = list(exit_codes)
             durations = list(durations)
-
-            # if pod is not None:
-            #     pod_status = JSON_ENCODER.encode(pod.status.to_dict())
-            #     err = await app['log_store'].write_gs_file(self.directory,
-            #                                                LogStore.pod_status_file_name,
-            #                                                pod_status)
-            #     if err is not None:
-            #         traceback.print_tb(err.__traceback__)
-            #         log.info(f'job {self.id} will have a missing pod status due to {err}')
 
             if pod.status.phase == 'Succeeded':
                 new_state = 'Success'

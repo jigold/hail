@@ -26,11 +26,7 @@ class LogStore:
 
     @staticmethod
     def container_status_path(directory, container_name):
-        return f'{directory}{container_name}/container_status'
-
-    @staticmethod
-    def pod_status_path(directory):
-        return f'{directory}pod_status'
+        return f'{directory}{container_name}/status'
 
     def __init__(self, blocking_pool, instance_id, batch_gsa_key=None, batch_bucket_name=None):
         self.instance_id = instance_id
