@@ -116,7 +116,7 @@ class Container:
         start2 = time.time()
         await check_shell(f'docker inspect {self._container._id} | gsutil cp - {shq(status_path)}')
         print(f'took {time.time() - start2} seconds to upload status container for {self.id}')
-        
+
         print(f'took {time.time() - start} seconds to run container for {self.id}')
 
     async def delete(self):
@@ -202,9 +202,7 @@ class BatchPod:
             # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
 
             self.secret_paths = self._create_secrets()
-
-            for cname, container in self.containers.items():
-                await container.create(self.secret_paths)
+            await asyncio.gather(*[container.create(self.secret_paths) for container in self.containers.values()])
 
             self.phase = 'Running'
 
