@@ -111,8 +111,8 @@ class Container:
         status_path = LogStore.container_status_path(log_directory, self.name)
 
         start2 = time.time()
-        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil cp -q - {shq(log_path)}')  # WHY did this work without permissions?
-        upload_status = check_shell(f'docker inspect {self._container._id} | gsutil cp -q - {shq(status_path)}')
+        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')  # WHY did this work without permissions?
+        upload_status = check_shell(f'docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
         await asyncio.gather(upload_log, upload_status)
         print(f'took {time.time() - start2} seconds to upload to gcs for {self.id}')
 
