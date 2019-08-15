@@ -27,7 +27,6 @@ from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder
 from .datetime_json import JSON_ENCODER
-from .k8s import K8s
 from .globals import states, complete_states, valid_state_transitions
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
     HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, QUEUE_SIZE, MAX_PODS, \
@@ -128,12 +127,7 @@ class JobStateWriteFailure(Exception):
 class Job:
     @staticmethod
     def _copy_container(name, files):
-        sh_expression = f"""
-                set -ex
-                gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData
-                {copy(files)}
-                 """
-
+        sh_expression = copy(files)
         return kube.client.V1Container(
             image='google/cloud-sdk:237.0.0-alpine',
             name=name,
