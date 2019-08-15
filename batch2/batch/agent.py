@@ -101,8 +101,6 @@ class Container:
         if self._container is not None:
             await self._container.stop()
             await self._container.delete()
-        else:
-            print(f'container {self.name} is None!')
 
     @property
     def status(self):
@@ -175,7 +173,7 @@ class BatchPod:
         self.containers = {cspec['name']: Container(cspec) for cspec in self.spec['spec']['containers']}
         self.volumes = []
         self.phase = 'Pending'
-        self._run_task = asyncio.create_task(self.run())
+        self._run_task = asyncio.ensure_future(self.run())
 
     async def run(self, semaphore=None):
         # volume = await docker.volumes.create()
@@ -207,7 +205,7 @@ class BatchPod:
             print(f'pod {self.name} was cancelled')
 
     async def cleanup(self):
-        await asyncio.gather(*[c.delete() for _, c in self.containers.items()])
+        await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
         await self._cleanup_secrets()
 
     async def delete(self):
@@ -216,7 +214,7 @@ class BatchPod:
         try:
             await self._run_task
         finally:
-            await self.cleanup()
+            await asyncio.shield(self.cleanup())
         # await self.volume.delete()
 
         # if not self._run_task.done():
