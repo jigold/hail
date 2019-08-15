@@ -93,10 +93,12 @@ class Test(unittest.TestCase):
         b1 = self.client.create_batch(attributes={'tag': tag, 'name': 'b1'})
         b1.create_job('alpine', ['sleep', '3600'])
         b1 = b1.submit()
+        print(b1.id)
 
         b2 = self.client.create_batch(attributes={'tag': tag, 'name': 'b2'})
         b2.create_job('alpine', ['echo', 'test'])
         b2 = b2.submit()
+        print(b2.id)
 
         def assert_batch_ids(expected, complete=None, success=None, attributes=None):
             batches = self.client.list_batches(complete=complete, success=success, attributes=attributes)
@@ -145,6 +147,7 @@ class Test(unittest.TestCase):
         b = self.client.create_batch()
         j = b.create_job('alpine', ['echo', 'test'])
         b = b.submit()
+        print(b.id)
         j.wait()
         b.delete()
 
@@ -160,6 +163,7 @@ class Test(unittest.TestCase):
         b = self.client.create_batch()
         j = b.create_job('alpine', ['sleep', '30'])
         b = b.submit()
+        print(b.id)
         b.delete()
 
         # verify doesn't exist
@@ -175,6 +179,7 @@ class Test(unittest.TestCase):
         b = self.client.create_batch()
         j = b.create_job('alpine', ['sleep', '30'])
         b = b.submit()
+        print(b.id)
 
         status = j.status()
         assert status['state'] in ('Ready', 'Running'), status
@@ -206,7 +211,8 @@ class Test(unittest.TestCase):
     def test_get_job(self):
         b = self.client.create_batch()
         j = b.create_job('alpine', ['true'])
-        b.submit()
+        b = b.submit()
+        print(b.id)
 
         j2 = self.client.get_job(*j.id)
         status2 = j2.status()
@@ -218,6 +224,7 @@ class Test(unittest.TestCase):
         j2 = b.create_job('alpine', ['sleep', '1'])
         j3 = b.create_job('alpine', ['sleep', '30'])
         b = b.submit()
+        print(b.id)
 
         j1.wait()
         j2.wait()
@@ -240,6 +247,7 @@ class Test(unittest.TestCase):
         b1 = b1.submit()
         b1.wait()
         b1s = b1.status()
+        print(b1s)
         assert b1s['complete'] and b1s['state'] == 'success', b1s
 
         b2 = self.client.create_batch()
@@ -248,12 +256,14 @@ class Test(unittest.TestCase):
         b2 = b2.submit()
         b2.wait()
         b2s = b2.status()
+        print(b2s)
         assert b2s['complete'] and b2s['state'] == 'failure', b2s
 
         b3 = self.client.create_batch()
         b3.create_job('alpine', ['sleep', '30'])
         b3 = b3.submit()
         b3s = b3.status()
+        print(b3s)
         assert not b3s['complete'] and b3s['state'] == 'running', b3s
 
         b4 = self.client.create_batch()
@@ -262,6 +272,7 @@ class Test(unittest.TestCase):
         b4.cancel()
         b4.wait()
         b4s = b4.status()
+        print(b4s)
         assert b4s['complete'] and b4s['state'] == 'cancelled', b4s
 
     def test_callback(self):
@@ -297,8 +308,9 @@ class Test(unittest.TestCase):
     def test_log_after_failing_job(self):
         b = self.client.create_batch()
         j = b.create_job('alpine', ['/bin/sh', '-c', 'echo test; exit 127'])
-        b.submit()
+        b = b.submit()
         status = j.wait()
+        print(b.id)
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Failed')
         self.assertEqual(status['exit_code']['main'], 127)
