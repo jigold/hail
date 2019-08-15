@@ -165,7 +165,7 @@ class BatchPod:
     def _cleanup_secrets(self):
         for name, path in self.secret_paths.items():
             if os.path.exists(path):
-                os.remove(path)
+                os.rmdir(path)
             del self.secret_paths[name]
 
     def __init__(self, parameters):
