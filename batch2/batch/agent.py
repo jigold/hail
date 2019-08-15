@@ -222,6 +222,7 @@ class BatchPod:
             # FIXME: send message back to driver
         except asyncio.CancelledError:
             print(f'pod {self.name} was cancelled')
+            raise
 
     async def cleanup(self):
         await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
