@@ -117,7 +117,9 @@ class Container:
         print(f'took {time.time() - start} seconds to run container for {self.id}')
 
     async def delete(self):
+        print(f'deleting container {self.id}')
         if self._container is not None:
+            print(f'container is not None -- deleting')
             await self._container.stop()
             await self._container.delete()
 
@@ -234,9 +236,10 @@ class BatchPod:
             raise
 
     async def cleanup(self):
+        print(f'cleaning up pod {self.name}')
         await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
         self._cleanup_secrets()
-        await self._cleanup_volumes()
+        # await self._cleanup_volumes()
         # await self.volume.delete()
 
     async def delete(self):
