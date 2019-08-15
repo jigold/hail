@@ -111,8 +111,8 @@ class Container:
         status_path = LogStore.container_status_path(log_directory, self.name)
 
         start2 = time.time()
-        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil cp - {shq(log_path)}')  # WHY did this work without permissions?
-        upload_status = check_shell(f'docker inspect {self._container._id} | gsutil cp - {shq(status_path)}')
+        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil cp -q - {shq(log_path)}')  # WHY did this work without permissions?
+        upload_status = check_shell(f'docker inspect {self._container._id} | gsutil cp -q - {shq(status_path)}')
         await asyncio.gather(upload_log, upload_status)
         print(f'took {time.time() - start2} seconds to upload to gcs for {self.id}')
 
@@ -200,11 +200,13 @@ class BatchPod:
         await asyncio.gather(*[container.create(self.secret_paths) for container in self.containers.values()])
 
     async def run(self, semaphore=None):
+        create_task = None
         try:
             # volume = await docker.volumes.create()
             # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
 
-            await self._create()
+            create_task = asyncio.ensure_future(self._create())
+            await asyncio.shield(create_task)
 
             self.phase = 'Running'
 
@@ -224,6 +226,8 @@ class BatchPod:
             # FIXME: send message back to driver
         except asyncio.CancelledError:
             print(f'pod {self.name} was cancelled')
+            if create_task is not None:
+                await create_task
             raise
 
     async def cleanup(self):
