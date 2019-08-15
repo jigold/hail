@@ -43,7 +43,7 @@ class Container:
         self.exit_code = None
         self.started = False
 
-    async def create(self, secrets):
+    async def create(self, secret_paths):
         image = self.spec['image']
         command = self.spec['command']
 
@@ -51,8 +51,8 @@ class Container:
         for mount in self.spec['volume_mounts']:
             mount_name = mount['name']
             mount_path = mount['mount_path']
-            if mount_name in secrets:
-                secret_path = secrets[mount_name]
+            if mount_name in secret_paths:
+                secret_path = secret_paths[mount_name]
                 volume_mounts.append(f'{secret_path}:{mount_path}')
             else:
                 raise Exception(f'unknown secret {mount_name} specified in volume_mounts')
@@ -156,9 +156,16 @@ class BatchPod:
             secret_paths[secret_name] = path
         return secret_paths
 
+    def _cleanup_secrets(self):
+        for name, path in self.secret_paths:
+            if os.path.exists(path):
+                os.remove(path)
+            del self.secret_paths[name]
+
     def __init__(self, parameters):
         self.spec = parameters['spec']
         self.secrets = parameters['secrets']
+        self.secret_paths = {}
         self.output_directory = parameters['output_directory']
 
         self.metadata = self.spec['metadata']
@@ -168,37 +175,58 @@ class BatchPod:
         self.containers = {cspec['name']: Container(cspec) for cspec in self.spec['spec']['containers']}
         self.volumes = []
         self.phase = 'Pending'
+        self._run_task = asyncio.create_task(self.run())
 
     async def run(self, semaphore=None):
         # volume = await docker.volumes.create()
         # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
 
-        secrets = self._create_secrets()
+        try:
+            self.secret_paths = self._create_secrets()
 
-        for cname, container in self.containers.items():
-            await container.create(secrets)
+            for cname, container in self.containers.items():
+                await container.create(self.secret_paths)
 
-        self.phase = 'Running'
+            self.phase = 'Running'
 
-        if not semaphore:
-            semaphore = NullWeightedSemaphore()
+            if not semaphore:
+                semaphore = NullWeightedSemaphore()
 
-        last_ec = None
-        for _, container in self.containers.items():
-            async with semaphore(container.cores):
-                await container.run(self.output_directory)
-                last_ec = container.exit_code
-                if last_ec != 0:
-                    break
+            last_ec = None
+            for _, container in self.containers.items():
+                async with semaphore(container.cores):
+                    await container.run(self.output_directory)
+                    last_ec = container.exit_code
+                    if last_ec != 0:
+                        break
 
-        self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
+            self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
 
-        # FIXME: send message back to driver
+            # FIXME: send message back to driver
+        except asyncio.CancelledError:
+            print(f'pod {self.name} was cancelled')
+
+    async def cleanup(self):
+        await asyncio.gather(*[c.delete() for _, c in self.containers.items()])
+        await self._cleanup_secrets()
 
     async def delete(self):
         print(f'deleting containers for pod {self.name}')
-        await asyncio.gather(*[c.delete() for _, c in self.containers.items()])
+        self._run_task.cancel()
+        try:
+            await self._run_task
+        finally:
+            await self.cleanup()
         # await self.volume.delete()
+
+        # if not self._run_task.done():
+        #     self._run_task.cancel()
+        #     try:
+        #         await self._run_task
+        #     finally:
+        #         await self.cleanup()
+        # else:
+        #     await self.cleanup()
 
     async def log(self, container_name):
         c = self.containers[container_name]
@@ -231,7 +259,7 @@ async def create_pod(request):
     try:
         bp = BatchPod(parameters)
         batch_pods[bp.name] = bp
-        asyncio.ensure_future(bp.run())
+        # asyncio.ensure_future(bp.run())
     except DockerError as err:
         print(err)
         return web.Response(body=err.message, status=err.status)
