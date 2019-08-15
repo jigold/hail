@@ -225,7 +225,7 @@ class BatchPod:
 
     async def cleanup(self):
         await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
-        await self._cleanup_secrets()
+        self._cleanup_secrets()
         # await self.volume.delete()
 
     async def delete(self):
