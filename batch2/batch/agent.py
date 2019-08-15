@@ -33,13 +33,15 @@ batch_pods = {}
 
 
 class Container:
-    def __init__(self, spec):
+    def __init__(self, spec, pod):
         self._container = None
         self.name = spec['name']
         self.spec = spec
         self.cores = 1
         self.exit_code = None
         self.started = False
+        self.pod = pod
+        self.id = pod.name + '-' + self.name
 
     async def create(self, secret_paths):
         image = self.spec['image']
@@ -63,23 +65,24 @@ class Container:
             'OpenStdin': False,
             'Binds': volume_mounts,
             'Cmd': command,
-            'Image': image,
+            'Image': image
+            # 'Labels': self.spec['labels']
         }
 
         try:
             start = time.time()
             self._container = await docker.containers.create(config)
-            print(f'took {time.time() - start} seconds to create container')
+            print(f'took {time.time() - start} seconds to create container {self.id}')
         except DockerError as err:
             if err.status == 404:
                 try:
                     start = time.time()
                     await docker.pull(config['Image'])  # FIXME: if image not able to be pulled make ImagePullBackOff
-                    print(f'took {time.time() - start} seconds to pull image')
+                    print(f'took {time.time() - start} seconds to pull image {image} for {self.id}')
 
                     start = time.time()
                     self._container = await docker.containers.create(config)
-                    print(f'took {time.time() - start} seconds to create container')
+                    print(f'took {time.time() - start} seconds to create container for {self.id}')
                 except DockerError as err:
                     raise err
             else:
@@ -87,7 +90,7 @@ class Container:
 
         start = time.time()
         self._container = await docker.containers.get(self._container._id)
-        print(f'took {time.time() - start} seconds to get container')
+        print(f'took {time.time() - start} seconds to get container for {self.id}')
 
     async def run(self, log_directory):
         start = time.time()
@@ -103,7 +106,7 @@ class Container:
 
         await check_shell(f'docker logs {self._container._id} 2>&1 | gsutil cp - {shq(log_path)}')  # WHY did this work without permissions?
         await check_shell(f'docker inspect {self._container._id} | gsutil cp - {shq(status_path)}')
-        print(f'took {time.time() - start} seconds to run container')
+        print(f'took {time.time() - start} seconds to run container for {self.id}')
 
     async def delete(self):
         if self._container is not None:
@@ -178,7 +181,7 @@ class BatchPod:
         self.name = self.metadata['name']
         self.token = uuid.uuid4().hex
 
-        self.containers = {cspec['name']: Container(cspec) for cspec in self.spec['spec']['containers']}
+        self.containers = {cspec['name']: Container(cspec, self) for cspec in self.spec['spec']['containers']}
         self.volumes = []
         self.phase = 'Pending'
         self._run_task = asyncio.ensure_future(self.run())
@@ -218,6 +221,7 @@ class BatchPod:
         # await self.volume.delete()
 
     async def delete(self):
+        print(f'deleting pod {self.name}')
         self._run_task.cancel()
         try:
             await self._run_task
