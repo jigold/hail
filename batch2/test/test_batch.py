@@ -40,6 +40,12 @@ class Test(unittest.TestCase):
     def tearDown(self):
         self.client.close()
 
+    def test_aaaa_garbage_image(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('dsafaaadsf', ['echo', 'test'])
+        builder.submit()
+        status = j.wait()
+
     def test_job(self):
         builder = self.client.create_batch()
         j = builder.create_job('alpine', ['echo', 'test'])

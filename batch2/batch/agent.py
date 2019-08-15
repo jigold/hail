@@ -66,7 +66,6 @@ class Container:
             'Binds': volume_mounts,
             'Cmd': command,
             'Image': image
-            # 'Labels': self.spec['labels']
         }
 
         try:
