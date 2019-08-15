@@ -178,6 +178,13 @@ class BatchPod:
             shutil.rmtree(path, ignore_errors=True)
         self.secret_paths = {}
 
+    async def _create_volumes(self):
+        print(self.spec)
+
+    async def _cleanup_volumes(self):
+        for volume in self.volumes:
+            await volume.delete()
+
     def __init__(self, parameters):
         self.spec = parameters['spec']
         self.secrets = parameters['secrets']
@@ -195,14 +202,12 @@ class BatchPod:
 
     async def _create(self):
         self.secret_paths = self._create_secrets()
+        await self._create_volumes()
         await asyncio.gather(*[container.create(self.secret_paths) for container in self.containers.values()])
 
     async def run(self, semaphore=None):
         create_task = None
         try:
-            # volume = await docker.volumes.create()
-            # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
-
             create_task = asyncio.ensure_future(self._create())
             await asyncio.shield(create_task)
 
@@ -231,6 +236,7 @@ class BatchPod:
     async def cleanup(self):
         await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
         self._cleanup_secrets()
+        await self._cleanup_volumes()
         # await self.volume.delete()
 
     async def delete(self):
