@@ -40,7 +40,6 @@ class Container:
         self.cores = 1
         self.exit_code = None
         self.started = False
-        self.pod = pod
         self.id = pod.name + '-' + self.name
 
     async def create(self, secret_paths):
@@ -65,7 +64,8 @@ class Container:
             'OpenStdin': False,
             'Binds': volume_mounts,
             'Cmd': command,
-            'Image': image
+            'Image': image,
+            'Name': self.id
             # 'Labels': self.spec['labels']
         }
 
