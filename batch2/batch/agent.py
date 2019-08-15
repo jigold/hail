@@ -195,13 +195,17 @@ class BatchPod:
         self.phase = 'Pending'
         self._run_task = asyncio.ensure_future(self.run())
 
+    async def _create(self):
+        self.secret_paths = self._create_secrets()
+        await asyncio.gather(*[container.create(self.secret_paths) for container in self.containers.values()])
+
     async def run(self, semaphore=None):
+        create_task = None
         try:
             # volume = await docker.volumes.create()
             # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
 
-            self.secret_paths = self._create_secrets()
-            await asyncio.gather(*[container.create(self.secret_paths) for container in self.containers.values()])
+            create_task = asyncio.shield(self._create())
 
             self.phase = 'Running'
 
@@ -220,6 +224,8 @@ class BatchPod:
 
             # FIXME: send message back to driver
         except asyncio.CancelledError:
+            if create_task is not None:
+                await create_task
             print(f'pod {self.name} was cancelled')
             raise
 
