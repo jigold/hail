@@ -67,23 +67,32 @@ class Container:
         }
 
         try:
+            start = time.time()
             self._container = await docker.containers.create(config)
+            print(f'took {time.time() - start} seconds to create container')
         except DockerError as err:
             if err.status == 404:
                 try:
                     start = time.time()
                     await docker.pull(config['Image'])  # FIXME: if image not able to be pulled make ImagePullBackOff
-                    self._container = await docker.containers.create(config)
                     print(f'took {time.time() - start} seconds to pull image')
+
+                    start = time.time()
+                    self._container = await docker.containers.create(config)
+                    print(f'took {time.time() - start} seconds to create container')
                 except DockerError as err:
                     raise err
             else:
                 raise err
 
+        start = time.time()
         self._container = await docker.containers.get(self._container._id)
+        print(f'took {time.time() - start} seconds to get container')
 
     async def run(self, log_directory):
+        start = time.time()
         await self._container.start()
+
         self.started = True
         await self._container.wait()
         self._container = await docker.containers.get(self._container._id)
@@ -94,6 +103,7 @@ class Container:
 
         await check_shell(f'docker logs {self._container._id} 2>&1 | gsutil cp - {shq(log_path)}')  # WHY did this work without permissions?
         await check_shell(f'docker inspect {self._container._id} | gsutil cp - {shq(status_path)}')
+        print(f'took {time.time() - start} seconds to run container')
 
     async def delete(self):
         if self._container is not None:
