@@ -101,6 +101,8 @@ class Container:
         if self._container is not None:
             await self._container.stop()
             await self._container.delete()
+        else:
+            print(f'container {self.name} is None!')
 
     @property
     def status(self):
@@ -194,6 +196,7 @@ class BatchPod:
         # FIXME: send message back to driver
 
     async def delete(self):
+        print(f'deleting containers for pod {self.name}')
         await asyncio.gather(*[c.delete() for _, c in self.containers.items()])
         # await self.volume.delete()
 
