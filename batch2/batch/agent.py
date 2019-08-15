@@ -200,12 +200,11 @@ class BatchPod:
         await asyncio.gather(*[container.create(self.secret_paths) for container in self.containers.values()])
 
     async def run(self, semaphore=None):
-        create_task = None
         try:
             # volume = await docker.volumes.create()
             # volume = await docker.volumes.create({}) # {'DriverOpts': {'o': 'size=100M', 'type': 'btrfs', 'device': '/dev/sda2'}}
 
-            create_task = asyncio.shield(self._create())
+            await self._create()
 
             self.phase = 'Running'
 
@@ -224,8 +223,6 @@ class BatchPod:
 
             # FIXME: send message back to driver
         except asyncio.CancelledError:
-            if create_task is not None:
-                await create_task
             print(f'pod {self.name} was cancelled')
             raise
 
@@ -331,9 +328,10 @@ async def delete_pod(request):
     if pod_name not in batch_pods:
         abort(404, 'unknown pod name')
     bp = batch_pods[pod_name]
+    del batch_pods[pod_name]
 
     asyncio.ensure_future(bp.delete())
-    del batch_pods[pod_name]
+
     return jsonify({})
 
 
