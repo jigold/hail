@@ -38,8 +38,6 @@ class Container:
         self.name = spec['name']
         self.spec = spec
         self.cores = 1
-        # self.log_path = log_path
-        # self.status_path = status_path
         self.exit_code = None
         self.started = False
 
@@ -76,10 +74,8 @@ class Container:
                     await docker.pull(config['Image'])  # FIXME: if image not able to be pulled make ImagePullBackOff
                     self._container = await docker.containers.create(config)
                 except DockerError as err:
-                    print(err)
                     raise err
             else:
-                print(err)
                 raise err
 
         self._container = await docker.containers.get(self._container._id)
