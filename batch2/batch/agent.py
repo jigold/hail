@@ -102,6 +102,7 @@ class Container:
             await self._container.stop()
             await self._container.delete()
 
+    @property
     def status(self):
         return self._container._container
 
@@ -111,32 +112,31 @@ class Container:
 
     def to_dict(self):
         assert self._container is not None
-        status = self._container._container
 
         state = {}
-        if status['State']['Status'] == 'created':
+        if self.status['State']['Status'] == 'created':
             state['waiting'] = {}
-        elif status['State']['Status'] == 'running':
+        elif self.status['State']['Status'] == 'running':
             state['running'] = {
-                'started_at': status['State']['StartedAt']
+                'started_at': self.status['State']['StartedAt']
             }
-        elif status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead
+        elif self.status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead
             state['terminated'] = {
-                'exitCode': status['State']['ExitCode'],
-                'finishedAt': status['State']['FinishedAt'],
-                'message': status['State']['Error'],
-                'startedAt': status['State']['StartedAt']
+                'exitCode': self.status['State']['ExitCode'],
+                'finishedAt': self.status['State']['FinishedAt'],
+                'message': self.status['State']['Error'],
+                'startedAt': self.status['State']['StartedAt']
             }
         else:
-            raise Exception(f'unknown docker state {status["State"]["Status"]}')
+            raise Exception(f'unknown docker state {self.status["State"]["Status"]}')
 
         return {
-            'containerID': f'docker://{status["Id"]}',
+            'containerID': f'docker://{self.status["Id"]}',
             'image': self.spec['image'],
-            'imageID': status['Image'],
+            'imageID': self.status['Image'],
             'name': self.name,
             'ready': False,
-            'restartCount': status['RestartCount'],
+            'restartCount': self.status['RestartCount'],
             'state': state
         }
 
@@ -173,10 +173,8 @@ class BatchPod:
 
         secrets = self._create_secrets()
 
-        print(f'running pod {self.name}')
         for cname, container in self.containers.items():
             await container.create(secrets)
-            print(f'created container {cname} for pod {self.name}')
 
         self.phase = 'Running'
 
@@ -203,9 +201,9 @@ class BatchPod:
         c = self.containers[container_name]
         return await c.log()
 
-    async def container_status(self, container_name):
+    def container_status(self, container_name):
         c = self.containers[container_name]
-        return await c.status()
+        return c.status
 
     def to_dict(self):
         if self.phase == 'Pending':
@@ -217,6 +215,7 @@ class BatchPod:
             'metadata': self.metadata,
             'status': {
                 'containerStatuses': container_statuses,
+                # 'hostIP': None,
                 'phase': self.phase
                 # 'startTime': None
             }
@@ -251,6 +250,22 @@ async def get_container_log(request):
     if container_name not in bp.containers:
         abort(404, 'unknown container name')
     result = await bp.log(container_name)
+
+    return jsonify(result)
+
+
+@routes.post('/api/v1alpha/pods/{pod_name}/containers/{container_name}/status')
+async def get_container_status(request):
+    pod_name = request.match_info['pod_name']
+    container_name = request.match_info['container_name']
+
+    if pod_name not in batch_pods:
+        abort(404, 'unknown pod name')
+    bp = batch_pods[pod_name]
+
+    if container_name not in bp.containers:
+        abort(404, 'unknown container name')
+    result = bp.container_status(container_name)
 
     return jsonify(result)
 

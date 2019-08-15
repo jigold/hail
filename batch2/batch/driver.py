@@ -72,9 +72,9 @@ class Driver:
         except Exception as err:
             return None, err
 
-    async def read_pod_status(self, name):
+    async def read_container_status(self, name, container):
         try:
-            result = await self._get(f'/api/v1alpha/pods/{name}')
+            result = await self._get(f'/api/v1alpha/pods/{name}/containers/{container}/status')
             return result, None
         except Exception as err:
             return None, err
