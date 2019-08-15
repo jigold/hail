@@ -65,8 +65,7 @@ class Container:
             'OpenStdin': False,
             'Binds': volume_mounts,
             'Cmd': command,
-            'Image': image,
-            'Name': self.id
+            'Image': image
             # 'Labels': self.spec['labels']
         }
 
