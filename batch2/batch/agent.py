@@ -130,7 +130,7 @@ class Container:
                 'imageID': 'unknown',
                 'name': self.name,
                 'ready': False,
-                'restartCount': self.status['RestartCount'],
+                'restartCount': 0,
                 'state': {'waiting': waiting_reason}
             }
 
