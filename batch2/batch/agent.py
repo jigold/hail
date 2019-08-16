@@ -79,11 +79,12 @@ class Container:
                 except DockerError as err:
                     if err.status == 404:
                         self.image_pull_backoff = err.message
-                        return
+                        return False
             else:
                 raise err
 
         self._container = await docker.containers.get(self._container._id)
+        return True
 
     async def run(self, log_directory):
         assert self.image_pull_backoff is None
@@ -244,7 +245,8 @@ class BatchPod:
     async def _create(self):
         print(f'creating pod {self.name}')
         self.volumes = await self._create_volumes()
-        await asyncio.gather(*[container.create(self.volumes) for container in self.containers.values()])
+        created = await asyncio.gather(*[container.create(self.volumes) for container in self.containers.values()])
+        return all(created)
 
     async def _cleanup(self):
         print(f'cleaning up pod {self.name}')
@@ -254,14 +256,10 @@ class BatchPod:
     async def run(self, semaphore=None):
         create_task = None
         try:
-            try:
-                create_task = asyncio.ensure_future(self._create())
-                await asyncio.shield(create_task)
-            except DockerError as err:
-                if err.status == 404:
-                    self.phase = 'Failed'
-                    await asyncio.shield(self._cleanup())
-                    return
+            create_task = asyncio.ensure_future(self._create())
+            created = await asyncio.shield(create_task)
+            if not created:
+                return
 
             self.phase = 'Running'
 
