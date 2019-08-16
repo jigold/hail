@@ -1084,6 +1084,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
         return
 
     if pod and pod.status and pod.status.phase == 'Pending':
+        print(pod.status)
         def image_pull_back_off_reason(container_status):
             if (container_status.state and
                     container_status.state.waiting and
@@ -1100,7 +1101,8 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
             maybe_reason = image_pull_back_off_reason(container_status)
             if maybe_reason:
                 image_pull_back_off_reasons.append(maybe_reason)
-        if image_pull_back_off_reasons:
+        print(image_pull_back_off_reasons)
+        if image_pull_back_off_reasons:            
             await job.mark_complete(pod=pod,
                                     failed=True,
                                     failure_reason="\n".join(image_pull_back_off_reasons))
