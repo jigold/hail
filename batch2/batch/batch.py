@@ -1084,7 +1084,6 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
         return
 
     if pod and pod.status and pod.status.phase == 'Pending':
-        log.info(pod.status)
         def image_pull_back_off_reason(container_status):
             if (container_status.state and
                     container_status.state.waiting and
@@ -1101,7 +1100,6 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
             maybe_reason = image_pull_back_off_reason(container_status)
             if maybe_reason:
                 image_pull_back_off_reasons.append(maybe_reason)
-        log.info(image_pull_back_off_reasons)
         if image_pull_back_off_reasons:
             await job.mark_complete(pod=pod,
                                     failed=True,
@@ -1165,50 +1163,10 @@ async def pod_changed(pod):
 #         except Exception as exc:  # pylint: disable=W0703
 #             log.exception(f'k8s event stream failed due to: {exc}')
 #         await asyncio.sleep(5)
-#
-#
-# async def refresh_k8s_pods():
-#     log.info(f'refreshing k8s pods')
-#
-#     # if we do this after we get pods, we will pick up jobs created
-#     # while listing pods and unnecessarily restart them
-#     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
-#
-#     pods, err = await app['k8s'].list_pods(
-#         label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
-#     if err is not None:
-#         traceback.print_tb(err.__traceback__)
-#         log.info(f'could not refresh pods due to {err}, will try again later')
-#         return
-#
-#     log.info(f'k8s had {len(pods.items)} pods')
-#
-#     seen_pods = set()
-#
-#     async def see_pod(pod):
-#         pod_name = pod.metadata.name
-#         seen_pods.add(pod_name)
-#         await pod_changed(pod)
-#     asyncio.gather(*[see_pod(pod) for pod in pods.items])
-#
-#     if app['pod_throttler'].full():
-#         log.info(f'pod creation queue is full; skipping restarting jobs not seen in k8s')
-#         return
-#
-#     log.info('restarting running jobs with pods not seen in k8s')
-#
-#     async def restart_job(job):
-#         log.info(f'restarting job {job.id}')
-#         await update_job_with_pod(job, None)
-#     asyncio.gather(*[restart_job(job)
-#                      for job in pod_jobs
-#                      if job._pod_name not in seen_pods])
-#
-#
-# async def refresh_k8s_state():  # pylint: disable=W0613
-#     log.info('started k8s state refresh')
-#     await refresh_k8s_pods()
-#     log.info('k8s state refresh complete')
+
+
+async def driver_event_loop():
+    pass
 
 
 async def refresh_pods():
@@ -1228,7 +1186,6 @@ async def refresh_pods():
 
     seen_pods = set()
     for pod in pods:
-        log.info(pod)
         pod_name = pod.metadata.name
         seen_pods.add(pod_name)
         asyncio.ensure_future(pod_changed(pod))
@@ -1241,26 +1198,6 @@ async def refresh_pods():
     asyncio.gather(*[restart_job(job)
                      for job in pod_jobs
                      if job._pod_name not in seen_pods])
-
-#
-# async def refresh_batch_state():  # pylint: disable=W0613
-#     log.info('started batch state refresh')
-#     await refresh_pods()
-#     log.info('batch state refresh complete')
-
-
-# async def refresh_batch_pods():
-#     log.info('refreshing batch pods')
-#
-#     # if we do this after we get pods, we will pick up jobs created
-#     # while listing pods and unnecessarily restart them
-#     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
-#
-#     pods = await app['driver'].list_pods()
-#     for pod in pods:
-#         log.info(pod.status.container_statuses)
-#
-#     log.info(pods)
 
 
 async def polling_event_loop():
@@ -1297,13 +1234,12 @@ app.router.add_get("/metrics", server_stats)
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
-    # app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
     app['driver'] = Driver(v1)
     app['log_store'] = LogStore(pool, INSTANCE_ID)
 
     asyncio.ensure_future(polling_event_loop())
-    # asyncio.ensure_future(kube_event_loop())
-    # asyncio.ensure_future(db_cleanup_event_loop())
+    # asyncio.ensure_future(batch_event_loop())
+    asyncio.ensure_future(db_cleanup_event_loop())
 
 
 app.on_startup.append(on_startup)
