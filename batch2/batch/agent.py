@@ -179,16 +179,20 @@ class Volume:
 
 class Secret(Volume):
     @staticmethod
-    async def create(name, path, secret_data):
+    async def create(name, file_path, secret_data):
         assert secret_data is not None
         for file_name, data in secret_data.items():
-            with open(f'{path}/{file_name}', 'w') as f:
+            with open(f'{file_path}/{file_name}', 'w') as f:
                 f.write(base64.b64decode(data).decode())
-        return Secret(name, path)
+        return Secret(name, file_path)
 
-    def __init__(self, name, path):
+    def __init__(self, name, file_path):
         self.name = name
-        self.path = path
+        self.file_path = file_path
+
+    @property
+    def path(self):
+        return self.file_path
 
     async def delete(self):
         shutil.rmtree(self.path, ignore_errors=True)

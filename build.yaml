@@ -635,7 +635,7 @@ steps:
    script: |
      set -e
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
-     gcloud compute ssh --zone us-central1-a root@batch-agent-9 --command 'docker stop $(docker ps -a -q); docker rm $(docker ps -a -q); docker run -d -v /var/run/docker.sock:/var/run/docker.sock -v /batch:/batch -v /usr/bin/docker:/usr/bin/docker -p 5000:5000 --entrypoint "/bin/bash" {{batch2_image.image}} -c "python3 -m "batch.agent""'
+     gcloud compute ssh --zone us-central1-a root@batch-agent-9 --command 'export PYTHONUNBUFFERED=1; docker stop $(docker ps -a -q); docker rm $(docker ps -a -q); docker run -d -v /var/run/docker.sock:/var/run/docker.sock -v /batch:/batch -v /usr/bin/docker:/usr/bin/docker -p 5000:5000 --entrypoint "/bin/bash" {{batch2_image.image}} -c "python3 -m "batch.agent""'
    secrets:
     - name: test-gsa-key
       mountPath: /test-gsa-key
