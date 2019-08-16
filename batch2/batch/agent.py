@@ -40,7 +40,6 @@ class Container:
         self.spec = spec
         self.cores = 1
         self.exit_code = None
-        self.started = False
         self.id = pod.name + '-' + self.name
 
     async def create(self, volumes):
@@ -70,57 +69,34 @@ class Container:
         }
 
         try:
-            start = time.time()
             self._container = await docker.containers.create(config, name=self.id)
-            print(f'took {time.time() - start} seconds to create container {self.id}')
         except DockerError as err:
             if err.status == 404:
                 try:
-                    start = time.time()
                     await docker.pull(config['Image'])  # FIXME: if image not able to be pulled make ImagePullBackOff
-                    print(f'took {time.time() - start} seconds to pull image {image} for {self.id}')
-
-                    start = time.time()
                     self._container = await docker.containers.create(config)
-                    print(f'took {time.time() - start} seconds to create container for {self.id}')
                 except DockerError as err:
                     raise err
             else:
                 raise err
 
-        start = time.time()
         self._container = await docker.containers.get(self._container._id)
-        print(f'took {time.time() - start} seconds to get container for {self.id}')
 
     async def run(self, log_directory):
-        start = time.time()
-
-        start2 = time.time()
         await self._container.start()
-        print(f'took {time.time() - start2} seconds to start container for {self.id}')
-
-        self.started = True
-        start2 = time.time()
         await self._container.wait()
-        print(f'took {time.time() - start2} seconds to wait on container for {self.id}')
         self._container = await docker.containers.get(self._container._id)
         self.exit_code = self._container['State']['ExitCode']
 
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
 
-        start2 = time.time()
         upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')  # WHY did this work without permissions?
         upload_status = check_shell(f'docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
         await asyncio.gather(upload_log, upload_status)
-        print(f'took {time.time() - start2} seconds to upload to gcs for {self.id}')
-
-        print(f'took {time.time() - start} seconds to run container for {self.id}')
 
     async def delete(self):
-        print(f'deleting container {self.id}')
         if self._container is not None:
-            print(f'container is not None -- deleting')
             await self._container.stop()
             await self._container.delete()
 
