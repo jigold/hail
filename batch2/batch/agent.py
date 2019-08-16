@@ -4,6 +4,7 @@ import time
 import random
 import logging
 import asyncio
+import json
 import aiohttp
 import base64
 import uuid
@@ -247,7 +248,6 @@ class BatchPod:
 
     async def _create_volumes(self):
         print(f'creating volumes for pod {self.name}')
-        print(f'volume_spec = {self.spec["volumes"]}')
         volumes = {}
         for volume_spec in self.spec['volumes']:
             name = volume_spec['name']
@@ -268,7 +268,7 @@ class BatchPod:
         return volumes
 
     def __init__(self, parameters):
-        print(parameters['spec'])
+        print(json.dumps(parameters['spec'], indent=4))
         self.spec = parameters['spec']
         self.secrets_data = parameters['secrets']
         # self.secrets = self._create_secrets(parameters['secrets'])
@@ -278,7 +278,7 @@ class BatchPod:
         self.metadata = self.spec['metadata']
         self.name = self.metadata['name']
         self.token = uuid.uuid4().hex
-        self.volumes = None
+        self.volumes = {}
 
         self.containers = {cspec['name']: Container(cspec, self) for cspec in self.spec['spec']['containers']}
         self.phase = 'Pending'
