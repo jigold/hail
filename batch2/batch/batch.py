@@ -1165,10 +1165,6 @@ async def pod_changed(pod):
 #         await asyncio.sleep(5)
 
 
-async def driver_event_loop():
-    pass
-
-
 async def refresh_pods():
     log.info(f'refreshing pods')
 
@@ -1204,7 +1200,6 @@ async def polling_event_loop():
     await asyncio.sleep(1)
     while True:
         try:
-            # await refresh_batch_pods()
             await refresh_pods()
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'Could not poll due to exception: {exc}')
@@ -1238,7 +1233,7 @@ async def on_startup(app):
     app['log_store'] = LogStore(pool, INSTANCE_ID)
 
     asyncio.ensure_future(polling_event_loop())
-    # asyncio.ensure_future(batch_event_loop())
+    # asyncio.ensure_future(kube_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
 
 

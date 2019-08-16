@@ -141,7 +141,7 @@ class Container:
             state['running'] = {
                 'started_at': self.status['State']['StartedAt']
             }
-        elif self.status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead
+        elif self.status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead and oomed
             state['terminated'] = {
                 'exitCode': self.status['State']['ExitCode'],
                 'finishedAt': self.status['State']['FinishedAt'],
