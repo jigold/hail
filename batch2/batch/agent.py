@@ -1,4 +1,5 @@
 import abc
+import os
 from shlex import quote as shq
 import time
 import random
@@ -184,6 +185,7 @@ class Secret(Volume):
     @staticmethod
     async def create(name, file_path, secret_data):
         assert secret_data is not None
+        os.makedirs(file_path)
         for file_name, data in secret_data.items():
             with open(f'{file_path}/{file_name}', 'w') as f:
                 f.write(base64.b64decode(data).decode())
