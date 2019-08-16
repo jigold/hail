@@ -41,6 +41,7 @@ class Container:
         self.cores = 1
         self.exit_code = None
         self.id = pod.name + '-' + self.name
+        self.image_pull_backoff = None
 
     async def create(self, volumes):
         print(f'creating container {self.id}')
@@ -73,16 +74,20 @@ class Container:
         except DockerError as err:
             if err.status == 404:
                 try:
-                    await docker.pull(config['Image'])  # FIXME: if image not able to be pulled make ImagePullBackOff
+                    await docker.pull(config['Image'])
                     self._container = await docker.containers.create(config)
                 except DockerError as err:
-                    raise err
+                    if err.status == 404:
+                        self.image_pull_backoff = err.message
+                        return
             else:
                 raise err
 
         self._container = await docker.containers.get(self._container._id)
 
     async def run(self, log_directory):
+        assert self.image_pull_backoff is None
+
         await self._container.start()
         await self._container.wait()
         self._container = await docker.containers.get(self._container._id)
@@ -102,7 +107,8 @@ class Container:
 
     @property
     def status(self):
-        return self._container._container
+        if self._container is not None:
+            return self._container._container
 
     async def log(self):
         logs = await self._container.log(stderr=True, stdout=True)
@@ -112,7 +118,12 @@ class Container:
         assert self._container is not None
 
         state = {}
-        if self.status['State']['Status'] == 'created':
+        if self.image_pull_backoff is not None:
+            state['waiting'] = {
+                'reason': 'ImagePullBackOff',
+                'message': self.image_pull_backoff
+            }
+        elif self.status['State']['Status'] == 'created':
             state['waiting'] = {}
         elif self.status['State']['Status'] == 'running':
             state['running'] = {
@@ -243,8 +254,14 @@ class BatchPod:
     async def run(self, semaphore=None):
         create_task = None
         try:
-            create_task = asyncio.ensure_future(self._create())
-            await asyncio.shield(create_task)
+            try:
+                create_task = asyncio.ensure_future(self._create())
+                await asyncio.shield(create_task)
+            except DockerError as err:
+                if err.status == 404:
+                    self.phase = 'Failed'
+                    await asyncio.shield(self._cleanup())
+                    return
 
             self.phase = 'Running'
 
