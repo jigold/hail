@@ -203,7 +203,7 @@ class EmptyDir(Volume):
     @staticmethod
     async def create(name, size=None):
         config = {
-            'name': name  # FIXME: add size
+            'Name': name  # FIXME: add size
         }
         volume = await docker.volumes.create(config)
         return EmptyDir(name, volume)
@@ -262,7 +262,7 @@ class BatchPod:
     async def _cleanup(self):
         print(f'cleaning up pod {self.name}')
         await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
-        await asyncio.gather(*[volume.delete() for volume in self.volumes])
+        await asyncio.gather(*[v.delete() for _, v in self.volumes.items()])
 
     async def run(self, semaphore=None):
         create_task = None
