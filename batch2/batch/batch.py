@@ -159,7 +159,7 @@ class Job:
         volume_mounts = [
             kube.client.V1VolumeMount(
                 mount_path='/gsa-key',
-                name='gsa-key')]
+                name='gsa-key')]  # FIXME: this shouldn't be mounted to every container
 
         if self._pvc_name is not None:
             volumes.append(kube.client.V1Volume(
@@ -171,6 +171,7 @@ class Job:
                 name=self._pvc_name))
 
         pod_spec = v1.api_client._ApiClient__deserialize(self._pod_spec, kube.client.V1PodSpec)
+        pod_spec.containers = [input_container, pod_spec.containers[0], output_container]
 
         if pod_spec.volumes is None:
             pod_spec.volumes = []
@@ -180,8 +181,6 @@ class Job:
             if container.volume_mounts is None:
                 container.volume_mounts = []
             container.volume_mounts.extend(volume_mounts)
-
-        pod_spec.containers = [input_container, pod_spec.containers[0], output_container]
 
         pod_template = kube.client.V1Pod(
             metadata=kube.client.V1ObjectMeta(
@@ -196,11 +195,10 @@ class Job:
 
         secrets = {}
         for volume in pod_template.spec.volumes:
-            volume_name = volume.name
             if volume.secret is not None:
                 secret_name = volume.secret.secret_name
                 secret = v1.read_namespaced_secret(secret_name, BATCH_NAMESPACE)
-                secrets[volume_name] = secret.data
+                secrets[secret_name] = secret.data
 
         err = await app['driver'].create_pod(spec=pod_template.to_dict(),
                                              secrets=secrets,

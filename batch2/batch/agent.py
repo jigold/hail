@@ -1,4 +1,4 @@
-import os
+import abc
 from shlex import quote as shq
 import time
 import random
@@ -43,7 +43,7 @@ class Container:
         self.started = False
         self.id = pod.name + '-' + self.name
 
-    async def create(self, secret_paths):
+    async def create(self, volumes):
         image = self.spec['image']
         command = self.spec['command']
 
@@ -51,11 +51,11 @@ class Container:
         for mount in self.spec['volume_mounts']:
             mount_name = mount['name']
             mount_path = mount['mount_path']
-            if mount_name in secret_paths:
-                secret_path = secret_paths[mount_name]
-                volume_mounts.append(f'{secret_path}:{mount_path}')
+            if mount_name in volumes:
+                volume_path = volumes[mount_name].path
+                volume_mounts.append(f'{volume_path}:{mount_path}')
             else:
-                raise Exception(f'unknown secret {mount_name} specified in volume_mounts')
+                raise Exception(f'unknown volume {mount_name} specified in volume_mounts')
 
         config = {
             "AttachStdin": False,
@@ -162,50 +162,123 @@ class Container:
         }
 
 
+class Volume:
+    @staticmethod
+    @abc.abstractmethod
+    def create(*args):
+        return
+
+    @abc.abstractmethod
+    def path(self):
+        return
+
+    @abc.abstractmethod
+    def delete(self):
+        return
+
+
+class Secret(Volume):
+    @staticmethod
+    async def create(name, path, secret_data):
+        assert secret_data is not None
+        for file_name, data in secret_data.items():
+            with open(f'{path}/{file_name}', 'w') as f:
+                f.write(base64.b64decode(data).decode())
+        return Secret(name, path)
+
+    def __init__(self, name, path):
+        self.name = name
+        self.path = path
+
+    async def delete(self):
+        shutil.rmtree(self.path, ignore_errors=True)
+
+
+class EmptyDir(Volume):
+    @staticmethod
+    async def create(name, size=None):
+        config = {
+            'name': name  # FIXME: add size
+        }
+        volume = await docker.volumes.create(config)
+        return EmptyDir(name, volume)
+
+    def __init__(self, name, volume):
+        self.name = name
+        self.volume = volume
+
+    @property
+    def path(self):
+        return self.name
+
+    async def delete(self):
+        await self.volume.delete()
+
+
 class BatchPod:
-    def _create_secrets(self):
-        secret_paths = {}
-        for secret_name, secret in self.secrets.items():
-            path = f'/batch/pods/{self.name}/{self.token}/secrets/{secret_name}'
-            os.makedirs(path)
+    # def _create_secrets(self, secrets_data):
+    #     secrets = {}
+    #     for name, data in secrets_data.items():
+    #         path = f'/batch/pods/{self.name}/{self.token}/secrets/{name}'
+    #         secret = Secret.create(name, path, data)
+    #         secrets[name] = secret
+    #     return secrets
+    #
+    # def _cleanup_secrets(self):
+    #     for _, secret in self.secrets_data.items():
+    #         secret.delete()
+    #     self.secrets_data = {}
 
-            for file_name, data in secret.items():
-                with open(f'{path}/{file_name}', 'w') as f:
-                    f.write(base64.b64decode(data).decode())
-            secret_paths[secret_name] = path
-        return secret_paths
-
-    def _cleanup_secrets(self):
-        for name, path in self.secret_paths.items():
-            shutil.rmtree(path, ignore_errors=True)
-        self.secret_paths = {}
+    # async def _volume_from_empty_dir(self, volume_spec):
+    #     config = {
+    #         'name': volume_spec['name']  # FIXME add size
+    #     }
+    #     return await docker.volumes.create(config)
 
     async def _create_volumes(self):
-        pass
-
-    async def _cleanup_volumes(self):
-        pass
+        volumes = {}
+        for volume_spec in self.spec['volumes']:
+            name = volume_spec['name']
+            if volume_spec['empty_dir'] is not None:
+                volume = await EmptyDir.create(name)
+                volumes[name] = volume
+            elif volume_spec['secret'] is not None:
+                secret_name = volume_spec['secret']['secret_name']
+                path = f'/batch/pods/{self.name}/{self.token}/secrets/{secret_name}'
+                secret = Secret.create(name, path, self.secrets_data.get(secret_name))
+                volumes[name] = secret
+            else:
+                raise Exception(f'Unsupported volume type for {volume_spec}')
+        return volumes
 
     def __init__(self, parameters):
         print(parameters['spec'])
         self.spec = parameters['spec']
-        self.secrets = parameters['secrets']
-        self.secret_paths = {}
+        self.secrets_data = parameters['secrets']
+        # self.secrets = self._create_secrets(parameters['secrets'])
+        # self.empty_dir_volumes = []
         self.output_directory = parameters['output_directory']
 
         self.metadata = self.spec['metadata']
         self.name = self.metadata['name']
         self.token = uuid.uuid4().hex
+        self.volumes = None
 
         self.containers = {cspec['name']: Container(cspec, self) for cspec in self.spec['spec']['containers']}
-        self.volumes = []
         self.phase = 'Pending'
         self._run_task = asyncio.ensure_future(self.run())
 
     async def _create(self):
-        self.secret_paths = self._create_secrets()
-        await self._create_volumes()
-        await asyncio.gather(*[container.create(self.secret_paths) for container in self.containers.values()])
+        self.volumes = await self._create_volumes()
+        await asyncio.gather(*[container.create(self.volumes) for container in self.containers.values()])
+
+    async def _cleanup(self):
+        print(f'cleaning up pod {self.name}')
+        await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
+        # self._cleanup_secrets()
+        await asyncio.gather(*[volume.delete() for volume in self.volumes])
+        # await self._cleanup_volumes()
+        # await self.volume.delete()
 
     async def run(self, semaphore=None):
         create_task = None
@@ -235,20 +308,13 @@ class BatchPod:
                 await create_task
             raise
 
-    async def cleanup(self):
-        print(f'cleaning up pod {self.name}')
-        await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
-        self._cleanup_secrets()
-        # await self._cleanup_volumes()
-        # await self.volume.delete()
-
     async def delete(self):
         print(f'deleting pod {self.name}')
         self._run_task.cancel()
         try:
             await self._run_task
         finally:
-            await asyncio.shield(self.cleanup())
+            await asyncio.shield(self._cleanup())
 
     async def log(self, container_name):
         c = self.containers[container_name]
