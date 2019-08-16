@@ -45,8 +45,16 @@ class Container:
 
     async def create(self, volumes):
         print(f'creating container {self.id}')
-        image = self.spec['image']
-        command = self.spec['command']
+
+        config = {
+            "AttachStdin": False,
+            "AttachStdout": False,
+            "AttachStderr": False,
+            "Tty": False,
+            'OpenStdin': False,
+            'Cmd': self.spec['command'],
+            'Image': self.spec['image']
+        }
 
         volume_mounts = []
         for mount in self.spec['volume_mounts']:
@@ -58,16 +66,8 @@ class Container:
             else:
                 raise Exception(f'unknown volume {mount_name} specified in volume_mounts')
 
-        config = {
-            "AttachStdin": False,
-            "AttachStdout": False,
-            "AttachStderr": False,
-            "Tty": False,
-            'OpenStdin': False,
-            'Binds': volume_mounts,
-            'Cmd': command,
-            'Image': image
-        }
+        if volume_mounts:
+            config['Binds'] = volume_mounts
 
         try:
             self._container = await docker.containers.create(config, name=self.id)
