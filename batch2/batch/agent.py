@@ -249,7 +249,7 @@ class BatchPod:
     async def _create_volumes(self):
         print(f'creating volumes for pod {self.name}')
         volumes = {}
-        for volume_spec in self.spec['volumes']:
+        for volume_spec in self.spec['spec']['volumes']:
             name = volume_spec['name']
             print(f'name={name}')
             if volume_spec['empty_dir'] is not None:
