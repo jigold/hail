@@ -116,15 +116,26 @@ class Container:
         return "".join(logs)
 
     def to_dict(self):
-        assert self._container is not None
+        if self._container is None:
+            if self.image_pull_backoff is not None:
+                waiting_reason = {
+                    'reason': 'ImagePullBackOff',
+                    'message': self.image_pull_backoff
+                }
+            else:
+                waiting_reason = {}
+
+            return {
+                'image': self.spec['image'],
+                'imageID': 'unknown',
+                'name': self.name,
+                'ready': False,
+                'restartCount': self.status['RestartCount'],
+                'state': {'waiting': waiting_reason}
+            }
 
         state = {}
-        if self.image_pull_backoff is not None:
-            state['waiting'] = {
-                'reason': 'ImagePullBackOff',
-                'message': self.image_pull_backoff
-            }
-        elif self.status['State']['Status'] == 'created':
+        if self.status['State']['Status'] == 'created':
             state['waiting'] = {}
         elif self.status['State']['Status'] == 'running':
             state['running'] = {
@@ -300,15 +311,10 @@ class BatchPod:
         return c.status
 
     def to_dict(self):
-        if self.phase == 'Pending':
-            container_statuses = None
-        else:
-            container_statuses = [c.to_dict() for _, c in self.containers.items()]
-
         return {
             'metadata': self.metadata,
             'status': {
-                'containerStatuses': container_statuses,
+                'containerStatuses': [c.to_dict() for _, c in self.containers.items()],
                 # 'hostIP': None,
                 'phase': self.phase
                 # 'startTime': None
