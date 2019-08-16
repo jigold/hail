@@ -44,6 +44,8 @@ class Container:
         self.id = pod.name + '-' + self.name
 
     async def create(self, volumes):
+        print(f'creating container {self.id}')
+        
         image = self.spec['image']
         command = self.spec['command']
 
@@ -187,6 +189,7 @@ class Secret(Volume):
         return Secret(name, file_path)
 
     def __init__(self, name, file_path):
+        print(f'created secret {name} with file path {file_path}')
         self.name = name
         self.file_path = file_path
 
@@ -201,6 +204,7 @@ class Secret(Volume):
 class EmptyDir(Volume):
     @staticmethod
     async def create(name, size=None):
+        print(f'creating empty dir volume {name}')
         config = {
             'name': name  # FIXME: add size
         }
@@ -208,6 +212,7 @@ class EmptyDir(Volume):
         return EmptyDir(name, volume)
 
     def __init__(self, name, volume):
+        print(f'created empty dir volume {name}')
         self.name = name
         self.volume = volume
 
@@ -240,9 +245,11 @@ class BatchPod:
     #     return await docker.volumes.create(config)
 
     async def _create_volumes(self):
+        print(f'creating volumes for pod {self.name}')
         volumes = {}
         for volume_spec in self.spec['volumes']:
             name = volume_spec['name']
+            print(f'name={name}')
             if volume_spec['empty_dir'] is not None:
                 volume = await EmptyDir.create(name)
                 volumes[name] = volume
@@ -273,6 +280,7 @@ class BatchPod:
         self._run_task = asyncio.ensure_future(self.run())
 
     async def _create(self):
+        print(f'creating pod {self.name}')
         self.volumes = await self._create_volumes()
         await asyncio.gather(*[container.create(self.volumes) for container in self.containers.values()])
 
