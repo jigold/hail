@@ -47,7 +47,6 @@ class Container:
 
     async def create(self, volumes):
         print(f'creating container {self.id}')
-
         image = self.spec['image']
         command = self.spec['command']
 
@@ -192,7 +191,6 @@ class Secret(Volume):
         return Secret(name, file_path)
 
     def __init__(self, name, file_path):
-        print(f'created secret {name} with file path {file_path}')
         self.name = name
         self.file_path = file_path
 
@@ -207,16 +205,13 @@ class Secret(Volume):
 class EmptyDir(Volume):
     @staticmethod
     async def create(name, size=None):
-        print(f'creating empty dir volume {name}')
         config = {
             'name': name  # FIXME: add size
         }
         volume = await docker.volumes.create(config)
-        print(f'created docker volume')
         return EmptyDir(name, volume)
 
     def __init__(self, name, volume):
-        print(f'created empty dir volume {name}')
         self.name = name
         self.volume = volume
 
@@ -229,52 +224,27 @@ class EmptyDir(Volume):
 
 
 class BatchPod:
-    # def _create_secrets(self, secrets_data):
-    #     secrets = {}
-    #     for name, data in secrets_data.items():
-    #         path = f'/batch/pods/{self.name}/{self.token}/secrets/{name}'
-    #         secret = Secret.create(name, path, data)
-    #         secrets[name] = secret
-    #     return secrets
-    #
-    # def _cleanup_secrets(self):
-    #     for _, secret in self.secrets_data.items():
-    #         secret.delete()
-    #     self.secrets_data = {}
-
-    # async def _volume_from_empty_dir(self, volume_spec):
-    #     config = {
-    #         'name': volume_spec['name']  # FIXME add size
-    #     }
-    #     return await docker.volumes.create(config)
-
     async def _create_volumes(self):
         print(f'creating volumes for pod {self.name}')
         volumes = {}
         for volume_spec in self.spec['spec']['volumes']:
             name = volume_spec['name']
-            print(f'name={name}')
             if volume_spec['empty_dir'] is not None:
-                print(f'creating empty dir')
                 volume = await EmptyDir.create(name)
                 volumes[name] = volume
             elif volume_spec['secret'] is not None:
-                print(f'creating secret...')
                 secret_name = volume_spec['secret']['secret_name']
                 path = f'/batch/pods/{self.name}/{self.token}/secrets/{secret_name}'
                 secret = await Secret.create(name, path, self.secrets_data.get(secret_name))
                 volumes[name] = secret
             else:
                 raise Exception(f'Unsupported volume type for {volume_spec}')
-        print("done creating volumes")
         return volumes
 
     def __init__(self, parameters):
-        print(json.dumps(parameters['spec'], indent=4))
+        # print(json.dumps(parameters['spec'], indent=4))
         self.spec = parameters['spec']
         self.secrets_data = parameters['secrets']
-        # self.secrets = self._create_secrets(parameters['secrets'])
-        # self.empty_dir_volumes = []
         self.output_directory = parameters['output_directory']
 
         self.metadata = self.spec['metadata']
@@ -289,17 +259,12 @@ class BatchPod:
     async def _create(self):
         print(f'creating pod {self.name}')
         self.volumes = await self._create_volumes()
-        print(f'created volumes')
         await asyncio.gather(*[container.create(self.volumes) for container in self.containers.values()])
-        print(f'created containers')
 
     async def _cleanup(self):
         print(f'cleaning up pod {self.name}')
         await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
-        # self._cleanup_secrets()
         await asyncio.gather(*[volume.delete() for volume in self.volumes])
-        # await self._cleanup_volumes()
-        # await self.volume.delete()
 
     async def run(self, semaphore=None):
         create_task = None
@@ -368,7 +333,6 @@ async def create_pod(request):
     try:
         bp = BatchPod(parameters)
         batch_pods[bp.name] = bp
-        # asyncio.ensure_future(bp.run())
     except DockerError as err:
         print(err)
         return web.Response(body=err.message, status=err.status)
