@@ -45,7 +45,7 @@ class Container:
 
     async def create(self, volumes):
         print(f'creating container {self.id}')
-        
+
         image = self.spec['image']
         command = self.spec['command']
 
@@ -209,6 +209,7 @@ class EmptyDir(Volume):
             'name': name  # FIXME: add size
         }
         volume = await docker.volumes.create(config)
+        print(f'created docker volume')
         return EmptyDir(name, volume)
 
     def __init__(self, name, volume):
@@ -246,20 +247,24 @@ class BatchPod:
 
     async def _create_volumes(self):
         print(f'creating volumes for pod {self.name}')
+        print(f'volume_spec = {self.spec["volumes"]}')
         volumes = {}
         for volume_spec in self.spec['volumes']:
             name = volume_spec['name']
             print(f'name={name}')
             if volume_spec['empty_dir'] is not None:
+                print(f'creating empty dir')
                 volume = await EmptyDir.create(name)
                 volumes[name] = volume
             elif volume_spec['secret'] is not None:
+                print(f'creating secret...')
                 secret_name = volume_spec['secret']['secret_name']
                 path = f'/batch/pods/{self.name}/{self.token}/secrets/{secret_name}'
                 secret = Secret.create(name, path, self.secrets_data.get(secret_name))
                 volumes[name] = secret
             else:
                 raise Exception(f'Unsupported volume type for {volume_spec}')
+        print("done creating volumes")
         return volumes
 
     def __init__(self, parameters):
@@ -282,7 +287,9 @@ class BatchPod:
     async def _create(self):
         print(f'creating pod {self.name}')
         self.volumes = await self._create_volumes()
+        print(f'created volumes')
         await asyncio.gather(*[container.create(self.volumes) for container in self.containers.values()])
+        print(f'created containers')
 
     async def _cleanup(self):
         print(f'cleaning up pod {self.name}')
