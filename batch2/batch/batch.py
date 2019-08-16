@@ -1084,7 +1084,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
         return
 
     if pod and pod.status and pod.status.phase == 'Pending':
-        print(pod.status)
+        log.info(pod.status)
         def image_pull_back_off_reason(container_status):
             if (container_status.state and
                     container_status.state.waiting and
@@ -1101,7 +1101,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
             maybe_reason = image_pull_back_off_reason(container_status)
             if maybe_reason:
                 image_pull_back_off_reasons.append(maybe_reason)
-        print(image_pull_back_off_reasons)
+        log.info(image_pull_back_off_reasons)
         if image_pull_back_off_reasons:
             await job.mark_complete(pod=pod,
                                     failed=True,
@@ -1120,7 +1120,6 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
         return
 
     if pod and pod.status and pod.status.phase in ('Succeeded', 'Failed'):
-        print(pod.status)
         log.info(f'job {job.id} mark complete')
         await job.mark_complete(pod)
         return
@@ -1229,6 +1228,7 @@ async def refresh_pods():
 
     seen_pods = set()
     for pod in pods:
+        log.info(pod)
         pod_name = pod.metadata.name
         seen_pods.add(pod_name)
         asyncio.ensure_future(pod_changed(pod))
