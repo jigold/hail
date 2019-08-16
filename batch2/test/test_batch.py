@@ -40,12 +40,12 @@ class Test(unittest.TestCase):
     def tearDown(self):
         self.client.close()
 
-    # def test_garbage_image(self):
-    #     builder = self.client.create_batch()
-    #     j = builder.create_job('dsafaaadsf', ['echo', 'test'])
-    #     builder.submit()
-    #     status = j.wait()
-    #     assert False
+    def test_garbage_image(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('dsafaaadsf', ['echo', 'test'])
+        builder.submit()
+        status = j.wait()
+        assert False
 
     # def test_job(self):
     #     builder = self.client.create_batch()
