@@ -260,7 +260,7 @@ class BatchPod:
                 print(f'creating secret...')
                 secret_name = volume_spec['secret']['secret_name']
                 path = f'/batch/pods/{self.name}/{self.token}/secrets/{secret_name}'
-                secret = Secret.create(name, path, self.secrets_data.get(secret_name))
+                secret = await Secret.create(name, path, self.secrets_data.get(secret_name))
                 volumes[name] = secret
             else:
                 raise Exception(f'Unsupported volume type for {volume_spec}')
