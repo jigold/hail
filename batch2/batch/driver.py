@@ -117,8 +117,9 @@ class Pod:
 
     async def delete(self):
         if self.instance is None:
-            # take this pod off of the queue
             return
+        # need to make request
+        self.instance.unschedule(self)
 
     async def status(self):
         if self.instance is None:
@@ -187,8 +188,14 @@ class Driver:
             pod = await self.ready_queue.get()
             instance = random.sample(self.instance_pool.instances)
             await instance.schedule(pod)
+            await pod.create()
 
     async def run(self):
+        runner = web.AppRunner(self.app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', 5001)
+        await site.start()
+
         asyncio.ensure_future(self.instance_pool.run())
         asyncio.ensure_future(self.schedule())
 
