@@ -12,6 +12,7 @@ import kubernetes as kube
 
 from .batch_configuration import PROJECT, ZONE, INSTANCE_ID, BATCH_NAMESPACE, BATCH_IMAGE
 from .utils import new_token
+from .google_compute import GServices
 
 log = logging.getLogger('driver')
 
@@ -142,9 +143,9 @@ class Driver:
         self.event_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue()
         self.changed = asyncio.Event()
-        self.instance_pool = InstancePool(self)
 
-        self.gservices = GServices()
+        self.instance_pool = InstancePool(self)
+        self.gservices = GServices(self.instance_pool.machine_name_prefix)
 
         self.app = web.Application()
         self.app.add_routes([
@@ -355,6 +356,7 @@ class Instance:
     def schedule(self, pod):
         self.pods.add(pod)
         pod.instance = self
+        log.info(f'scheduling pod {pod} to instance {self.machine_name}')
         # self.cores -= pod.cores
 
     def unschedule(self, pod):
@@ -363,6 +365,7 @@ class Instance:
 
         self.pods.remove(pod)
         # self.cores += pod.cores
+        log.info(f'unscheduling pod {pod} from instance {self.machine_name}')
 
     def __str__(self):
         return self.machine_name
