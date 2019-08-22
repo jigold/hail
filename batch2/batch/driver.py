@@ -187,8 +187,9 @@ class Driver:
         while True:
             pod = await self.ready_queue.get()
             instance = random.sample(self.instance_pool.instances)
-            await instance.schedule(pod)
-            await pod.create()
+            if instance:
+                await instance.schedule(pod)
+                await pod.create()
 
     async def run(self):
         runner = web.AppRunner(self.app)
@@ -201,7 +202,7 @@ class Driver:
 
 
 class InstancePool:
-    def __init__(self, pool_size=2):
+    def __init__(self, pool_size=1):
         self.instances = sortedcontainers.SortedSet()
         self.pool_size = pool_size
 
@@ -229,5 +230,8 @@ class Instance:
         # self.cores -= pod.cores
 
     def unschedule(self, pod):
-        assert pod in self.pods
+        if pod not in self.pods:
+            return
+
         self.pods.remove(pod)
+        # self.cores += pod.cores
