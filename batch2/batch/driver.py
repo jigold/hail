@@ -234,8 +234,7 @@ class InstancePool:
         self.pool_size = pool_size
         self.token_inst = {}
 
-    def machine_name(self):
-        return self.inst_pool.token_machine_name(self.token)
+
 
     async def create_instance(self):
         while True:
@@ -340,9 +339,12 @@ class InstancePool:
 
 
 class Instance:
-    def __init__(self, name, hostname, cores):
-        self.name = name
-        self.hostname = hostname
+    def __init__(self, instance_pool, machine_name, cores):
+        self.instance_pool = instance_pool
+        self.machine_name = machine_name
+        self.token = token
+        # self.name = name
+        # self.hostname = hostname
         # self.cores = cores
         self.pods = sortedcontainers.SortedSet()
 

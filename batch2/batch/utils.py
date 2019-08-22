@@ -1,5 +1,6 @@
 import asyncio
 from aiohttp import web
+import secrets
 
 
 def abort(code, reason=None):
@@ -12,6 +13,10 @@ def abort(code, reason=None):
 
 def jsonify(data):
     return web.json_response(data)
+
+
+def new_token(n=5):
+    return ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(n)])
 
 
 class CalledProcessError(Exception):
