@@ -1223,10 +1223,12 @@ app.router.add_get("/metrics", server_stats)
 
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
+    driver = Driver()
     app['blocking_pool'] = pool
-    app['driver'] = Driver(v1)
+    app['driver'] = driver
     app['log_store'] = LogStore(pool, INSTANCE_ID)
 
+    asyncio.ensure_future(driver.run())
     asyncio.ensure_future(polling_event_loop())
     # asyncio.ensure_future(kube_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())

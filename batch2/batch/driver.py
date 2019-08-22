@@ -11,6 +11,7 @@ from aiohttp import web
 import kubernetes as kube
 
 from .batch_configuration import PROJECT, ZONE, INSTANCE_ID, BATCH_NAMESPACE, BATCH_IMAGE
+from .utils import new_token
 
 log = logging.getLogger('driver')
 
@@ -141,7 +142,9 @@ class Driver:
         self.event_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue()
         self.changed = asyncio.Event()
-        self.instance_pool = InstancePool()
+        self.instance_pool = InstancePool(self)
+
+        self.gservices = GServices()
 
         self.app = web.Application()
         self.app.add_routes([
@@ -202,7 +205,7 @@ class Driver:
             site = web.TCPSite(app_runner, '0.0.0.0', 5001)
             await site.start()
 
-            await self.instance_pool.start()
+            asyncio.ensure_future(self.instance_pool.start())
 
             # self.thread_pool = AsyncWorkerPool(100)
 
@@ -230,11 +233,14 @@ class InstancePool:
             m = 0.9
         self.worker_mem_per_core_in_gb = 0.9 * m
 
+        self.machine_name_prefix = f'batch2-agent-{BATCH_NAMESPACE}-{INSTANCE_ID}-'
+
         self.instances = sortedcontainers.SortedSet()
         self.pool_size = pool_size
         self.token_inst = {}
 
-
+    def token_machine_name(self, inst_token):
+        return f'{self.machine_name_prefix}{inst_token}'
 
     async def create_instance(self):
         while True:
@@ -319,22 +325,21 @@ class InstancePool:
             },
         }
 
-        await self.runner.gservices.create_instance(config)
+        await self.driver.gservices.create_instance(config)
         log.info(f'created machine {machine_name}')
 
-        inst = Instance(self, inst_token)
+        inst = Instance(self, machine_name, self.worker_cores)
         self.token_inst[inst_token] = inst
         self.instances.add(inst)
 
-        log.info(f'created {inst}')
+        log.info(f'created instance {inst}')
 
         return inst
 
     async def run(self):
         while True:
             while len(self.instances) < self.pool_size:
-                instance = await self.create_instance()
-                self.instances.add(instance)
+                await self.create_instance()
             await asyncio.sleep(15)
 
 
@@ -342,11 +347,10 @@ class Instance:
     def __init__(self, instance_pool, machine_name, cores):
         self.instance_pool = instance_pool
         self.machine_name = machine_name
-        self.token = token
         # self.name = name
         # self.hostname = hostname
-        # self.cores = cores
-        self.pods = sortedcontainers.SortedSet()
+        self.cores = cores
+        self.pods = set()  # sortedcontainers.SortedSet()
 
     def schedule(self, pod):
         self.pods.add(pod)
@@ -359,3 +363,6 @@ class Instance:
 
         self.pods.remove(pod)
         # self.cores += pod.cores
+
+    def __str__(self):
+        return self.machine_name
