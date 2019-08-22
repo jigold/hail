@@ -234,6 +234,9 @@ class InstancePool:
         self.pool_size = pool_size
         self.token_inst = {}
 
+    def machine_name(self):
+        return self.inst_pool.token_machine_name(self.token)
+
     async def create_instance(self):
         while True:
             inst_token = new_token()
