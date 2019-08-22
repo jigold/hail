@@ -10,7 +10,7 @@ import sortedcontainers
 from aiohttp import web
 import kubernetes as kube
 
-from .batch_configuration import PROJECT, ZONE, INSTANCE_ID, BATCH_NAMESPACE
+from .batch_configuration import PROJECT, ZONE, INSTANCE_ID, BATCH_NAMESPACE, BATCH_IMAGE
 
 log = logging.getLogger('driver')
 
@@ -215,9 +215,20 @@ class Driver:
 
 
 class InstancePool:
-    def __init__(self, pool_size=1, worker_type='standard', worker_cores=1):
+    def __init__(self, driver, pool_size=1, worker_type='standard', worker_cores=1, worker_disk_size_gb=10):
+        self.driver = driver
         self.worker_type = worker_type
         self.worker_cores = worker_cores
+        self.worker_disk_size_gb = worker_disk_size_gb
+
+        if worker_type == 'standard':
+            m = 3.75
+        elif worker_type == 'highmem':
+            m = 6.5
+        else:
+            assert worker_type == 'highcpu', worker_type
+            m = 0.9
+        self.worker_mem_per_core_in_gb = 0.9 * m
 
         self.instances = sortedcontainers.SortedSet()
         self.pool_size = pool_size
@@ -240,7 +251,9 @@ class InstancePool:
             'labels': {
                 'role': 'batch2-agent',
                 'inst_token': inst_token,
-                'batch_instance': INSTANCE_ID
+                'batch_instance': INSTANCE_ID,
+                'namespace': BATCH_NAMESPACE,
+                'batch_image': BATCH_IMAGE
             },
 
             'disks': [{
@@ -280,20 +293,22 @@ class InstancePool:
                 'items': [{
                     'key': 'startup-script',
                     'value': f'set -ex; export HOME=/root; docker run -v /var/run/docker.sock:/var/run/docker.sock -p 5000:5000 -d {BATCH_IMAGE}'
+                }, {
+                    'key': 'inst_token',
+                    'value': inst_token
+                }, {
+                    'key': 'driver_base_url',
+                    'value': self.driver.base_url
+                }, {
+                    'key': 'image',
+                    'value': BATCH_IMAGE
+                }, {
+                    'key': 'batch_instance',
+                    'value': INSTANCE_ID
+                }, {
+                    'key': 'namespace',
+                    'value': BATCH_NAMESPACE
                 }]
-                # 'items': [{
-                #     'key': 'driver_base_url',
-                #     'value': self.runner.base_url
-                # }, {
-                #     'key': 'inst_token',
-                #     'value': inst_token
-                # }, {
-                #     'key': 'scratch',
-                #     'value': self.runner.scratch_dir
-                # }, {
-                #     'key': 'startup-script-url',
-                #     'value': 'gs://hail-common/dev2/pipeline/worker-startup.sh'
-                # }]
             },
             'tags': {
                 'items': [
