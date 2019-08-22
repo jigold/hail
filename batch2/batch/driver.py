@@ -192,13 +192,24 @@ class Driver:
                 await pod.create()
 
     async def run(self):
-        runner = web.AppRunner(self.app)
-        await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', 5001)
-        await site.start()
+        app_runner = None
+        site = None
+        try:
+            app_runner = web.AppRunner(self.app)
+            await app_runner.setup()
+            site = web.TCPSite(app_runner, '0.0.0.0', 5001)
+            await site.start()
 
-        asyncio.ensure_future(self.instance_pool.run())
-        asyncio.ensure_future(self.schedule())
+            await self.instance_pool.start()
+
+            # self.thread_pool = AsyncWorkerPool(100)
+
+            await self.schedule()
+        finally:
+            if site:
+                await site.stop()
+            if app_runner:
+                await app_runner.cleanup()
 
 
 class InstancePool:
