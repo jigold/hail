@@ -10,6 +10,8 @@ import sortedcontainers
 from aiohttp import web
 import kubernetes as kube
 
+from .batch_configuration import PROJECT, ZONE, INSTANCE_ID, BATCH_NAMESPACE
+
 log = logging.getLogger('driver')
 
 
@@ -213,12 +215,103 @@ class Driver:
 
 
 class InstancePool:
-    def __init__(self, pool_size=1):
+    def __init__(self, pool_size=1, worker_type='standard', worker_cores=1):
+        self.worker_type = worker_type
+        self.worker_cores = worker_cores
+
         self.instances = sortedcontainers.SortedSet()
         self.pool_size = pool_size
+        self.token_inst = {}
 
     async def create_instance(self):
-        pass
+        while True:
+            inst_token = new_token()
+            if inst_token not in self.token_inst:
+                break
+        # reserve
+        self.token_inst[inst_token] = None
+
+        log.info(f'creating instance {inst_token}')
+
+        machine_name = self.token_machine_name(inst_token)
+        config = {
+            'name': machine_name,
+            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{self.worker_type}-{self.worker_cores}',
+            'labels': {
+                'role': 'batch2-agent',
+                'inst_token': inst_token,
+                'batch_instance': INSTANCE_ID
+            },
+
+            'disks': [{
+                'boot': True,
+                'autoDelete': True,
+                'diskSizeGb': self.worker_disk_size_gb,
+                'initializeParams': {
+                    'sourceImage': 'projects/hail-vdc/global/images/batch-agent-1',
+                }
+            }],
+
+            'networkInterfaces': [{
+                'network': 'global/networks/default',
+                'networkTier': 'PREMIUM',
+                'accessConfigs': [{
+                    'type': 'ONE_TO_ONE_NAT',
+                    'name': 'external-nat'
+                }]
+            }],
+
+            'scheduling': {
+                'automaticRestart': False,
+                'onHostMaintenance': "TERMINATE",
+                'preemptible': True
+            },
+            #
+            # 'serviceAccounts': [{
+            #     'email': self.service_account,
+            #     'scopes': [
+            #         'https://www.googleapis.com/auth/cloud-platform'
+            #     ]
+            # }],
+
+            # Metadata is readable from the instance and allows you to
+            # pass configuration from deployment scripts to instances.
+            'metadata': {
+                'items': [{
+                    'key': 'startup-script',
+                    'value': f'set -ex; export HOME=/root; docker run -v /var/run/docker.sock:/var/run/docker.sock -p 5000:5000 -d {BATCH_IMAGE}'
+                }]
+                # 'items': [{
+                #     'key': 'driver_base_url',
+                #     'value': self.runner.base_url
+                # }, {
+                #     'key': 'inst_token',
+                #     'value': inst_token
+                # }, {
+                #     'key': 'scratch',
+                #     'value': self.runner.scratch_dir
+                # }, {
+                #     'key': 'startup-script-url',
+                #     'value': 'gs://hail-common/dev2/pipeline/worker-startup.sh'
+                # }]
+            },
+            'tags': {
+                'items': [
+                    "batch2-agent"
+                ]
+            },
+        }
+
+        await self.runner.gservices.create_instance(config)
+        log.info(f'created machine {machine_name}')
+
+        inst = Instance(self, inst_token)
+        self.token_inst[inst_token] = inst
+        self.instances.add(inst)
+
+        log.info(f'created {inst}')
+
+        return inst
 
     async def run(self):
         while True:
