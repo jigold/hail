@@ -1,3 +1,4 @@
+import os
 import asyncio
 import time
 import concurrent
@@ -75,12 +76,12 @@ class PagedIterator:
 
 
 class GClients:
-    def __init__(self):
-        self.compute_client = googleapiclient.discovery.build('compute', 'v1')
+    def __init__(self, credentials):
+        self.compute_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
 
 
 class GServices:
-    def __init__(self, machine_name_prefix):
+    def __init__(self, machine_name_prefix, batch_gsa_key):
         self.machine_name_prefix = machine_name_prefix
         self.logging_client = google.cloud.logging.Client()
         self.local_clients = threading.local()
@@ -95,10 +96,15 @@ class GServices:
         '''
         log.info(f'filter {self.filter}')
 
+        if batch_gsa_key is None:
+            batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
+        self.credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+            batch_gsa_key)
+
     def get_clients(self):
         clients = getattr(self.local_clients, 'clients', None)
         if clients is None:
-            clients = GClients()
+            clients = GClients(self.credentials)
             self.local_clients.clients = clients
         return clients
 
