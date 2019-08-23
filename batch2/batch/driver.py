@@ -198,7 +198,7 @@ class Driver:
     async def schedule(self):
         while True:
             pod = await self.ready_queue.get()
-            instance = random.sample(self.instance_pool.instances)
+            instance = random.sample(self.instance_pool.instances, 1)
             if instance:
                 await instance.schedule(pod)
                 await pod.create()
