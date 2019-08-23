@@ -1176,7 +1176,8 @@ async def refresh_pods():
     log.info(f'batch had {len(pods)} pods')
 
     seen_pods = set()
-    for pod in pods:
+    for pod_dict in pods:
+        pod = v1.api_client._ApiClient__deserialize(pod_dict, kube.client.V1Pod)
         pod_name = pod.metadata.name
         seen_pods.add(pod_name)
         asyncio.ensure_future(pod_changed(pod))

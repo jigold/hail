@@ -144,6 +144,8 @@ class Driver:
         self.ready_queue = asyncio.Queue()
         self.changed = asyncio.Event()
 
+        self.base_url = f'http://hail.internal/{BATCH_NAMESPACE}/batch2/'
+
         self.instance_pool = InstancePool(self)
         self.gservices = GServices(self.instance_pool.machine_name_prefix)
 
