@@ -792,6 +792,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - deploy_router
     - deploy_batch2_sa
     - create_accounts
     - batch2_image
