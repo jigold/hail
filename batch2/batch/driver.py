@@ -183,7 +183,11 @@ class Driver:
 
     async def list_pods(self):
         # FIXME: this is inefficient!
-        return await asyncio.gather(*[pod.status() for _, pod in self.pods.items()])
+        try:
+            result = await asyncio.gather(*[pod.status() for _, pod in self.pods.items()])
+            return result, None
+        except Exception as err:
+            return None, err
 
     async def pod_complete(self, request):
         data = await request.json()
@@ -206,7 +210,7 @@ class Driver:
             site = web.TCPSite(app_runner, '0.0.0.0', 5001)
             await site.start()
 
-            asyncio.ensure_future(self.instance_pool.start())
+            asyncio.ensure_future(self.instance_pool.run())
 
             # self.thread_pool = AsyncWorkerPool(100)
 
