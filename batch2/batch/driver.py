@@ -226,6 +226,8 @@ class Driver:
 
 class InstancePool:
     def __init__(self, driver, pool_size=1, worker_type='standard', worker_cores=1, worker_disk_size_gb=10):
+        log.info(driver)
+        log.info(driver.base_url)
         self.driver = driver
         self.worker_type = worker_type
         self.worker_cores = worker_cores
