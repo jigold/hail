@@ -269,8 +269,7 @@ class InstancePool:
                 'role': 'batch2-agent',
                 'inst_token': inst_token,
                 'batch_instance': INSTANCE_ID,
-                'namespace': BATCH_NAMESPACE,
-                'batch_image': BATCH_IMAGE
+                'namespace': BATCH_NAMESPACE
             },
 
             'disks': [{
@@ -317,7 +316,7 @@ class InstancePool:
                     'key': 'driver_base_url',
                     'value': self.driver.base_url
                 }, {
-                    'key': 'image',
+                    'key': 'batch_image',
                     'value': BATCH_IMAGE
                 }, {
                     'key': 'batch_instance',
