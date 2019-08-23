@@ -138,7 +138,7 @@ class Pod:
 
 
 class Driver:
-    def __init__(self):
+    def __init__(self, batch_gsa_key=None):
         self.pods = {}
         self.event_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue()
@@ -147,7 +147,7 @@ class Driver:
         self.base_url = f'http://hail.internal/{BATCH_NAMESPACE}/batch2/'
 
         self.instance_pool = InstancePool(self)
-        self.gservices = GServices(self.instance_pool.machine_name_prefix)
+        self.gservices = GServices(self.instance_pool.machine_name_prefix, batch_gsa_key)
 
         self.app = web.Application()
         self.app.add_routes([
