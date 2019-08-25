@@ -81,12 +81,13 @@ class GClients:
 
 
 class GServices:
-    def __init__(self, machine_name_prefix, batch_gsa_key):
+    def __init__(self, machine_name_prefix, credentials):
         self.machine_name_prefix = machine_name_prefix
         self.logging_client = google.cloud.logging.Client()
         self.local_clients = threading.local()
         self.loop = asyncio.get_event_loop()
         self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=40)
+        self.credentials = credentials
 
         self.filter = f'''
         logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
@@ -96,10 +97,10 @@ class GServices:
         '''
         log.info(f'filter {self.filter}')
 
-        if batch_gsa_key is None:
-            batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
-        self.credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-            batch_gsa_key)
+        # if batch_gsa_key is None:
+        #     batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
+        # self.credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+        #     batch_gsa_key)
 
     def get_clients(self):
         clients = getattr(self.local_clients, 'clients', None)

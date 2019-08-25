@@ -147,7 +147,12 @@ class Driver:
         self.base_url = f'http://hail.internal/{BATCH_NAMESPACE}/batch2/'
 
         self.instance_pool = InstancePool(self)
-        self.gservices = GServices(self.instance_pool.machine_name_prefix, batch_gsa_key)
+
+        if batch_gsa_key is None:
+            batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
+        credentials = google.oauth2.service_account.Credentials.from_service_account_file(batch_gsa_key)
+        self.gservices = GServices(self.instance_pool.machine_name_prefix, credentials)
+        self.service_account = credentials.service_account_email
 
         self.app = web.Application()
         self.app.add_routes([
@@ -295,13 +300,13 @@ class InstancePool:
                 'onHostMaintenance': "TERMINATE",
                 'preemptible': True
             },
-            #
-            # 'serviceAccounts': [{
-            #     'email': self.service_account,
-            #     'scopes': [
-            #         'https://www.googleapis.com/auth/cloud-platform'
-            #     ]
-            # }],
+
+            'serviceAccounts': [{
+                'email': self.driver.service_account,
+                'scopes': [
+                    'https://www.googleapis.com/auth/cloud-platform'
+                ]
+            }],
 
             # Metadata is readable from the instance and allows you to
             # pass configuration from deployment scripts to instances.
