@@ -313,7 +313,7 @@ class InstancePool:
             'metadata': {
                 'items': [{
                     'key': 'startup-script',
-                    'value': f'set -ex; export HOME=/root; docker run -v /var/run/docker.sock:/var/run/docker.sock -p 5000:5000 -d {BATCH_IMAGE}'
+                    'value': f'''set -ex; export HOME=/root; docker run -v /var/run/docker.sock:/var/run/docker.sock -p 5000:5000 -d --entrypoint "/bin/bash" {BATCH_IMAGE} -c "python3 -u -m "batch.agent""'''
                 }, {
                     'key': 'inst_token',
                     'value': inst_token
