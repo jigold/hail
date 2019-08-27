@@ -263,12 +263,11 @@ class Driver:
                     assert pod.cores <= inst.free_cores
                     self.ready.remove(pod)
                     should_wait = False
-                    assert not pod.instance
                     # if not pod.state:
                     #     assert not pod.active_inst
 
                     log.info(f'scheduling {pod} cores {pod.cores} on {inst}')
-                    pod.schedule(inst, self)
+                    await inst.schedule(pod)
                     # await self.pool.call(self.execute_task, pod, inst)
 
     async def run(self):
@@ -352,7 +351,7 @@ class InstancePool:
                 'autoDelete': True,
                 'diskSizeGb': self.worker_disk_size_gb,
                 'initializeParams': {
-                    'sourceImage': 'projects/hail-vdc/global/images/batch-agent-1',
+                    'sourceImage': 'projects/hail-vdc/global/images/batch-agent-2',
                 }
             }],
 
@@ -466,6 +465,10 @@ class Instance:
         log.info(f'activated instance {self.machine_name}')
 
     async def schedule(self, pod):
+        if pod.instance is not None:
+            log.info(f'pod {pod} already scheduled, ignoring')
+            return
+
         self.pods.add(pod)
         pod.instance = self
         log.info(f'scheduling pod {pod} to instance {self.machine_name}')
