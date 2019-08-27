@@ -103,6 +103,7 @@ class Pod:
         self.secrets = secrets
         self.output_directory = output_directory
         self.instance = instance
+        self.running = False
 
     def config(self):
         return {
@@ -110,6 +111,12 @@ class Pod:
             'secrets': self.secrets,
             'output_directory': self.output_directory
         }
+
+    async def create(self):
+        assert self.instance is not None
+        assert not self.running
+
+
 
     async def read_pod_log(self, container):
         if self.instance is None:
@@ -206,7 +213,6 @@ class Driver:
             instance = random.sample(self.instance_pool.instances, 1)
             if instance:
                 await instance.schedule(pod)
-                await pod.create()
 
     async def run(self):
         app_runner = None
@@ -231,8 +237,6 @@ class Driver:
 
 class InstancePool:
     def __init__(self, driver, pool_size=1, worker_type='standard', worker_cores=1, worker_disk_size_gb=10):
-        log.info(driver)
-        log.info(driver.base_url)
         self.driver = driver
         self.worker_type = worker_type
         self.worker_cores = worker_cores
@@ -323,15 +327,6 @@ export HOME=/root
 docker run -v /var/run/docker.sock:/var/run/docker.sock -p 5000:5000 -d --entrypoint "/bin/bash" $BATCH_IMAGE -c "sh /run-worker.sh"
 '''
                 }, {
-                #     {
-                #         'key': 'startup-script-url',
-                #         'value': 'gs://hail-common/dev2/batch2/worker-startup.sh'
-                # }, {
-                #
-                #     {
-                #     'key': 'startup-script',
-                #     'value': f'''set -ex; export HOME=/root; docker run -v /var/run/docker.sock:/var/run/docker.sock -p 5000:5000 -d --entrypoint "/bin/bash" {BATCH_IMAGE} -c "python3 -u -m "batch.agent""'''
-                # }, {
                     'key': 'inst_token',
                     'value': inst_token
                 }, {
@@ -382,11 +377,15 @@ class Instance:
         self.cores = cores
         self.pods = set()  # sortedcontainers.SortedSet()
 
-    def schedule(self, pod):
+    async def schedule(self, pod):
         self.pods.add(pod)
         pod.instance = self
         log.info(f'scheduling pod {pod} to instance {self.machine_name}')
         # self.cores -= pod.cores
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            await session.post(f'http://{self.machine_name}:5000/api/v1alpha/pods/create', json=pod.config())
+        # inst.update_timestamp()
 
     def unschedule(self, pod):
         if pod not in self.pods:
