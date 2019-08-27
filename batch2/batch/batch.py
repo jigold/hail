@@ -1214,7 +1214,7 @@ async def db_cleanup_event_loop():
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
-@routes.delete('/api/v1alpha/instances/activate')
+@routes.post('/api/v1alpha/instances/activate')
 # @rest_authenticated_users_only
 async def activate_worker(request):
     # inst_token = request.match_info['inst_token']
