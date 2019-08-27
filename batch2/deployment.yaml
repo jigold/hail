@@ -101,10 +101,5 @@ spec:
   - port: 80
     protocol: TCP
     targetPort: 5000
-    name: batch
-  - port: 5001
-    protocol: TCP
-    targetPort: 5001
-    name: driver
   selector:
     app: batch2
