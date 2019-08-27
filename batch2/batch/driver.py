@@ -151,7 +151,7 @@ class Driver:
         self.ready_queue = asyncio.Queue()
         self.changed = asyncio.Event()
 
-        self.base_url = f'http://hail.internal/{BATCH_NAMESPACE}/batch2/'
+        self.base_url = f'http://hail.internal:5001/{BATCH_NAMESPACE}/batch2'
 
         self.instance_pool = InstancePool(self)
 
@@ -163,11 +163,28 @@ class Driver:
 
         self.app = web.Application()
         self.app.add_routes([
-            # web.post('/activate_worker', self.handle_activate_worker),
+            web.post('/activate_worker', self.activate_worker),
             # web.post('/deactivate_worker', self.handle_deactivate_worker),
             web.post('/pod_complete', self.pod_complete),
             # web.post('/pool/size', self.handle_pool_size)
         ])
+
+    async def activate_worker(self, request):
+        return await asyncio.shield(self._activate_worker(request))
+
+    async def _activate_worker(self, request):
+        body = await request.json()
+        inst_token = body['inst_token']
+
+        inst = self.instance_pool.token_inst.get(inst_token)
+        if not inst:
+            log.warning(f'/activate_worker from unknown inst {inst_token}')
+            raise web.HTTPNotFound()
+
+        log.info(f'activating {inst}')
+        inst.activate()
+
+        return web.Response()
 
     async def create_pod(self, spec, secrets, output_directory):
         name = spec['metadata']['name']
@@ -207,12 +224,50 @@ class Driver:
         data = await request.json()
         await self.event_queue.put(data)
 
+    # async def schedule(self):
+    #     while True:
+    #         pod = await self.ready_queue.get()
+    #         instance = random.sample(self.instance_pool.instances, 1)
+    #         if instance:
+    #             await instance.schedule(pod)
+
     async def schedule(self):
+        log.info('scheduler started')
+
+        self.changed.clear()
+        should_wait = False
         while True:
-            pod = await self.ready_queue.get()
-            instance = random.sample(self.instance_pool.instances, 1)
-            if instance:
-                await instance.schedule(pod)
+            if should_wait:
+                await self.changed.wait()
+                self.changed.clear()
+
+            if not self.ready:
+                t = await self.ready_queue.get()
+                if not t:
+                    return
+                self.ready.add(t)
+            while len(self.ready) < 50 and not self.ready_queue.empty():
+                t = self.ready_queue.get_nowait()
+                if not t:
+                    return
+                self.ready.add(t)
+
+            should_wait = True
+            if self.inst_pool.instances_by_free_cores and self.ready:
+                inst = self.inst_pool.instances_by_free_cores[-1]
+                i = self.ready.bisect_key_right(inst.free_cores)
+                if i > 0:
+                    t = self.ready[i - 1]
+                    assert t.cores <= inst.free_cores
+                    self.ready.remove(t)
+                    should_wait = False
+                    if not t.state:
+                        assert not t.active_inst
+
+                        log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores} ready {len(self.ready)} qsize {self.pool.queue.qsize()}')
+                    t.schedule(inst, self)
+                    await self.pool.call(self.execute_task, t, inst)
+            await asyncio.sleep(5)
 
     async def run(self):
         app_runner = None
@@ -256,6 +311,9 @@ class InstancePool:
         self.instances = sortedcontainers.SortedSet()
         self.pool_size = pool_size
         self.token_inst = {}
+
+        self.n_pending_instances = 0
+        self.n_active_instances = 0
 
     def token_machine_name(self, inst_token):
         return f'{self.machine_name_prefix}{inst_token}'
@@ -376,6 +434,26 @@ class Instance:
         # self.hostname = hostname
         self.cores = cores
         self.pods = set()  # sortedcontainers.SortedSet()
+        self.active = False
+        self.deleted = False
+        self.pending = True
+
+    def activate(self):
+        if self.active:
+            return
+        if self.deleted:
+            return
+
+        if self.pending:
+            self.pending = False
+            self.instance_pool.n_pending_instances -= 1
+            # self.instance_pool.free_cores -= self.instance_pool.worker_capacity
+
+        self.active = True
+        self.instance_pool.n_active_instances += 1
+        # self.instance_pool.instances_by_free_cores.add(self)
+        # self.instance_pool.free_cores += self.instance_pool.worker_capacity
+        self.instance_pool.driver.changed.set()
 
     async def schedule(self, pod):
         self.pods.add(pod)
