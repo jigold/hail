@@ -312,9 +312,21 @@ class InstancePool:
             # pass configuration from deployment scripts to instances.
             'metadata': {
                 'items': [{
-                        'key': 'startup-script-url',
-                        'value': 'gs://hail-common/dev2/batch2/worker-startup.sh'
+                    'key': 'startup-script',
+                    'value': f'''
+#!/bin/bash
+set -ex
+
+export BATCH_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_image")
+export HOME=/root
+
+nohup /bin/bash docker run -v /var/run/docker.sock:/var/run/docker.sock -p 5000:5000 -d --entrypoint "/bin/bash" $BATCH_IMAGE -c "./run-worker.sh"
+'''
                 }, {
+                #     {
+                #         'key': 'startup-script-url',
+                #         'value': 'gs://hail-common/dev2/batch2/worker-startup.sh'
+                # }, {
                 #
                 #     {
                 #     'key': 'startup-script',
