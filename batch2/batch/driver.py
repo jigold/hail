@@ -320,7 +320,7 @@ set -ex
 export BATCH_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_image")
 export HOME=/root
 
-docker run -v /var/run/docker.sock:/var/run/docker.sock -p 5000:5000 -d --entrypoint "/bin/bash" $BATCH_IMAGE -c "./run-worker.sh"
+docker run -v /var/run/docker.sock:/var/run/docker.sock -p 5000:5000 -d --entrypoint "/bin/bash" $BATCH_IMAGE -c "sh /batch/run-worker.sh"
 '''
                 }, {
                 #     {
