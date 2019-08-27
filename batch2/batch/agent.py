@@ -432,7 +432,7 @@ class Worker:
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
 
-            # await self.register()
+            await self.register()
 
             while self.pods or time.time() - self.last_updated < 60:
                 log.info(f'n_pods {len(self.pods)} free_cores {self.free_cores} age {time.time() - self.last_updated}')
@@ -451,28 +451,28 @@ class Worker:
             if app_runner:
                 await app_runner.cleanup()
 
-    # async def register(self):
-    #     tries = 0
-    #     while True:
-    #         try:
-    #             log.info('registering')
-    #             body = {'inst_token': self.token}
-    #             async with aiohttp.ClientSession(
-    #                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-    #                 async with session.post(f'{self.driver_base_url}/activate_worker', json=body) as resp:
-    #                     if resp.status == 200:
-    #                         self.last_updated = time.time()
-    #                         log.info('registered')
-    #                         return
-    #         except asyncio.CancelledError:  # pylint: disable=try-except-raise
-    #             raise
-    #         except Exception as e:  # pylint: disable=broad-except
-    #             log.exception('caught exception while registering')
-    #             if tries == 12:
-    #                 log.info('register: giving up')
-    #                 raise e
-    #             tries += 1
-    #         await asyncio.sleep(5 * random.uniform(1, 1.25))
+    async def register(self):
+        tries = 0
+        while True:
+            try:
+                log.info('registering')
+                body = {'inst_token': self.token}
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    async with session.post(f'{self.driver_base_url}/activate_worker', json=body) as resp:
+                        if resp.status == 200:
+                            self.last_updated = time.time()
+                            log.info('registered')
+                            return
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception as e:  # pylint: disable=broad-except
+                log.exception('caught exception while registering')
+                if tries == 12:
+                    log.info('register: giving up')
+                    raise e
+                tries += 1
+            await asyncio.sleep(5 * random.uniform(1, 1.25))
 
 
 cores = int(os.environ['CORES'])
