@@ -238,7 +238,9 @@ class Driver:
         self.changed.clear()
         should_wait = False
         while True:
+            log.info('scheduler loop')
             if should_wait:
+                log.info('scheduler waiting')
                 await self.changed.wait()
                 self.changed.clear()
 
@@ -250,10 +252,12 @@ class Driver:
             while len(self.ready) < 1 and not self.ready_queue.empty():  # FIXME: replace with 50
                 pod = self.ready_queue.get_nowait()
                 self.ready.add(pod)
+                log.info(f'added {pod} to ready')
 
             should_wait = True
             if self.instance_pool.instances_by_free_cores and self.ready:
                 inst = self.instance_pool.instances_by_free_cores[-1]
+                log.info(f'selected instance {inst}')
                 i = self.ready.bisect_key_right(inst.free_cores)
                 if i > 0:
                     pod = self.ready[i - 1]
@@ -458,6 +462,7 @@ class Instance:
         self.instance_pool.instances_by_free_cores.add(self)
         # self.instance_pool.free_cores += self.instance_pool.worker_capacity
         self.instance_pool.driver.changed.set()
+        log.info(f'activated instance {self.machine_name}')
 
     async def schedule(self, pod):
         self.pods.add(pod)
