@@ -270,10 +270,10 @@ class Driver:
                     log.info(f'scheduling {pod} cores {pod.cores} on {inst}')
                     pod.schedule(inst, self)
                     # await self.pool.call(self.execute_task, pod, inst)
-            await asyncio.sleep(5)
 
     async def run(self):
         asyncio.ensure_future(self.instance_pool.run())
+        await self.schedule()
 
         # app_runner = None
         # site = None
