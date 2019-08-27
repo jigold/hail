@@ -162,13 +162,13 @@ class Driver:
         self.gservices = GServices(self.instance_pool.machine_name_prefix, credentials)
         self.service_account = credentials.service_account_email
 
-        self.app = web.Application()
-        self.app.add_routes([
-            web.post('/activate_worker', self.activate_worker),
-            # web.post('/deactivate_worker', self.handle_deactivate_worker),
-            web.post('/pod_complete', self.pod_complete),
-            # web.post('/pool/size', self.handle_pool_size)
-        ])
+        # self.app = web.Application()
+        # self.app.add_routes([
+        #     web.post('/activate_worker', self.activate_worker),
+        #     # web.post('/deactivate_worker', self.handle_deactivate_worker),
+        #     web.post('/pod_complete', self.pod_complete),
+        #     # web.post('/pool/size', self.handle_pool_size)
+        # ])
 
     # async def activate_worker(self, request):
     #     return await asyncio.shield(self._activate_worker(request))
@@ -274,24 +274,26 @@ class Driver:
             await asyncio.sleep(5)
 
     async def run(self):
-        app_runner = None
-        site = None
-        try:
-            app_runner = web.AppRunner(self.app)
-            await app_runner.setup()
-            site = web.TCPSite(app_runner, '0.0.0.0', 5001)
-            await site.start()
+        asyncio.ensure_future(self.instance_pool.run())
 
-            asyncio.ensure_future(self.instance_pool.run())
-
-            # self.thread_pool = AsyncWorkerPool(100)
-
-            await self.schedule()
-        finally:
-            if site:
-                await site.stop()
-            if app_runner:
-                await app_runner.cleanup()
+        # app_runner = None
+        # site = None
+        # try:
+        #     app_runner = web.AppRunner(self.app)
+        #     await app_runner.setup()
+        #     site = web.TCPSite(app_runner, '0.0.0.0', 5001)
+        #     await site.start()
+        #
+        #     asyncio.ensure_future(self.instance_pool.run())
+        #
+        #     # self.thread_pool = AsyncWorkerPool(100)
+        #
+        #     await self.schedule()
+        # finally:
+        #     if site:
+        #         await site.stop()
+        #     if app_runner:
+        #         await app_runner.cleanup()
 
 
 class InstancePool:
