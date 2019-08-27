@@ -302,7 +302,7 @@ class InstancePool:
             },
 
             'serviceAccounts': [{
-                'email': 'batch2-gcr-puller@hail-vdc.iam.gserviceaccount.com', # self.driver.service_account,
+                'email': 'batch2-agent@hail-vdc.iam.gserviceaccount.com', # self.driver.service_account,
                 'scopes': [
                     'https://www.googleapis.com/auth/cloud-platform'
                 ]
