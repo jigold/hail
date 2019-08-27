@@ -152,7 +152,7 @@ class Driver:
         self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores)
         self.changed = asyncio.Event()
 
-        self.base_url = f'http://hail.internal:5001/{BATCH_NAMESPACE}/batch2'
+        self.base_url = f'http://hail.internal/{BATCH_NAMESPACE}/batch2'
 
         self.instance_pool = InstancePool(self)
 
@@ -170,10 +170,10 @@ class Driver:
             # web.post('/pool/size', self.handle_pool_size)
         ])
 
-    async def activate_worker(self, request):
-        return await asyncio.shield(self._activate_worker(request))
+    # async def activate_worker(self, request):
+    #     return await asyncio.shield(self._activate_worker(request))
 
-    async def _activate_worker(self, request):
+    async def activate_worker(self, request):
         body = await request.json()
         inst_token = body['inst_token']
 
