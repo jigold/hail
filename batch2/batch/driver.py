@@ -98,7 +98,7 @@ log = logging.getLogger('driver')
 class Pod:
     def __init__(self, name, spec, secrets, output_directory, instance):
         self.name = name
-        # self.cores = cores
+        self.cores = 1  # FIXME
         self.spec = spec
         self.secrets = secrets
         self.output_directory = output_directory
@@ -149,6 +149,7 @@ class Driver:
         self.pods = {}
         self.event_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue()
+        self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores)
         self.changed = asyncio.Event()
 
         self.base_url = f'http://hail.internal:5001/{BATCH_NAMESPACE}/batch2'
@@ -241,32 +242,31 @@ class Driver:
                 await self.changed.wait()
                 self.changed.clear()
 
-            if not self.ready:
-                t = await self.ready_queue.get()
-                if not t:
-                    return
-                self.ready.add(t)
-            while len(self.ready) < 50 and not self.ready_queue.empty():
-                t = self.ready_queue.get_nowait()
-                if not t:
-                    return
-                self.ready.add(t)
+            # if not self.ready:
+            #     pod = await self.ready_queue.get()
+            #     if not pod:
+            #         return
+            #     self.ready.add(pod)
+            while len(self.ready) < 1 and not self.ready_queue.empty():  # FIXME: replace with 50
+                pod = self.ready_queue.get_nowait()
+                self.ready.add(pod)
 
             should_wait = True
-            if self.inst_pool.instances_by_free_cores and self.ready:
-                inst = self.inst_pool.instances_by_free_cores[-1]
+            if self.instance_pool.instances_by_free_cores and self.ready:
+                inst = self.instance_pool.instances_by_free_cores[-1]
                 i = self.ready.bisect_key_right(inst.free_cores)
                 if i > 0:
-                    t = self.ready[i - 1]
-                    assert t.cores <= inst.free_cores
-                    self.ready.remove(t)
+                    pod = self.ready[i - 1]
+                    assert pod.cores <= inst.free_cores
+                    self.ready.remove(pod)
                     should_wait = False
-                    if not t.state:
-                        assert not t.active_inst
+                    assert not pod.instance
+                    # if not pod.state:
+                    #     assert not pod.active_inst
 
-                        log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores} ready {len(self.ready)} qsize {self.pool.queue.qsize()}')
-                    t.schedule(inst, self)
-                    await self.pool.call(self.execute_task, t, inst)
+                    log.info(f'scheduling {pod} cores {pod.cores} on {inst}')
+                    pod.schedule(inst, self)
+                    # await self.pool.call(self.execute_task, pod, inst)
             await asyncio.sleep(5)
 
     async def run(self):
@@ -314,6 +314,9 @@ class InstancePool:
 
         self.n_pending_instances = 0
         self.n_active_instances = 0
+
+        # for active instances only
+        self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores)
 
     def token_machine_name(self, inst_token):
         return f'{self.machine_name_prefix}{inst_token}'
@@ -437,6 +440,7 @@ class Instance:
         self.active = False
         self.deleted = False
         self.pending = True
+        self.free_cores = cores
 
     def activate(self):
         if self.active:
@@ -451,7 +455,7 @@ class Instance:
 
         self.active = True
         self.instance_pool.n_active_instances += 1
-        # self.instance_pool.instances_by_free_cores.add(self)
+        self.instance_pool.instances_by_free_cores.add(self)
         # self.instance_pool.free_cores += self.instance_pool.worker_capacity
         self.instance_pool.driver.changed.set()
 
