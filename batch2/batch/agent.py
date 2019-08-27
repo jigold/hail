@@ -459,7 +459,7 @@ class Worker:
                 body = {'inst_token': self.token}
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    async with session.post(f'{self.driver_base_url}/activate_worker', json=body) as resp:
+                    async with session.post(f'{self.driver_base_url}/api/v1alpha/instances/activate', json=body) as resp:
                         if resp.status == 200:
                             self.last_updated = time.time()
                             log.info('registered')
