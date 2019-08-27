@@ -1218,7 +1218,7 @@ async def db_cleanup_event_loop():
 # @rest_authenticated_users_only
 async def activate_worker(request):
     # inst_token = request.match_info['inst_token']
-    await app['driver'].activate_worker(request)
+    return await app['driver'].activate_worker(request)
 
 
 

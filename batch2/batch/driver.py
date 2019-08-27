@@ -184,7 +184,7 @@ class Driver:
 
         log.info(f'activating {inst}')
         inst.activate()
-
+        log.info(f'done')
         return web.Response()
 
     async def create_pod(self, spec, secrets, output_directory):
