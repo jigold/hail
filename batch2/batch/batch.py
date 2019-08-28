@@ -1225,13 +1225,13 @@ async def db_cleanup_event_loop():
 @routes.post('/api/v1alpha/instances/activate')
 # @rest_authenticated_users_only
 async def activate_worker(request):
-    # inst_token = request.match_info['inst_token']
-    return await app['driver'].activate_worker(request)
+    return await asyncio.shield(app['driver'].activate_worker(request))
 
 
 @routes.post('/api/v1alpha/instances/pod_complete')
+# @rest_authenticated_users_only
 async def pod_complete(request):
-    return await app['driver'].pod_complete(request)
+    return await asyncio.shield(app['driver'].pod_complete(request))
 
 
 batch_root = os.path.dirname(os.path.abspath(__file__))
