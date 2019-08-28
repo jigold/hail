@@ -83,7 +83,7 @@ class GClients:
 class GServices:
     def __init__(self, machine_name_prefix, credentials):
         self.machine_name_prefix = machine_name_prefix
-        self.logging_client = google.cloud.logging.Client()
+        self.logging_client = google.cloud.logging.Client(credentials=credentials)
         self.local_clients = threading.local()
         self.loop = asyncio.get_event_loop()
         self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=40)

@@ -1205,7 +1205,7 @@ async def polling_event_loop():
 async def driver_event_loop():
     await asyncio.sleep(1)
     while True:
-        object = await app['driver'].event_queue.get()
+        object = await app['driver'].complete_queue.get()
         pod = v1.api_client._ApiClient__deserialize(object, kube.client.V1Pod)
         await pod_changed(pod)
 
