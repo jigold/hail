@@ -187,6 +187,20 @@ class Driver:
         inst.activate(ip_address)
         return web.Response()
 
+    async def pod_complete(self, request):
+        body = await request.json()
+        inst_token = body['inst_token']
+        data = body['data']
+
+        inst = self.instance_pool.token_inst.get(inst_token)
+        if not inst:
+            log.warning(f'/pod_complete from unknown inst {inst_token}')
+            raise web.HTTPNotFound()
+
+        log.info(f'adding pod complete to event queue')
+        await self.event_queue.put(data)
+        return web.Response()
+
     async def create_pod(self, spec, secrets, output_directory):
         name = spec['metadata']['name']
         # cores = parse_cpu(spec['spec']['resources']['cpu'])
@@ -221,10 +235,6 @@ class Driver:
         except Exception as err:
             return None, err
 
-    async def pod_complete(self, request):
-        data = await request.json()
-        await self.event_queue.put(data)
-
     # async def schedule(self):
     #     while True:
     #         pod = await self.ready_queue.get()
@@ -238,9 +248,7 @@ class Driver:
         self.changed.clear()
         should_wait = False
         while True:
-            log.info('scheduler loop')
             if should_wait:
-                log.info('scheduler waiting')
                 await self.changed.wait()
                 self.changed.clear()
 

@@ -1202,6 +1202,13 @@ async def polling_event_loop():
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
+async def driver_event_loop():
+    await asyncio.sleep(1)
+    while True:
+        object = await app['driver'].event_queue.get()
+        await pod_changed(object)
+
+
 async def db_cleanup_event_loop():
     await asyncio.sleep(1)
     while True:
@@ -1221,6 +1228,10 @@ async def activate_worker(request):
     return await app['driver'].activate_worker(request)
 
 
+@routes.post('/api/v1alpha/instances/pod_complete')
+async def pod_complete(request):
+    return await app['driver'].pod_complete(request)
+
 
 batch_root = os.path.dirname(os.path.abspath(__file__))
 aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root, 'templates')))
@@ -1239,7 +1250,7 @@ async def on_startup(app):
 
     asyncio.ensure_future(driver.run())
     asyncio.ensure_future(polling_event_loop())
-    # asyncio.ensure_future(kube_event_loop())
+    asyncio.ensure_future(driver_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
 
 

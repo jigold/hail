@@ -97,6 +97,8 @@ class Container:
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
 
+        # FIXME: make this robust to errors
+        log.info(f'uploading log to {shq(log_path)}')
         upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')  # WHY did this work without permissions?
         upload_status = check_shell(f'docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
         await asyncio.gather(upload_log, upload_status)
@@ -238,8 +240,9 @@ class BatchPod:
                 raise Exception(f'Unsupported volume type for {volume_spec}')
         return volumes
 
-    def __init__(self, parameters):
+    def __init__(self, worker, parameters):
         # print(json.dumps(parameters['spec'], indent=4))
+        self.worker = worker
         self.spec = parameters['spec']
         self.secrets_data = parameters['secrets']
         self.output_directory = parameters['output_directory']
@@ -286,6 +289,19 @@ class BatchPod:
                         break
 
             self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
+
+            body = {
+                'inst_token': self.worker.token,
+                'data': self.to_dict()
+            }
+
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                async with session.post(f'{self.worker.driver_base_url}/api/v1alpha/instances/pod_complete', json=body) as resp:
+                    if resp.status == 200:
+                        self.last_updated = time.time()
+                        log.info('sent pod complete')
+                        return
 
             # FIXME: send message back to driver
         except asyncio.CancelledError:
@@ -336,7 +352,7 @@ class Worker:
 
     async def _create_pod(self, parameters):
         try:
-            bp = BatchPod(parameters)
+            bp = BatchPod(self, parameters)
             self.pods[bp.name] = bp
         except DockerError as err:
             print(err)
