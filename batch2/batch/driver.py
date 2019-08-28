@@ -3,6 +3,7 @@ import asyncio
 import aiohttp
 import googleapiclient.discovery
 import logging
+import time
 import google.oauth2.service_account
 import requests
 import random
@@ -102,8 +103,9 @@ class Pod:
         self.spec = spec
         self.secrets = secrets
         self.output_directory = output_directory
-        self.instance = instance
+        self.active_inst = instance
         self.running = False
+        self.on_ready = False
 
     def config(self):
         return {
@@ -112,24 +114,77 @@ class Pod:
             'output_directory': self.output_directory
         }
 
+    def unschedule(self):
+        if not self.active_inst:
+            return
+
+        inst = self.active_inst
+        inst_pool = inst.inst_pool
+
+        inst.tasks.remove(self)
+
+        assert not inst.pending and inst.active
+        inst_pool.instances_by_free_cores.remove(inst)
+        inst.free_cores += self.cores
+        inst_pool.free_cores += self.cores
+        inst_pool.instances_by_free_cores.add(inst)
+        inst_pool.runner.changed.set()
+
+        self.active_inst = None
+
+    def schedule(self, inst, runner):
+        assert inst.active
+        assert not self.active_inst
+
+        # all mine
+        self.unschedule()
+        self.remove_from_ready(runner)
+
+        inst.tasks.add(self)
+
+        # inst.active
+        inst.inst_pool.instances_by_free_cores.remove(inst)
+        inst.free_cores -= self.cores
+        inst.inst_pool.instances_by_free_cores.add(inst)
+        inst.inst_pool.free_cores -= self.cores
+        # can't create more scheduling opportunities, don't set changed
+
+        self.active_inst = inst
+
+    def remove_from_ready(self, runner):
+        if not self.on_ready:
+            return
+        self.on_ready = False
+        runner.ready_cores -= self.cores
+
+    async def put_on_ready(self, runner):
+        if self.on_ready:
+            return
+        self.unschedule()
+        self.on_ready = True
+        runner.ready_cores += self.cores
+        await runner.ready_queue.put(self)
+        runner.changed.set()
+        log.info(f'put {self} on ready')
+
     async def read_pod_log(self, container):
-        if self.instance is None:
+        if self.active_inst is None:
             return None
-        return await self.instance.read_pod_log(self, container)
+        return await self.active_inst.read_pod_log(self, container)
 
     async def read_container_status(self, container):
-        if self.instance is None:
+        if self.active_inst is None:
             return None
-        return await self.instance.read_container_status(self, container)
+        return await self.active_inst.read_container_status(self, container)
 
     async def delete(self):
-        if self.instance is None:
+        if self.active_inst is None:
             return
         # need to make request
-        await self.instance.unschedule(self)
+        await self.active_inst.unschedule(self)
 
     async def status(self):
-        if self.instance is None:
+        if self.active_inst is None:
             return {
                 # pending status
             }
@@ -143,9 +198,10 @@ class Pod:
 class Driver:
     def __init__(self, batch_gsa_key=None):
         self.pods = {}
-        self.event_queue = asyncio.Queue()
+        self.complete_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue()
         self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores)
+        self.ready_cores = 0
         self.changed = asyncio.Event()
 
         self.base_url = f'http://hail.internal/{BATCH_NAMESPACE}/batch2'
@@ -194,7 +250,7 @@ class Driver:
             raise web.HTTPNotFound()
 
         log.info(f'adding pod complete to event queue')
-        await self.event_queue.put(data)
+        await self.complete_queue.put(data)
         return web.Response()
 
     async def create_pod(self, spec, secrets, output_directory):
@@ -202,8 +258,9 @@ class Driver:
         # cores = parse_cpu(spec['spec']['resources']['cpu'])
         pod = Pod(name, spec, secrets, output_directory, instance=None)
         self.pods[name] = pod
-        await self.ready_queue.put(pod)
-        self.changed.set()
+        await pod.put_on_ready(self)
+        # await self.ready_queue.put(pod)
+        # self.changed.set()
 
     async def delete_pod(self, name):
         pod = self.pods.get(name)
@@ -417,6 +474,111 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock -v /usr/bin/docker:/usr/
 
         return inst
 
+    async def handle_event(self, event):
+        if not event.payload:
+            log.warning(f'event has no payload')
+            return
+
+        payload = event.payload
+        version = payload['version']
+        if version != '1.2':
+            log.warning('unknown event verison {version}')
+            return
+
+        resource_type = event.resource.type
+        if resource_type != 'gce_instance':
+            log.warning(f'unknown event resource type {resource_type}')
+            return
+
+        event_type = payload['event_type']
+        event_subtype = payload['event_subtype']
+        resource = payload['resource']
+        name = resource['name']
+
+        log.info(f'event {version} {resource_type} {event_type} {event_subtype} {name}')
+
+        if not name.startswith(self.machine_name_prefix):
+            log.warning(f'event for unknown machine {name}')
+            return
+
+        inst_token = name[len(self.machine_name_prefix):]
+        inst = self.token_inst.get(inst_token)
+        if not inst:
+            log.warning(f'event for unknown instance {inst_token}')
+            return
+
+        if event_subtype == 'compute.instances.preempted':
+            log.info(f'event handler: handle preempt {inst}')
+            await inst.handle_preempt_event()
+        elif event_subtype == 'compute.instances.delete':
+            if event_type == 'GCE_OPERATION_DONE':
+                log.info(f'event handler: remove {inst}')
+                await inst.remove()
+            elif event_type == 'GCE_API_CALL':
+                log.info(f'event handler: handle call delete {inst}')
+                await inst.handle_call_delete_event()
+            else:
+                log.warning(f'unknown event type {event_type}')
+        else:
+            log.warning(f'unknown event subtype {event_subtype}')
+
+    async def event_loop(self):
+        while True:
+            try:
+                async for event in await self.driver.gservices.stream_entries():
+                    await self.handle_event(event)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:  # pylint: disable=broad-except
+                log.exception('event loop failed due to exception')
+            await asyncio.sleep(15)
+
+    # async def heal_loop(self):
+    #     while True:
+    #         try:
+    #             if self.instances:
+    #                 # 0 is the smallest (oldest)
+    #                 inst = self.instances[0]
+    #                 inst_age = time.time() - inst.last_updated
+    #                 if inst_age > 60:
+    #                     log.info(f'heal: oldest {inst} age {inst_age}s')
+    #                     await inst.heal()
+    #         except asyncio.CancelledError:  # pylint: disable=try-except-raise
+    #             raise
+    #         except Exception:  # pylint: disable=broad-except
+    #             log.exception('instance pool heal loop: caught exception')
+    #
+    #         await asyncio.sleep(1)
+
+    # async def control_loop(self):
+    #     while True:
+    #         try:
+    #             log.info(f'n_pending_instances {self.n_pending_instances}'
+    #                      f' n_active_instances {self.n_active_instances}'
+    #                      f' pool_size {self.pool_size}'
+    #                      f' n_instances {len(self.instances)}'
+    #                      f' max_instances {self.max_instances}'
+    #                      f' free_cores {self.free_cores}'
+    #                      f' ready_cores {self.runner.ready_cores}')
+    #
+    #             if self.runner.ready_cores > 0:
+    #                 instances_needed = (self.runner.ready_cores - self.free_cores + self.worker_capacity - 1) // self.worker_capacity
+    #                 instances_needed = min(instances_needed,
+    #                                        self.pool_size - (self.n_pending_instances + self.n_active_instances),
+    #                                        self.max_instances - len(self.instances),
+    #                                        # 20 queries/s; our GCE long-run quota
+    #                                        300)
+    #                 if instances_needed > 0:
+    #                     log.info(f'creating {instances_needed} new instances')
+    #                     # parallelism will be bounded by thread pool
+    #                     await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
+    #         except asyncio.CancelledError:  # pylint: disable=try-except-raise
+    #             raise
+    #         except Exception:  # pylint: disable=broad-except
+    #             log.exception('instance pool control loop: caught exception')
+    #
+    #         await asyncio.sleep(15)
+
     async def run(self):
         while True:
             while len(self.instances) < self.pool_size:
@@ -426,7 +588,7 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock -v /usr/bin/docker:/usr/
 
 class Instance:
     def __init__(self, instance_pool, machine_name, cores):
-        self.instance_pool = instance_pool
+        self.inst_pool = instance_pool
         self.machine_name = machine_name
         self.ip_address = None
         # self.name = name
@@ -445,67 +607,150 @@ class Instance:
 
         if self.pending:
             self.pending = False
-            self.instance_pool.n_pending_instances -= 1
-            # self.instance_pool.free_cores -= self.instance_pool.worker_capacity
+            self.inst_pool.n_pending_instances -= 1
+            self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
         self.active = True
         self.ip_address = ip_address
-        self.instance_pool.n_active_instances += 1
-        self.instance_pool.instances_by_free_cores.add(self)
-        # self.instance_pool.free_cores += self.instance_pool.worker_capacity
-        self.instance_pool.driver.changed.set()
+        self.inst_pool.n_active_instances += 1
+        self.inst_pool.instances_by_free_cores.add(self)
+        self.inst_pool.free_cores += self.inst_pool.worker_capacity
+        self.inst_pool.driver.changed.set()
         log.info(f'activated instance {self.machine_name} with hostname {self.ip_address}')
 
-    async def schedule(self, pod):
-        if pod.instance is not None:
-            log.info(f'pod {pod} already scheduled, ignoring')
+    async def deactivate(self):
+        if self.pending:
+            self.pending = False
+            self.inst_pool.n_pending_instances -= 1
+            # self.inst_pool.free_cores -= self.inst_pool.worker_capacity
+            assert not self.active
+
+            log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
             return
 
-        self.pods.add(pod)
-        pod.instance = self
-        log.info(f'scheduling pod {pod} to instance {self.machine_name}')
-        # self.cores -= pod.cores
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            await session.post(f'http://{self.ip_address}:5000/api/v1alpha/pods/create', json=pod.config())
-        # inst.update_timestamp()
-
-    async def unschedule(self, pod):
-        if pod not in self.pods:
-            log.info(f'cannot unschedule unknown pod {pod}, ignoring')
+        if not self.active:
             return
 
-        self.pods.remove(pod)
-        # self.cores += pod.cores
-        log.info(f'unscheduling pod {pod} from instance {self.machine_name}')
+        pod_list = list(self.pods)
+        for p in pod_list:
+            p.unschedule()
 
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            await session.post(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/delete', json=pod.config())
+        self.active = False
+        self.inst_pool.instances_by_free_cores.remove(self)
+        self.inst_pool.n_active_instances -= 1
+        self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
-        self.instance_pool.driver.changed.set()
+        for p in pod_list:
+            await self.inst_pool.driver.ready_queue.put()
+            # await p.put_on_ready(self.inst_pool.runner)
+        assert not self.pods
 
-    async def read_container_status(self, pod, container):
-        if pod not in self.pods:
-            log.info(f'unknown pod {pod}, ignoring')
+        log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
+
+    # async def schedule(self, pod):
+    #     if pod.instance is not None:
+    #         log.info(f'pod {pod} already scheduled, ignoring')
+    #         return
+    #
+    #     self.pods.add(pod)
+    #     pod.instance = self
+    #     log.info(f'scheduling pod {pod} to instance {self.machine_name}')
+    #     # self.cores -= pod.cores
+    #     async with aiohttp.ClientSession(
+    #             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+    #         await session.post(f'http://{self.ip_address}:5000/api/v1alpha/pods/create', json=pod.config())
+    #     # inst.update_timestamp()
+    #
+    # async def unschedule(self, pod):
+    #     if pod not in self.pods:
+    #         log.info(f'cannot unschedule unknown pod {pod}, ignoring')
+    #         return
+    #
+    #     self.pods.remove(pod)
+    #     # self.cores += pod.cores
+    #     log.info(f'unscheduling pod {pod} from instance {self.machine_name}')
+    #
+    #     async with aiohttp.ClientSession(
+    #             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+    #         await session.post(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/delete', json=pod.config())
+    #
+    #     self.inst_pool.driver.changed.set()
+    #
+    # async def read_container_status(self, pod, container):
+    #     if pod not in self.pods:
+    #         log.info(f'unknown pod {pod}, ignoring')
+    #         return
+    #
+    #     async with aiohttp.ClientSession(
+    #             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+    #         async with session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/status', json=pod.config()) as resp:
+    #             log.info(resp)
+    #             return None
+    #
+    # async def read_pod_log(self, pod, container):
+    #     if pod not in self.pods:
+    #         log.info(f'unknown pod {pod}, ignoring')
+    #         return
+    #
+    #     async with aiohttp.ClientSession(
+    #             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+    #         async with session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/log', json=pod.config()) as resp:
+    #             log.info(resp)
+    #             return None
+
+    def update_timestamp(self):
+        if self in self.inst_pool.instances:
+            self.inst_pool.instances.remove(self)
+            self.last_updated = time.time()
+            self.inst_pool.instances.add(self)
+
+    async def remove(self):
+        await self.deactivate()
+        self.inst_pool.instances.remove(self)
+        if self.token in self.inst_pool.token_inst:
+            del self.inst_pool.token_inst[self.token]
+
+    async def handle_call_delete_event(self):
+        await self.deactivate()
+        self.deleted = True
+        self.update_timestamp()
+
+    async def delete(self):
+        if self.deleted:
+            return
+        await self.deactivate()
+        await self.inst_pool.runner.gservices.delete_instance(self.machine_name())
+        log.info(f'deleted machine {self.machine_name()}')
+        self.deleted = True
+
+    async def handle_preempt_event(self):
+        await self.delete()
+        self.update_timestamp()
+
+    async def heal(self):
+        try:
+            spec = await self.inst_pool.runner.gservices.get_instance(self.machine_name())
+        except googleapiclient.errors.HttpError as e:
+            if e.resp['status'] == '404':
+                await self.remove()
+                return
+
+        status = spec['status']
+        log.info(f'heal: machine {self.machine_name()} status {status}')
+
+        # preempted goes into terminated state
+        if status == 'TERMINATED' and self.deleted:
+            await self.remove()
             return
 
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/status', json=pod.config()) as resp:
-                log.info(resp)
-                return None
+        if status in ('TERMINATED', 'STOPPING'):
+            await self.deactivate()
 
-    async def read_pod_log(self, pod, container):
-        if pod not in self.pods:
-            log.info(f'unknown pod {pod}, ignoring')
-            return
+        if status == 'TERMINATED' and not self.deleted:
+            await self.delete()
 
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/log', json=pod.config()) as resp:
-                log.info(resp)
-                return None
+        self.update_timestamp()
+
 
     def __str__(self):
         return self.machine_name
