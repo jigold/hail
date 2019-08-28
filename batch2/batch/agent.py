@@ -333,7 +333,8 @@ class Worker:
         self.last_updated = time.time()
         self.pods = {}
         self.cpu_sem = WeightedSemaphore(cores)
-        self.hostname = socket.gethostname()
+        self.ip_address = socket.gethostbyname(socket.gethostname())
+        log.info(self.ip_address)
 
     async def _create_pod(self, parameters):
         try:
@@ -459,7 +460,7 @@ class Worker:
             try:
                 log.info('registering')
                 body = {'inst_token': self.token,
-                        'hostname': self.hostname}
+                        'ip_address': self.ip_address}
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     async with session.post(f'{self.driver_base_url}/api/v1alpha/instances/activate', json=body) as resp:
