@@ -203,6 +203,7 @@ class Driver:
         pod = Pod(name, spec, secrets, output_directory, instance=None)
         self.pods[name] = pod
         await self.ready_queue.put(pod)
+        self.changed.set()
 
     async def delete_pod(self, name):
         pod = self.pods.get(name)
