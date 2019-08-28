@@ -497,6 +497,8 @@ class Instance:
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             await session.post(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/delete', json=pod.config())
 
+        self.instance_pool.driver.changed.set()
+
     async def read_container_status(self, pod, container):
         if pod not in self.pods:
             log.info(f'unknown pod {pod}, ignoring')
