@@ -176,6 +176,7 @@ class Driver:
     async def activate_worker(self, request):
         body = await request.json()
         inst_token = body['inst_token']
+        hostname = body['hostname']
 
         inst = self.instance_pool.token_inst.get(inst_token)
         if not inst:
@@ -183,7 +184,7 @@ class Driver:
             raise web.HTTPNotFound()
 
         log.info(f'activating {inst}')
-        inst.activate()
+        inst.activate(hostname)
         return web.Response()
 
     async def create_pod(self, spec, secrets, output_directory):
@@ -437,8 +438,8 @@ class Instance:
     def __init__(self, instance_pool, machine_name, cores):
         self.instance_pool = instance_pool
         self.machine_name = machine_name
+        self.hostname = None
         # self.name = name
-        # self.hostname = hostname
         self.cores = cores
         self.pods = set()  # sortedcontainers.SortedSet()
         self.active = False
@@ -446,7 +447,7 @@ class Instance:
         self.pending = True
         self.free_cores = cores
 
-    def activate(self):
+    def activate(self, hostname):
         if self.active:
             return
         if self.deleted:
@@ -458,11 +459,12 @@ class Instance:
             # self.instance_pool.free_cores -= self.instance_pool.worker_capacity
 
         self.active = True
+        self.hostname = hostname
         self.instance_pool.n_active_instances += 1
         self.instance_pool.instances_by_free_cores.add(self)
         # self.instance_pool.free_cores += self.instance_pool.worker_capacity
         self.instance_pool.driver.changed.set()
-        log.info(f'activated instance {self.machine_name}')
+        log.info(f'activated instance {self.machine_name} with hostname {self.hostname}')
 
     async def schedule(self, pod):
         if pod.instance is not None:
@@ -475,7 +477,7 @@ class Instance:
         # self.cores -= pod.cores
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            await session.post(f'http://{self.machine_name}:5000/api/v1alpha/pods/create', json=pod.config())
+            await session.post(f'http://{self.hostname}:5000/api/v1alpha/pods/create', json=pod.config())
         # inst.update_timestamp()
 
     def unschedule(self, pod):
