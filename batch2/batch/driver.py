@@ -504,7 +504,7 @@ class Instance:
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with await session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/status', json=pod.config()) as resp:
+            async with session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/status', json=pod.config()) as resp:
                 log.info(resp)
                 return None
 
@@ -515,7 +515,7 @@ class Instance:
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with await session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/log', json=pod.config()) as resp:
+            async with session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/log', json=pod.config()) as resp:
                 log.info(resp)
                 return None
 
