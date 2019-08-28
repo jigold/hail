@@ -198,6 +198,7 @@ class Driver:
             raise web.HTTPNotFound()
 
         log.info(f'adding pod complete to event queue')
+        log.info(data)
         await self.event_queue.put(data)
         return web.Response()
 
