@@ -112,25 +112,21 @@ class Pod:
             'output_directory': self.output_directory
         }
 
-    async def create(self):
-        assert self.instance is not None
-        assert not self.running
-
-
-
     async def read_pod_log(self, container):
         if self.instance is None:
             return None
+        return await self.instance.read_pod_log(self, container)
 
     async def read_container_status(self, container):
         if self.instance is None:
             return None
+        return await self.instance.read_container_status(self, container)
 
     async def delete(self):
         if self.instance is None:
             return
         # need to make request
-        self.instance.unschedule(self)
+        await self.instance.unschedule(self)
 
     async def status(self):
         if self.instance is None:
@@ -488,13 +484,40 @@ class Instance:
             await session.post(f'http://{self.ip_address}:5000/api/v1alpha/pods/create', json=pod.config())
         # inst.update_timestamp()
 
-    def unschedule(self, pod):
+    async def unschedule(self, pod):
         if pod not in self.pods:
+            log.info(f'cannot unschedule unknown pod {pod}, ignoring')
             return
 
         self.pods.remove(pod)
         # self.cores += pod.cores
         log.info(f'unscheduling pod {pod} from instance {self.machine_name}')
+
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            await session.post(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/delete', json=pod.config())
+
+    async def read_container_status(self, pod, container):
+        if pod not in self.pods:
+            log.info(f'unknown pod {pod}, ignoring')
+            return
+
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with await session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/status', json=pod.config()) as resp:
+                log.info(resp)
+                return None
+
+    async def read_pod_log(self, pod, container):
+        if pod not in self.pods:
+            log.info(f'unknown pod {pod}, ignoring')
+            return
+
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with await session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/log', json=pod.config()) as resp:
+                log.info(resp)
+                return None
 
     def __str__(self):
         return self.machine_name
