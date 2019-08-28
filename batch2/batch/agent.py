@@ -451,7 +451,7 @@ class Worker:
 
             await self.register()
 
-            while self.pods or time.time() - self.last_updated < 60:
+            while self.pods or time.time() - self.last_updated < 300:  # FIXME: 60 seconds
                 log.info(f'n_pods {len(self.pods)} free_cores {self.free_cores} age {time.time() - self.last_updated}')
                 await asyncio.sleep(15)
 
