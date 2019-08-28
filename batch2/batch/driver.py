@@ -232,13 +232,6 @@ class Driver:
         except Exception as err:
             return None, err
 
-    # async def schedule(self):
-    #     while True:
-    #         pod = await self.ready_queue.get()
-    #         instance = random.sample(self.instance_pool.instances, 1)
-    #         if instance:
-    #             await instance.schedule(pod)
-
     async def schedule(self):
         log.info('scheduler started')
 
@@ -249,11 +242,6 @@ class Driver:
                 await self.changed.wait()
                 self.changed.clear()
 
-            # if not self.ready:
-            #     pod = await self.ready_queue.get()
-            #     if not pod:
-            #         return
-            #     self.ready.add(pod)
             while len(self.ready) < 1 and not self.ready_queue.empty():  # FIXME: replace with 50
                 pod = self.ready_queue.get_nowait()
                 self.ready.add(pod)
@@ -269,9 +257,6 @@ class Driver:
                     assert pod.cores <= inst.free_cores
                     self.ready.remove(pod)
                     should_wait = False
-                    # if not pod.state:
-                    #     assert not pod.active_inst
-
                     log.info(f'scheduling {pod} cores {pod.cores} on {inst}')
                     await inst.schedule(pod)
                     # await self.pool.call(self.execute_task, pod, inst)
