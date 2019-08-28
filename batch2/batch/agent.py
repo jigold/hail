@@ -5,8 +5,6 @@ import time
 import logging
 import asyncio
 import random
-import socket
-import json
 import aiohttp
 import base64
 import uuid
@@ -325,7 +323,7 @@ class BatchPod:
 
 
 class Worker:
-    def __init__(self, cores, driver_base_url, token):
+    def __init__(self, cores, driver_base_url, token, ip_address):
         self.cores = cores
         self.driver_base_url = driver_base_url
         self.token = token
@@ -333,7 +331,7 @@ class Worker:
         self.last_updated = time.time()
         self.pods = {}
         self.cpu_sem = WeightedSemaphore(cores)
-        self.ip_address = socket.gethostbyname(socket.gethostname())
+        self.ip_address = ip_address
         log.info(self.ip_address)
 
     async def _create_pod(self, parameters):
@@ -482,7 +480,8 @@ class Worker:
 cores = int(os.environ['CORES'])
 driver_base_url = os.environ['DRIVER_BASE_URL']
 inst_token = os.environ['INST_TOKEN']
-worker = Worker(cores, driver_base_url, inst_token)
+ip_address = os.environ['INTERNAL_IP']
+worker = Worker(cores, driver_base_url, inst_token, ip_address)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())
