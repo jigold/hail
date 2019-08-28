@@ -104,7 +104,6 @@ class Pod:
     async def delete(self):
         if not self.active_inst:
             return
-        self.unschedule()
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
@@ -113,6 +112,8 @@ class Pod:
                     log.info(f'successfully deleted {self.name}')
                 else:
                     log.info(f'failed to delete due to {resp}')
+
+        self.unschedule()
 
     async def read_pod_log(self, container):
         if self.active_inst is None:
