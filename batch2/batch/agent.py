@@ -104,24 +104,28 @@ class Container:
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
 
-        start = time.time()
-        upload_log = self.pod.worker.write_gs_file(log_path, self.log())
-        upload_status = self.pod.worker.write_gs_file(status_path, self._container._container)
-        await asyncio.gather(upload_log, upload_status)
-        print(f'took {time.time() - start} seconds to upload from python api')
-
         # start = time.time()
-        # upload_log = check_shell(f'docker logs {self._container._id} 2>&1 > /dev/null')
+        # upload_log = self.pod.worker.write_gs_file(log_path, self.log())
+        # upload_status = self.pod.worker.write_gs_file(status_path, self._container._container)
+        # await asyncio.gather(upload_log, upload_status)
+        # print(f'took {time.time() - start} seconds to upload from python api')
+
+        print(self.spec['command'])
+        start = time.time()
+        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | wc -c')
         # upload_status = check_shell(f'docker inspect {self._container._id} > /dev/null')
         # await asyncio.gather(upload_log, upload_status)
-        # print(f'took {time.time() - start} seconds to get logs and status without gcs')
-        #
-        # # FIXME: make this robust to errors
-        # start = time.time()
-        # upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')
+        await upload_log
+        print(f'took {time.time() - start} seconds to get log without upload to gcs')
+
+        # FIXME: make this robust to errors
+        start = time.time()
+        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')
         # upload_status = check_shell(f'docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
         # await asyncio.gather(upload_log, upload_status)
-        # print(f'took {time.time() - start} seconds to get logs and status and upload files to gcs')
+        await upload_log
+        print(f'took {time.time() - start} seconds to get log and upload file to gcs')
+        print()
 
     async def delete(self):
         if self._container is not None:
