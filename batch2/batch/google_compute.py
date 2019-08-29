@@ -77,7 +77,9 @@ class PagedIterator:
 
 class GClients:
     def __init__(self, credentials):
-        self.compute_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
+        self.compute_client = googleapiclient.discovery.build('compute', 'v1',
+                                                              credentials=credentials,
+                                                              cache_discovery=False)
 
 
 class GServices:
@@ -96,11 +98,6 @@ class GServices:
         jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
         '''
         log.info(f'filter {self.filter}')
-
-        # if batch_gsa_key is None:
-        #     batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
-        # self.credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        #     batch_gsa_key)
 
     def get_clients(self):
         clients = getattr(self.local_clients, 'clients', None)
