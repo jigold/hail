@@ -118,13 +118,24 @@ class Container:
         await upload_log
         print(f'took {time.time() - start} seconds to get log without upload to gcs')
 
+        start = time.time()
+        upload_status = check_shell(f'time docker inspect {self._container._id} | wc -c')
+        # upload_status = check_shell(f'docker inspect {self._container._id} > /dev/null')
+        # await asyncio.gather(upload_log, upload_status)
+        await upload_status
+        print(f'took {time.time() - start} seconds to get status without upload to gcs')
+
         # FIXME: make this robust to errors
         start = time.time()
         upload_log = check_shell(f'time docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')
-        # upload_status = check_shell(f'docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
         # await asyncio.gather(upload_log, upload_status)
         await upload_log
         print(f'took {time.time() - start} seconds to get log and upload file to gcs')
+
+        start = time.time()
+        upload_status = check_shell(f'time docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
+        await upload_status
+        print(f'took {time.time() - start} seconds to get status and upload file to gcs')
         print()
 
     async def delete(self):
@@ -291,12 +302,27 @@ class BatchPod:
         await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
         await asyncio.gather(*[v.delete() for _, v in self.volumes.items()])
 
+    async def _mark_complete(self):
+        body = {
+            'inst_token': self.worker.token,
+            'data': self.to_dict()
+        }
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with session.post(f'{self.worker.driver_base_url}/api/v1alpha/instances/pod_complete', json=body) as resp:
+                if resp.status == 200:
+                    self.last_updated = time.time()
+                    log.info('sent pod complete')
+                    return
+
     async def run(self, semaphore=None):
         create_task = None
         try:
             create_task = asyncio.ensure_future(self._create())
             created = await asyncio.shield(create_task)
             if not created:
+                print(f'unable to create all containers for {self.name}')
+                await self._mark_complete()
                 return
 
             self.phase = 'Running'
@@ -314,20 +340,8 @@ class BatchPod:
 
             self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
 
-            body = {
-                'inst_token': self.worker.token,
-                'data': self.to_dict()
-            }
+            await self._mark_complete()
 
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                async with session.post(f'{self.worker.driver_base_url}/api/v1alpha/instances/pod_complete', json=body) as resp:
-                    if resp.status == 200:
-                        self.last_updated = time.time()
-                        log.info('sent pod complete')
-                        return
-
-            # FIXME: send message back to driver
         except asyncio.CancelledError:
             print(f'pod {self.name} was cancelled')
             if create_task is not None:
