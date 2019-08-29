@@ -11,6 +11,7 @@ import uuid
 import shutil
 from aiohttp import web
 import uvloop
+import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 
@@ -38,6 +39,7 @@ MAX_IDLE_TIME_WITHOUT_PODS = 60 * 5
 
 class Container:
     def __init__(self, spec, pod):
+        self.pod = pod
         self._container = None
         self.name = spec['name']
         self.spec = spec
@@ -103,17 +105,23 @@ class Container:
         status_path = LogStore.container_status_path(log_directory, self.name)
 
         start = time.time()
-        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 > /dev/null')
-        upload_status = check_shell(f'docker inspect {self._container._id} > /dev/null')
+        upload_log = self.pod.worker.write_gs_file(log_path, self.log())
+        upload_status = self.pod.worker.write_gs_file(status_path, self._container._container)
         await asyncio.gather(upload_log, upload_status)
-        print(f'took {time.time() - start} seconds to get logs and status without gcs')
+        print(f'took {time.time() - start} seconds to upload from python api')
 
-        # FIXME: make this robust to errors
-        start = time.time()
-        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')
-        upload_status = check_shell(f'docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
-        await asyncio.gather(upload_log, upload_status)
-        print(f'took {time.time() - start} seconds to get logs and status and upload files to gcs')
+        # start = time.time()
+        # upload_log = check_shell(f'docker logs {self._container._id} 2>&1 > /dev/null')
+        # upload_status = check_shell(f'docker inspect {self._container._id} > /dev/null')
+        # await asyncio.gather(upload_log, upload_status)
+        # print(f'took {time.time() - start} seconds to get logs and status without gcs')
+        #
+        # # FIXME: make this robust to errors
+        # start = time.time()
+        # upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')
+        # upload_status = check_shell(f'docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
+        # await asyncio.gather(upload_log, upload_status)
+        # print(f'took {time.time() - start} seconds to get logs and status and upload files to gcs')
 
     async def delete(self):
         if self._container is not None:
@@ -361,6 +369,9 @@ class Worker:
         self.cpu_sem = WeightedSemaphore(cores)
         self.ip_address = ip_address
         log.info(self.ip_address)
+
+        pool = concurrent.futures.ThreadPoolExecutor()
+        self.log_store = LogStore(pool, None, batch_bucket_name="foo")
 
     async def _create_pod(self, parameters):
         try:
