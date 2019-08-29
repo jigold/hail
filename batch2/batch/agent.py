@@ -375,7 +375,7 @@ class Worker:
         log.info(self.ip_address)
 
         pool = concurrent.futures.ThreadPoolExecutor()
-        self.log_store = LogStore(pool, None, batch_bucket_name="foo")
+        # self.log_store = LogStore(pool, None, batch_bucket_name="foo")
 
     async def _create_pod(self, parameters):
         try:
