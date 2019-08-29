@@ -14,6 +14,8 @@ import uvloop
 import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
+import google.oauth2.service_account
+import google.cloud.storage
 
 # from hailtop import gear
 
@@ -93,6 +95,13 @@ class Container:
         self._container = await docker.containers.get(self._container._id)
         return True
 
+    def upload(self, path, data):
+        bucket, path = LogStore._parse_uri(path)
+        bucket = self.pod.worker.gcs_client.bucket(bucket)
+        f = bucket.blob(path)
+        f.metadata = {'Cache-Control': 'no-cache'}
+        f.upload_from_string(data)
+
     async def run(self, log_directory):
         assert self.image_pull_backoff is None
 
@@ -136,6 +145,8 @@ class Container:
         upload_status = check_shell(f'time docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
         await upload_status
         print(f'took {time.time() - start} seconds to get status and upload file to gcs')
+
+
         print()
 
     async def delete(self):
@@ -389,6 +400,9 @@ class Worker:
         log.info(self.ip_address)
 
         pool = concurrent.futures.ThreadPoolExecutor()
+        credentials = google.oauth2.service_account.Credentials.from_service_account_file()
+        self.gcs_client = google.cloud.storage.Client(credentials=credentials)
+
         # self.log_store = LogStore(pool, None, batch_bucket_name="foo")
 
     async def _create_pod(self, parameters):
