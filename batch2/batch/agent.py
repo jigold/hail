@@ -112,7 +112,7 @@ class Container:
 
         print(self.spec['command'])
         start = time.time()
-        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | wc -c')
+        upload_log = check_shell(f'time docker logs {self._container._id} 2>&1 | wc -c')
         # upload_status = check_shell(f'docker inspect {self._container._id} > /dev/null')
         # await asyncio.gather(upload_log, upload_status)
         await upload_log
@@ -120,7 +120,7 @@ class Container:
 
         # FIXME: make this robust to errors
         start = time.time()
-        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')
+        upload_log = check_shell(f'time docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')
         # upload_status = check_shell(f'docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
         # await asyncio.gather(upload_log, upload_status)
         await upload_log
