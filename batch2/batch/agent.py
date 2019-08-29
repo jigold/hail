@@ -103,17 +103,17 @@ class Container:
         status_path = LogStore.container_status_path(log_directory, self.name)
 
         start = time.time()
-        upload_log = check_shell(f'docker logs {self._container._id} 2>&1')
-        upload_status = check_shell(f'docker inspect {self._container._id}')
+        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 > /dev/null')
+        upload_status = check_shell(f'docker inspect {self._container._id} > /dev/null')
         await asyncio.gather(upload_log, upload_status)
-        log.info(f'took {time.time() - start} seconds to get logs and status')
+        print(f'took {time.time() - start} seconds to get logs and status without gcs')
 
         # FIXME: make this robust to errors
         start = time.time()
         upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')
         upload_status = check_shell(f'docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
         await asyncio.gather(upload_log, upload_status)
-        log.info(f'took {time.time() - start} seconds to get logs and status and upload files to gcs')
+        print(f'took {time.time() - start} seconds to get logs and status and upload files to gcs')
 
     async def delete(self):
         if self._container is not None:
