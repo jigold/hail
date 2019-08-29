@@ -1,10 +1,12 @@
 import logging
 import os
+import asyncio
 
 import google
 import hailtop.gear.auth as hj
 
 from .google_storage import GCS
+from .globals import tasks
 from .utils import check_shell, CalledProcessError
 
 
@@ -22,10 +24,12 @@ class LogStore:
 
     @staticmethod
     def container_log_path(directory, container_name):
+        assert container_name in tasks
         return f'{directory}{container_name}/job.log'
 
     @staticmethod
     def container_status_path(directory, container_name):
+        assert container_name in tasks
         return f'{directory}{container_name}/status'
 
     def __init__(self, blocking_pool, instance_id, batch_gsa_key=None, batch_bucket_name=None):
@@ -58,8 +62,19 @@ class LogStore:
         return err
 
     async def delete_gs_files(self, directory):
-        try:
-            await check_shell(f'gsutil rm -r {directory}')
-            return None
-        except CalledProcessError as err:
-            return err
+        files = [LogStore.container_log_path(directory, container) for container in tasks]
+        files.extend([LogStore.container_status_path(directory, container) for container in tasks])
+        errors = await asyncio.gather(*[self.delete_gs_file(file) for file in files])
+        return list(zip(files, errors))
+
+        # for file in files:
+        #     err = await self.delete_gs_file(file)
+        #     errors.append((file, err))
+        # return errors
+
+
+        # try:
+        #     await check_shell(f'gsutil rm -r {directory}')
+        #     return None
+        # except CalledProcessError as err:
+        #     return err

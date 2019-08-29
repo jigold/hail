@@ -32,6 +32,9 @@ docker = aiodocker.Docker()
 
 # batch_pods = {}
 
+MAX_IDLE_TIME_WITH_PODS = 60 * 5
+MAX_IDLE_TIME_WITHOUT_PODS = 60 * 5
+
 
 class Container:
     def __init__(self, spec, pod):
@@ -80,6 +83,8 @@ class Container:
                     if err.status == 404:
                         self.image_pull_backoff = err.message
                         return False
+                    else:
+                        raise err
             else:
                 raise err
 
@@ -97,11 +102,18 @@ class Container:
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
 
+        start = time.time()
+        upload_log = check_shell(f'docker logs {self._container._id} 2>&1')
+        upload_status = check_shell(f'docker inspect {self._container._id}')
+        await asyncio.gather(upload_log, upload_status)
+        log.info(f'took {time.time() - start} seconds to get logs and status')
+
         # FIXME: make this robust to errors
-        log.info(f'uploading log to {shq(log_path)}')
-        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')  # WHY did this work without permissions?
+        start = time.time()
+        upload_log = check_shell(f'docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')
         upload_status = check_shell(f'docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
         await asyncio.gather(upload_log, upload_status)
+        log.info(f'took {time.time() - start} seconds to get logs and status and upload files to gcs')
 
     async def delete(self):
         if self._container is not None:
@@ -451,7 +463,9 @@ class Worker:
 
             await self.register()
 
-            while self.pods or time.time() - self.last_updated < 300:  # FIXME: 60 seconds
+            last_ping = time.time() - self.last_updated
+            while (self.pods and last_ping < MAX_IDLE_TIME_WITH_PODS) \
+                    or last_ping < MAX_IDLE_TIME_WITHOUT_PODS:
                 log.info(f'n_pods {len(self.pods)} free_cores {self.free_cores} age {time.time() - self.last_updated}')
                 await asyncio.sleep(15)
 

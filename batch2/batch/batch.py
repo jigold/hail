@@ -27,7 +27,7 @@ from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder
 from .datetime_json import JSON_ENCODER
-from .globals import states, complete_states, valid_state_transitions
+from .globals import states, complete_states, valid_state_transitions, tasks
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
     HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, QUEUE_SIZE, MAX_PODS, \
     BATCH_NAMESPACE
@@ -82,8 +82,6 @@ app = web.Application(client_max_size=None)
 routes = web.RouteTableDef()
 
 db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
-
-tasks = ('setup', 'main', 'cleanup')
 
 
 def abort(code, reason=None):
