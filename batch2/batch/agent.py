@@ -96,9 +96,14 @@ class Container:
         return True
 
     def upload(self, path, data):
+        print(path)
+        print(data)
         bucket, path = LogStore._parse_uri(path)
+        print(bucket, path)
         bucket = self.pod.worker.gcs_client.bucket(bucket)
+        print(bucket)
         f = bucket.blob(path)
+        print(f)
         f.metadata = {'Cache-Control': 'no-cache'}
         f.upload_from_string(data)
 
