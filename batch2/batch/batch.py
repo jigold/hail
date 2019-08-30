@@ -1226,6 +1226,12 @@ async def activate_worker(request):
     return await asyncio.shield(app['driver'].activate_worker(request))
 
 
+@routes.post('/api/v1alpha/instances/deactivate')
+# @rest_authenticated_users_only
+async def deactivate_worker(request):
+    return await asyncio.shield(app['driver'].deactivate_worker(request))
+
+
 @routes.post('/api/v1alpha/instances/pod_complete')
 # @rest_authenticated_users_only
 async def pod_complete(request):
