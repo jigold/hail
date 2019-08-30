@@ -131,7 +131,8 @@ class Container:
 
         start = time.time()
         # upload_log = self.pod.worker.write_gs_file(log_path, self.log())
-        self.upload(status_path, self._container._container)
+        data = self._container._container
+        self.upload(status_path, str(data))
         # await asyncio.gather(upload_log, upload_status)
         # await upload_status
         print(f'took {time.time() - start} seconds to upload log {self.name} from python api')
