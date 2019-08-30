@@ -400,8 +400,8 @@ class Worker:
         log.info(self.ip_address)
 
         pool = concurrent.futures.ThreadPoolExecutor()
-        credentials = google.oauth2.service_account.Credentials.from_service_account_file()
-        self.gcs_client = google.cloud.storage.Client(credentials=credentials)
+        # credentials = google.oauth2.service_account.Credentials.from_service_account_file()
+        self.gcs_client = google.cloud.storage.Client()  # credentials=credentials
 
         # self.log_store = LogStore(pool, None, batch_bucket_name="foo")
 
