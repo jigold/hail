@@ -19,7 +19,7 @@ import google.cloud.storage
 
 # from hailtop import gear
 
-from .utils import check_shell, check_shell_output, CalledProcessError, jsonify, abort
+from .utils import jsonify, abort, parse_cpu
 from .semaphore import NullWeightedSemaphore, WeightedSemaphore
 from .log_store import LogStore
 from .google_storage import GCS
@@ -46,7 +46,7 @@ class Container:
         self._container = None
         self.name = spec['name']
         self.spec = spec
-        self.cores = 1
+        self.cores = parse_cpu(spec['resources']['requests']['cpu'])
         self.exit_code = None
         self.id = pod.name + '-' + self.name
         self.image_pull_backoff = None
@@ -96,7 +96,7 @@ class Container:
         self._container = await docker.containers.get(self._container._id)
         return True
 
-    async def run(self, log_directory):
+    async def run(self, log_directory, cpu_sem):
         assert self.image_pull_backoff is None
 
         await self._container.start()
