@@ -1203,9 +1203,15 @@ async def polling_event_loop():
 async def driver_event_loop():
     await asyncio.sleep(1)
     while True:
-        object = await app['driver'].complete_queue.get()
-        pod = v1.api_client._ApiClient__deserialize(object, kube.client.V1Pod)
-        await pod_changed(pod)
+        try:
+            object = await app['driver'].complete_queue.get()
+            log.info(f'got object from complete queue')
+            pod = v1.api_client._ApiClient__deserialize(object, kube.client.V1Pod)
+            await pod_changed(pod)
+        except Exception as exc:
+            log.exception(f'driver event loop failed due to {exc}')
+        await asyncio.sleep(5)
+
 
 
 async def db_cleanup_event_loop():

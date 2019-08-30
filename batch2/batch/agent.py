@@ -283,7 +283,7 @@ class BatchPod:
             async with session.post(f'{self.worker.driver_base_url}/api/v1alpha/instances/pod_complete', json=body) as resp:
                 if resp.status == 200:
                     self.last_updated = time.time()
-                    log.info('sent pod complete')
+                    log.info(f'sent pod complete for {self.name}')
                     return
 
     async def run(self, semaphore=None):
