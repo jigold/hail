@@ -12,7 +12,7 @@ from aiohttp import web
 from .batch_configuration import BATCH_NAMESPACE
 from .google_compute import GServices
 from .instance_pool import InstancePool
-from .utils import AsyncWorkerPool
+from .utils import AsyncWorkerPool, parse_cpu
 
 log = logging.getLogger('driver')
 
@@ -20,7 +20,8 @@ log = logging.getLogger('driver')
 class Pod:
     def __init__(self, name, spec, secrets, output_directory):
         self.name = name
-        self.cores = 1  # FIXME // parse from the spec
+        log.info(spec)
+        self.cores = parse_cpu(spec['spec']['resources']['cpu'])
         self.spec = spec
         self.secrets = secrets
         self.output_directory = output_directory
@@ -149,7 +150,7 @@ class Pod:
 
 class Driver:
     def __init__(self, batch_gsa_key=None, worker_type='standard', worker_cores=1,
-                 worker_disk_size_gb=10, pool_size=1, max_instances=1):
+                 worker_disk_size_gb=10, pool_size=1, max_instances=2):
         self.pods = {}
         self.complete_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue()
@@ -272,12 +273,10 @@ class Driver:
             while len(self.ready) < 1 and not self.ready_queue.empty():  # FIXME: replace with 50
                 pod = self.ready_queue.get_nowait()
                 self.ready.add(pod)
-                log.info(f'added {pod} to ready')
 
             should_wait = True
             if self.inst_pool.instances_by_free_cores and self.ready:
                 inst = self.inst_pool.instances_by_free_cores[-1]
-                log.info(f'selected instance {inst}')
                 i = self.ready.bisect_key_right(inst.free_cores)
                 if i > 0:
                     pod = self.ready[i - 1]
