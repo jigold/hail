@@ -36,8 +36,8 @@ docker = aiodocker.Docker()
 
 # batch_pods = {}
 
-MAX_IDLE_TIME_WITH_PODS = 60 * 5
-MAX_IDLE_TIME_WITHOUT_PODS = 60 * 5
+MAX_IDLE_TIME_WITH_PODS = 30  # seconds
+MAX_IDLE_TIME_WITHOUT_PODS = 30  # seconds
 
 
 class Container:
