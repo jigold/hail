@@ -429,7 +429,7 @@ class Worker:
         asyncio.ensure_future(bp.delete())
 
     async def delete_pod(self, request):
-        await asyncio.shield(self._delete_pod(request))
+        # await asyncio.shield(self._delete_pod(request))
         return jsonify({})
 
     async def list_pods(self, request):
