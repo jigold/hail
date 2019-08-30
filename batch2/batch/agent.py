@@ -462,10 +462,11 @@ class Worker:
             await self.register()
 
             last_ping = time.time() - self.last_updated
-            while (len(self.pods) != 0 and last_ping < MAX_IDLE_TIME_WITH_PODS) \
+            while (self.pods and last_ping < MAX_IDLE_TIME_WITH_PODS) \
                     or last_ping < MAX_IDLE_TIME_WITHOUT_PODS:
-                log.info(f'n_pods {len(self.pods)} free_cores {self.free_cores} age {time.time() - self.last_updated} MAX_IDLE_TIME_WITH_PODS {MAX_IDLE_TIME_WITH_PODS} MAX_IDLE_TIME_WITHOUT_PODS {MAX_IDLE_TIME_WITHOUT_PODS}')
+                log.info(f'n_pods {len(self.pods)} free_cores {self.free_cores} age {last_ping}')
                 await asyncio.sleep(15)
+                last_ping = time.time() - self.last_updated
 
             log.info('idle 60s or no pods, exiting')
 
