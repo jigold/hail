@@ -239,7 +239,7 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock -v /usr/bin/docker:/usr/
                          f' ready_cores {self.driver.ready_cores}')
 
                 if self.driver.ready_cores > 0:
-                    instances_needed = (int(math.ceil(self.driver.ready_cores)) - self.free_cores + self.worker_capacity - 1) // self.worker_capacity
+                    instances_needed = (math.ceil(self.driver.ready_cores - self.free_cores) + self.worker_capacity - 1) // self.worker_capacity
                     instances_needed = min(instances_needed,
                                            self.pool_size - (self.n_pending_instances + self.n_active_instances),
                                            self.max_instances - len(self.instances),
