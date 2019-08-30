@@ -1,3 +1,4 @@
+import re
 import asyncio
 from aiohttp import web
 import secrets
@@ -23,6 +24,18 @@ def jsonify(data):
 
 def new_token(n=5):
     return ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(n)])
+
+
+cpu_regex = re.compile(r"^(\d*\.\d+|\d+)([m]?)$")
+
+
+def parse_cpu(cpu_string):
+    match = cpu_regex.fullmatch(cpu_string)
+    if match:
+        number = float(match.group(1))
+        if match.group(2) == 'm':
+            number /= 1000
+        return number
 
 
 class CalledProcessError(Exception):

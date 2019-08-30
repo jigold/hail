@@ -22,6 +22,9 @@ class Pod:
         self.name = name
         log.info(spec)
         self.cores = parse_cpu(spec['spec']['resources']['cpu'])
+        if self.cores is None:
+            raise Exception(f'invalid value for cpu. Found {spec["spec"]["resources"]["cpu"]}')
+
         self.spec = spec
         self.secrets = secrets
         self.output_directory = output_directory
@@ -227,8 +230,10 @@ class Driver:
         if name in self.pods:
             raise Exception(f'pod {name} already exists')
 
-        # cores = parse_cpu(spec['spec']['resources']['cpu'])
-        pod = Pod(name, spec, secrets, output_directory)
+        try:
+            pod = Pod(name, spec, secrets, output_directory)
+        except Exception as err:
+            raise Exception(f'invalid pod spec given: {err}')
 
         self.pods[name] = pod
         await pod.put_on_ready(self)
