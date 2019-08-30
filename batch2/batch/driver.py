@@ -127,7 +127,7 @@ class Pod:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             async with session.get(f'http://{self.active_inst.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/log') as resp:
-                log.info(resp)
+                # log.info(resp)
                 return resp.json()
 
     async def read_container_status(self, container):
@@ -137,7 +137,7 @@ class Pod:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             async with session.get(f'http://{self.active_inst.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/status') as resp:
-                log.info(resp)
+                # log.info(resp)
                 return resp.json()
 
     async def status(self):
