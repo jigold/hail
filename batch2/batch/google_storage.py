@@ -8,28 +8,29 @@ from .blocking_to_async import blocking_to_async
 
 
 class GCS:
-    def __init__(self, blocking_pool, batch_gsa_key=None):
+    @staticmethod
+    def _parse_uri(uri):
+        assert uri.startswith('gs://')
+        uri = uri.lstrip('gs://').split('/')
+        bucket = uri[0]
+        path = '/'.join(uri[1:])
+        return bucket, path
+
+    def __init__(self, blocking_pool, credentials=None):
         self.blocking_pool = blocking_pool
-        if batch_gsa_key is None:
-            batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
-        credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-            batch_gsa_key)
         self.gcs_client = google.cloud.storage.Client(credentials=credentials)
-        self._wrapped_upload_private_gs_file_from_string = self._wrap_nonreturning_network_call(
-            GCS._upload_private_gs_file_from_string)
-        self._wrapped_download_gs_file_as_string = self._wrap_returning_network_call(
-            GCS._download_gs_file_as_string)
+        self._wrapped_write_gs_file = self._wrap_nonreturning_network_call(GCS._write_gs_file)
+        self._wrapped_read_gs_file = self._wrap_returning_network_call(GCS._read_gs_file)
         self._wrapped_delete_gs_file = self._wrap_nonreturning_network_call(GCS._delete_gs_file)
 
-    async def upload_private_gs_file_from_string(self, bucket, target_path, string):
-        return await self._wrapped_upload_private_gs_file_from_string(
-            self, bucket, target_path, string)
+    async def write_gs_file(self, uri, string):
+        return await self._wrapped_write_gs_file(self, uri, string)
 
-    async def download_gs_file_as_string(self, bucket, path):
-        return await self._wrapped_download_gs_file_as_string(self, bucket, path)
+    async def read_gs_file(self, uri):
+        return await self._wrapped_read_gs_file(self, uri)
 
-    async def delete_gs_file(self, bucket, path):
-        return await self._wrapped_delete_gs_file(self, bucket, path)
+    async def delete_gs_file(self, uri):
+        return await self._wrapped_delete_gs_file(self, uri)
 
     def _wrap_returning_network_call(self, fun):
         async def wrapped(*args, **kwargs):
@@ -53,20 +54,23 @@ class GCS:
         wrapped.__name__ = fun.__name__
         return wrapped
 
-    def _upload_private_gs_file_from_string(self, bucket, target_path, string):
+    def _write_gs_file(self, uri, string):
+        bucket, path = GCS._parse_uri(uri)
         bucket = self.gcs_client.bucket(bucket)
-        f = bucket.blob(target_path)
+        f = bucket.blob(path)
         f.metadata = {'Cache-Control': 'no-cache'}
         f.upload_from_string(string)
 
-    def _download_gs_file_as_string(self, bucket, path):
+    def _read_gs_file(self, uri):
+        bucket, path = GCS._parse_uri(uri)
         bucket = self.gcs_client.bucket(bucket)
         f = bucket.blob(path)
         f.metadata = {'Cache-Control': 'no-cache'}
         content = f.download_as_string()
         return content.decode('utf-8')
 
-    def _delete_gs_file(self, bucket, path):
+    def _delete_gs_file(self, uri):
+        bucket, path = GCS._parse_uri(uri)
         bucket = self.gcs_client.bucket(bucket)
         f = bucket.blob(path)
         f.delete()

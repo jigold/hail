@@ -22,6 +22,7 @@ import google.cloud.storage
 from .utils import check_shell, check_shell_output, CalledProcessError, jsonify, abort
 from .semaphore import NullWeightedSemaphore, WeightedSemaphore
 from .log_store import LogStore
+from .google_storage import GCS
 
 # gear.configure_logging()
 log = logging.getLogger('batch2-agent')
@@ -95,18 +96,19 @@ class Container:
         self._container = await docker.containers.get(self._container._id)
         return True
 
-    def upload(self, path, data):
-        print(path)
-        print(data)
-        bucket, path = LogStore._parse_uri(path)
-        print(bucket, path)
-        bucket = self.pod.worker.gcs_client.bucket(bucket)
-        print(bucket)
-        f = bucket.blob(path)
-        print(f)
-        f.metadata = {'Cache-Control': 'no-cache'}
-        f.upload_from_string(data)
-        print('successfully uploaded data')
+    async def upload(self, path, data):
+
+        # print(path)
+        # print(data)
+        # bucket, path = LogStore._parse_uri(path)
+        # print(bucket, path)
+        # bucket = self.pod.worker.gcs_client.bucket(bucket)
+        # print(bucket)
+        # f = bucket.blob(path)
+        # print(f)
+        # f.metadata = {'Cache-Control': 'no-cache'}
+        # f.upload_from_string(data)
+        # print('successfully uploaded data')
 
     async def run(self, log_directory):
         assert self.image_pull_backoff is None
@@ -119,23 +121,30 @@ class Container:
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
 
-        print(self.spec['command'])
         start = time.time()
-        print('starting uploading log file')
-        data = await self.log()
-        self.upload(log_path, data)
-        # await upload_log
-        # upload_status = self.pod.worker.write_gs_file(status_path, self._container._container)
-        # await asyncio.gather(upload_log, upload_status)
-        print(f'took {time.time() - start} seconds to upload log {self.name} from python api')
+        upload_log = self.pod.worker.gcs_client.write_gs_file(log_path, await self.log())
+        upload_status = self.pod.worker.gcs_client.write_gs_file(status_path, self._container._container)
+        await asyncio.gather(upload_log, upload_status)
+        print(f'took {time.time() - start} seconds to upload log and status from python api')
 
-        start = time.time()
-        # upload_log = self.pod.worker.write_gs_file(log_path, self.log())
-        data = self._container._container
-        self.upload(status_path, str(data))
-        # await asyncio.gather(upload_log, upload_status)
-        # await upload_status
-        print(f'took {time.time() - start} seconds to upload status {self.name} from python api')
+
+        # print(self.spec['command'])
+        # start = time.time()
+        # print('starting uploading log file')
+        # data = await self.log()
+        # self.upload(log_path, data)
+        # # await upload_log
+        # # upload_status = self.pod.worker.write_gs_file(status_path, self._container._container)
+        # # await asyncio.gather(upload_log, upload_status)
+        # print(f'took {time.time() - start} seconds to upload log {self.name} from python api')
+
+        # start = time.time()
+        # # upload_log = self.pod.worker.write_gs_file(log_path, self.log())
+        # data = self._container._container
+        # self.upload(status_path, str(data))
+        # # await asyncio.gather(upload_log, upload_status)
+        # # await upload_status
+        # print(f'took {time.time() - start} seconds to upload status {self.name} from python api')
 
         # start = time.time()
         # upload_log = check_shell(f'time docker logs {self._container._id} 2>&1 | wc -c')
@@ -162,9 +171,6 @@ class Container:
         # upload_status = check_shell(f'time docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
         # await upload_status
         # print(f'took {time.time() - start} seconds to get status {self.name} and upload file to gcs')
-
-
-        print()
 
     async def delete(self):
         if self._container is not None:
@@ -418,8 +424,8 @@ class Worker:
 
         pool = concurrent.futures.ThreadPoolExecutor()
         # credentials = google.oauth2.service_account.Credentials.from_service_account_file()
-        self.gcs_client = google.cloud.storage.Client()  # credentials=credentials
-
+        # self.gcs_client = google.cloud.storage.Client()  # credentials=credentials
+        self.gcs_client = GCS(pool)
         # self.log_store = LogStore(pool, None, batch_bucket_name="foo")
 
     async def _create_pod(self, parameters):

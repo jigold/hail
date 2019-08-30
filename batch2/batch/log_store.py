@@ -15,14 +15,6 @@ log = logging.getLogger('logstore')
 
 class LogStore:
     @staticmethod
-    def _parse_uri(uri):
-        assert uri.startswith('gs://')
-        uri = uri.lstrip('gs://').split('/')
-        bucket = uri[0]
-        path = '/'.join(uri[1:])
-        return bucket, path
-
-    @staticmethod
     def container_log_path(directory, container_name):
         assert container_name in tasks
         return f'{directory}{container_name}/job.log'
@@ -34,7 +26,11 @@ class LogStore:
 
     def __init__(self, blocking_pool, instance_id, batch_gsa_key=None, batch_bucket_name=None):
         self.instance_id = instance_id
-        self.gcs = GCS(blocking_pool, batch_gsa_key)
+
+        if batch_gsa_key is None:
+            batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
+        credentials = google.oauth2.service_account.Credentials.from_service_account_file(batch_gsa_key)
+        self.gcs = GCS(blocking_pool, credentials)
 
         if batch_bucket_name is None:
             batch_jwt = os.environ.get('BATCH_JWT', '/batch-jwt/jwt')
@@ -45,17 +41,14 @@ class LogStore:
     def gs_job_output_directory(self, batch_id, job_id, token):
         return f'gs://{self.batch_bucket_name}/{self.instance_id}/{batch_id}/{job_id}/{token}/'
 
-    async def write_gs_file(self, file_path, data):
-        bucket, path = LogStore._parse_uri(file_path)
-        return await self.gcs.upload_private_gs_file_from_string(bucket, path, data)
+    async def write_gs_file(self, uri, data):
+        return await self.gcs.write_gs_file(uri, data)
 
-    async def read_gs_file(self, file_path):
-        bucket, path = LogStore._parse_uri(file_path)
-        return await self.gcs.download_gs_file_as_string(bucket, path)
+    async def read_gs_file(self, uri):
+        return await self.gcs.read_gs_file(uri)
 
-    async def delete_gs_file(self, file_path):
-        bucket, path = LogStore._parse_uri(file_path)
-        err = await self.gcs.delete_gs_file(bucket, path)
+    async def delete_gs_file(self, uri):
+        err = await self.gcs.delete_gs_file(uri)
         if isinstance(err, google.api_core.exceptions.NotFound):
             log.info(f'ignoring: cannot delete file that does not exist: {err}')
             err = None
