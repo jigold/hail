@@ -96,7 +96,7 @@ class Container:
         self._container = await docker.containers.get(self._container._id)
         return True
 
-    async def run(self, log_directory, cpu_sem):
+    async def run(self, log_directory):
         assert self.image_pull_backoff is None
 
         await self._container.start()
@@ -107,7 +107,6 @@ class Container:
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
 
-        start = time.time()
         upload_log = self.pod.worker.gcs_client.write_gs_file(log_path, await self.log())
         upload_status = self.pod.worker.gcs_client.write_gs_file(status_path, str(self._container._container))
         await asyncio.gather(upload_log, upload_status)

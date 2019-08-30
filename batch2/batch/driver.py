@@ -20,14 +20,12 @@ class Pod:
     def __init__(self, name, spec, secrets, output_directory):
         self.name = name
 
-        log.info(json.dumps(spec, indent=4))
         container_cpu_requests = [container['resources']['requests']['cpu'] for container in spec['spec']['containers']]
         container_cores = [parse_cpu(cpu) for cpu in container_cpu_requests]
         if any([cores is None for cores in container_cores]):
             raise Exception(f'invalid value(s) for cpu: '
                             f'{[cpu for cpu, cores in zip(container_cpu_requests, container_cores) if cores is None]}')
         self.cores = max(container_cores)
-        log.info(f'requests: {container_cpu_requests} cores: {container_cores}')
 
         self.spec = spec
         self.secrets = secrets
