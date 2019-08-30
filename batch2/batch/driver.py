@@ -11,6 +11,7 @@ from .batch_configuration import BATCH_NAMESPACE
 from .google_compute import GServices
 from .instance_pool import InstancePool
 from .utils import AsyncWorkerPool, parse_cpu
+from .semaphore import WeightedSemaphore
 
 log = logging.getLogger('driver')
 

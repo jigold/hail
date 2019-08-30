@@ -249,7 +249,7 @@ class BatchPod:
                 raise Exception(f'Unsupported volume type for {volume_spec}')
         return volumes
 
-    def __init__(self, worker, parameters):
+    def __init__(self, worker, parameters, cpu_sem):
         # print(json.dumps(parameters['spec'], indent=4))
         self.worker = worker
         self.spec = parameters['spec']
@@ -263,7 +263,7 @@ class BatchPod:
 
         self.containers = {cspec['name']: Container(cspec, self) for cspec in self.spec['spec']['containers']}
         self.phase = 'Pending'
-        self._run_task = asyncio.ensure_future(self.run())
+        self._run_task = asyncio.ensure_future(self.run(cpu_sem))
 
     async def _create(self):
         print(f'creating pod {self.name}')
@@ -362,7 +362,6 @@ class Worker:
         self.pods = {}
         self.cpu_sem = WeightedSemaphore(cores)
         self.ip_address = ip_address
-        log.info(self.ip_address)
 
         pool = concurrent.futures.ThreadPoolExecutor()
         self.gcs_client = GCS(pool)
