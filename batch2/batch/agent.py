@@ -122,6 +122,7 @@ class Container:
         print(self.spec['command'])
         start = time.time()
         print('starting uploading log file')
+        data = await self.log()
         self.upload(log_path, self.log())
         # await upload_log
         # upload_status = self.pod.worker.write_gs_file(status_path, self._container._container)
