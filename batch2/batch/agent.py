@@ -123,7 +123,7 @@ class Container:
         start = time.time()
         print('starting uploading log file')
         data = await self.log()
-        self.upload(log_path, self.log())
+        self.upload(log_path, data)
         # await upload_log
         # upload_status = self.pod.worker.write_gs_file(status_path, self._container._container)
         # await asyncio.gather(upload_log, upload_status)
