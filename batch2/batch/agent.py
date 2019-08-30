@@ -477,7 +477,7 @@ class Worker:
             body = {'inst_token': self.token}
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                async with session.post(f'{self.driver_base_url}/deactivate_worker', json=body):
+                async with session.post(f'{self.driver_base_url}/api/v1alpha/instances/deactivate', json=body):
                     log.info('deactivated')
         finally:
             if site:
