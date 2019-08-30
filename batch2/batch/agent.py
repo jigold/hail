@@ -113,38 +113,46 @@ class Container:
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
 
-        # start = time.time()
-        # upload_log = self.pod.worker.write_gs_file(log_path, self.log())
+        print(self.spec['command'])
+        start = time.time()
+        upload_log = self.pod.worker.write_gs_file(log_path, self.log())
+        await upload_log
         # upload_status = self.pod.worker.write_gs_file(status_path, self._container._container)
         # await asyncio.gather(upload_log, upload_status)
-        # print(f'took {time.time() - start} seconds to upload from python api')
+        print(f'took {time.time() - start} seconds to upload log {self.name} from python api')
 
-        print(self.spec['command'])
+        start = time.time()
+        # upload_log = self.pod.worker.write_gs_file(log_path, self.log())
+        upload_status = self.pod.worker.write_gs_file(status_path, self._container._container)
+        # await asyncio.gather(upload_log, upload_status)
+        await upload_status
+        print(f'took {time.time() - start} seconds to upload log {self.name} from python api')
+
         start = time.time()
         upload_log = check_shell(f'time docker logs {self._container._id} 2>&1 | wc -c')
         # upload_status = check_shell(f'docker inspect {self._container._id} > /dev/null')
         # await asyncio.gather(upload_log, upload_status)
         await upload_log
-        print(f'took {time.time() - start} seconds to get log without upload to gcs')
+        print(f'took {time.time() - start} seconds to get log {self.name} without upload to gcs')
 
         start = time.time()
         upload_status = check_shell(f'time docker inspect {self._container._id} | wc -c')
         # upload_status = check_shell(f'docker inspect {self._container._id} > /dev/null')
         # await asyncio.gather(upload_log, upload_status)
         await upload_status
-        print(f'took {time.time() - start} seconds to get status without upload to gcs')
+        print(f'took {time.time() - start} seconds to get status {self.name} without upload to gcs')
 
         # FIXME: make this robust to errors
         start = time.time()
         upload_log = check_shell(f'time docker logs {self._container._id} 2>&1 | gsutil -q cp - {shq(log_path)}')
         # await asyncio.gather(upload_log, upload_status)
         await upload_log
-        print(f'took {time.time() - start} seconds to get log and upload file to gcs')
+        print(f'took {time.time() - start} seconds to get log {self.name} and upload file to gcs')
 
         start = time.time()
         upload_status = check_shell(f'time docker inspect {self._container._id} | gsutil -q cp - {shq(status_path)}')
         await upload_status
-        print(f'took {time.time() - start} seconds to get status and upload file to gcs')
+        print(f'took {time.time() - start} seconds to get status {self.name} and upload file to gcs')
 
 
         print()
