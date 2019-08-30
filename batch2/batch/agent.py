@@ -367,7 +367,7 @@ class Worker:
 
     async def _create_pod(self, parameters):
         try:
-            bp = BatchPod(self, parameters)
+            bp = BatchPod(self, parameters, self.cpu_sem)
             self.pods[bp.name] = bp
         except DockerError as err:
             print(err)
