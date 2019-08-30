@@ -14,8 +14,6 @@ import uvloop
 import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
-import google.oauth2.service_account
-import google.cloud.storage
 
 # from hailtop import gear
 
@@ -83,7 +81,7 @@ class Container:
             if err.status == 404:
                 try:
                     await docker.pull(config['Image'])
-                    self._container = await docker.containers.create(config)
+                    self._container = await docker.containers.create(config, name=self.id)
                 except DockerError as err:
                     if err.status == 404:
                         self.image_pull_backoff = err.message
