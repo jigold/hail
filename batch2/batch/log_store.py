@@ -47,7 +47,11 @@ class LogStore:
 
     async def write_gs_file(self, file_path, data):
         bucket, path = LogStore._parse_uri(file_path)
-        return await self.gcs.upload_private_gs_file_from_string(bucket, path, data)
+        print(bucket, path)
+        try:
+            return await self.gcs.upload_private_gs_file_from_string(bucket, path, data)
+        except Exception as err:
+            raise err
 
     async def read_gs_file(self, file_path):
         bucket, path = LogStore._parse_uri(file_path)
