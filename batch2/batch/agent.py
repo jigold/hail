@@ -106,6 +106,7 @@ class Container:
         print(f)
         f.metadata = {'Cache-Control': 'no-cache'}
         f.upload_from_string(data)
+        print('successfully uploaded data')
 
     async def run(self, log_directory):
         assert self.image_pull_backoff is None
