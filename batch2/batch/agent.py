@@ -409,10 +409,7 @@ class Worker:
         log.info(self.ip_address)
 
         pool = concurrent.futures.ThreadPoolExecutor()
-        # credentials = google.oauth2.service_account.Credentials.from_service_account_file()
-        # self.gcs_client = google.cloud.storage.Client()  # credentials=credentials
         self.gcs_client = GCS(pool)
-        # self.log_store = LogStore(pool, None, batch_bucket_name="foo")
 
     async def _create_pod(self, parameters):
         try:
@@ -523,11 +520,11 @@ class Worker:
 
             log.info('idle 60s or no pods, exiting')
 
-            # body = {'inst_token': self.token}
-            # async with aiohttp.ClientSession(
-            #         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            #     async with session.post(f'{self.driver_base_url}/deactivate_worker', json=body):
-            #         log.info('deactivated')
+            body = {'inst_token': self.token}
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                async with session.post(f'{self.driver_base_url}/deactivate_worker', json=body):
+                    log.info('deactivated')
         finally:
             if site:
                 await site.stop()
