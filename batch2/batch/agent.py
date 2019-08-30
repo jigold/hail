@@ -115,17 +115,18 @@ class Container:
 
         print(self.spec['command'])
         start = time.time()
-        upload_log = self.pod.worker.write_gs_file(log_path, self.log())
-        await upload_log
+        print('starting uploading log file')
+        self.upload(log_path, self.log())
+        # await upload_log
         # upload_status = self.pod.worker.write_gs_file(status_path, self._container._container)
         # await asyncio.gather(upload_log, upload_status)
         print(f'took {time.time() - start} seconds to upload log {self.name} from python api')
 
         start = time.time()
         # upload_log = self.pod.worker.write_gs_file(log_path, self.log())
-        upload_status = self.pod.worker.write_gs_file(status_path, self._container._container)
+        self.upload(status_path, self._container._container)
         # await asyncio.gather(upload_log, upload_status)
-        await upload_status
+        # await upload_status
         print(f'took {time.time() - start} seconds to upload log {self.name} from python api')
 
         start = time.time()
