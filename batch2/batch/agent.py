@@ -96,20 +96,6 @@ class Container:
         self._container = await docker.containers.get(self._container._id)
         return True
 
-    async def upload(self, path, data):
-
-        # print(path)
-        # print(data)
-        # bucket, path = LogStore._parse_uri(path)
-        # print(bucket, path)
-        # bucket = self.pod.worker.gcs_client.bucket(bucket)
-        # print(bucket)
-        # f = bucket.blob(path)
-        # print(f)
-        # f.metadata = {'Cache-Control': 'no-cache'}
-        # f.upload_from_string(data)
-        # print('successfully uploaded data')
-
     async def run(self, log_directory):
         assert self.image_pull_backoff is None
 
