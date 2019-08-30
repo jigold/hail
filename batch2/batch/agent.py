@@ -111,7 +111,6 @@ class Container:
         upload_log = self.pod.worker.gcs_client.write_gs_file(log_path, await self.log())
         upload_status = self.pod.worker.gcs_client.write_gs_file(status_path, str(self._container._container))
         await asyncio.gather(upload_log, upload_status)
-        print(f'took {time.time() - start} seconds to upload log and status from python api')
 
     async def delete(self):
         if self._container is not None:
@@ -291,6 +290,7 @@ class BatchPod:
                     return
 
     async def run(self, semaphore=None):
+        start = time.time()
         create_task = None
         try:
             create_task = asyncio.ensure_future(self._create())
@@ -316,6 +316,7 @@ class BatchPod:
             self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
 
             await self._mark_complete()
+            print(f'took {time.time() - start} seconds to run pod {self.name}')
 
         except asyncio.CancelledError:
             print(f'pod {self.name} was cancelled')
