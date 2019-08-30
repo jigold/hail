@@ -384,7 +384,6 @@ class Worker:
         return jsonify({})
 
     async def get_container_log(self, request):
-        self.last_updated = time.time()
         pod_name = request.match_info['pod_name']
         container_name = request.match_info['container_name']
 
@@ -399,7 +398,6 @@ class Worker:
         return jsonify(result)
 
     async def get_container_status(self, request):
-        self.last_updated = time.time()
         pod_name = request.match_info['pod_name']
         container_name = request.match_info['container_name']
 
@@ -414,7 +412,6 @@ class Worker:
         return jsonify(result)
 
     async def get_pod(self, request):
-        self.last_updated = time.time()
         pod_name = request.match_info['pod_name']
         if pod_name not in self.pods:
             abort(404, 'unknown pod name')
@@ -432,12 +429,10 @@ class Worker:
         asyncio.ensure_future(bp.delete())
 
     async def delete_pod(self, request):
-        self.last_updated = time.time()
         await asyncio.shield(self._delete_pod(request))
         return jsonify({})
 
     async def list_pods(self, request):
-        self.last_updated = time.time()
         pods = [bp.to_dict() for _, bp in self.pods.items()]
         return jsonify(pods)
 
@@ -467,9 +462,9 @@ class Worker:
             await self.register()
 
             last_ping = time.time() - self.last_updated
-            while (self.pods and last_ping < MAX_IDLE_TIME_WITH_PODS) \
+            while (len(self.pods) != 0 and last_ping < MAX_IDLE_TIME_WITH_PODS) \
                     or last_ping < MAX_IDLE_TIME_WITHOUT_PODS:
-                log.info(f'n_pods {len(self.pods)} free_cores {self.free_cores} age {time.time() - self.last_updated}')
+                log.info(f'n_pods {len(self.pods)} free_cores {self.free_cores} age {time.time() - self.last_updated} MAX_IDLE_TIME_WITH_PODS {MAX_IDLE_TIME_WITH_PODS} MAX_IDLE_TIME_WITHOUT_PODS {MAX_IDLE_TIME_WITHOUT_PODS}')
                 await asyncio.sleep(15)
 
             log.info('idle 60s or no pods, exiting')
