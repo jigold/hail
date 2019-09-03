@@ -1,4 +1,5 @@
 import os
+import json
 import asyncio
 import aiohttp
 import logging
@@ -15,21 +16,45 @@ log = logging.getLogger('driver')
 
 
 class Pod:
-    def __init__(self, name, spec, secrets, output_directory):
-        self.name = name
+    @staticmethod
+    def from_record(record):
+        spec = json.loads(record['spec'])
+        secrets = json.loads(record['secrets'])
 
+        return Pod(name=record['name'], spec=spec, secrets=secrets,
+                   output_directory=record['output_directory'], cores=record['cores'],
+                   instance=record['instance'], on_ready=record['on_ready'])
+
+    @staticmethod
+    async def from_db(name):
+        record = await db.pods.get_record(name)
+        return Pod.from_record(record)
+
+    @staticmethod
+    async def create_pod(name, spec, secrets, output_directory):
         container_cpu_requests = [container['resources']['requests']['cpu'] for container in spec['spec']['containers']]
         container_cores = [parse_cpu(cpu) for cpu in container_cpu_requests]
         if any([cores is None for cores in container_cores]):
             raise Exception(f'invalid value(s) for cpu: '
                             f'{[cpu for cpu, cores in zip(container_cpu_requests, container_cores) if cores is None]}')
-        self.cores = max(container_cores)
+        cores = max(container_cores)
 
+        spec = json.dumps(spec)
+        secrets = json.dumps(secrets)
+        await db.pods.new_record(name=name, spec=spec, secrets=secrets,
+                                 output_directory=output_directory, cores=cores,
+                                 instance=None, on_ready=False)
+
+        return Pod(name, spec, secrets, output_directory, cores, instance=None, on_ready=False)
+
+    def __init__(self, name, spec, secrets, output_directory, cores, instance, on_ready):
+        self.name = name
         self.spec = spec
         self.secrets = secrets
         self.output_directory = output_directory
-        self.active_inst = None
-        self.on_ready = False
+        self.cores = cores
+        self.instance = instance
+        self.on_ready = on_ready
 
     def config(self):
         return {
@@ -38,11 +63,11 @@ class Pod:
             'output_directory': self.output_directory
         }
 
-    def unschedule(self):
-        if not self.active_inst:
+    async def unschedule(self):
+        if not self.instance:
             return
 
-        inst = self.active_inst
+        inst = self.instance
         inst_pool = inst.inst_pool
 
         inst.pods.remove(self)
@@ -54,15 +79,15 @@ class Pod:
         inst_pool.instances_by_free_cores.add(inst)
         inst_pool.driver.changed.set()
 
-        self.active_inst = None
+        self.instance = None
 
-    def schedule(self, inst, driver):
+    async def schedule(self, inst, driver):
         assert inst.active
-        assert not self.active_inst
+        assert not self.instance
 
         # all mine
-        self.unschedule()
-        self.remove_from_ready(driver)
+        await self.unschedule()
+        await self.remove_from_ready(driver)
 
         inst.pods.add(self)
 
@@ -73,9 +98,27 @@ class Pod:
         inst.inst_pool.free_cores -= self.cores
         # can't create more scheduling opportunities, don't set changed
 
-        self.active_inst = inst
+        self.instance = inst
 
-    def remove_from_ready(self, driver):
+        # assert inst.active
+        # assert not self.instance
+        #
+        # # all mine
+        # await self.unschedule()
+        # await self.remove_from_ready(driver)
+        #
+        # inst.pods.add(self)
+        #
+        # # inst.active
+        # inst.inst_pool.instances_by_free_cores.remove(inst)
+        # inst.free_cores -= self.cores
+        # inst.inst_pool.instances_by_free_cores.add(inst)
+        # inst.inst_pool.free_cores -= self.cores
+        # # can't create more scheduling opportunities, don't set changed
+        #
+        # self.instance = inst
+
+    async def remove_from_ready(self, driver):
         if not self.on_ready:
             return
         self.on_ready = False
@@ -84,7 +127,7 @@ class Pod:
     async def put_on_ready(self, driver):
         if self.on_ready:
             return
-        self.unschedule()
+        await self.unschedule()
         self.on_ready = True
         driver.ready_cores += self.cores
         await driver.ready_queue.put(self)
@@ -92,7 +135,7 @@ class Pod:
         log.info(f'put {self} on ready')
 
     async def create(self, inst, driver):
-        self.schedule(inst, driver)
+        await self.schedule(inst, driver)
         try:
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
@@ -105,41 +148,41 @@ class Pod:
             await self.put_on_ready(driver)
 
     async def delete(self):
-        if not self.active_inst:
+        if not self.instance:
             return
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with session.post(f'http://{self.active_inst.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
+            async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
                 if resp.status == 200:
                     log.info(f'successfully deleted {self.name}')
                 else:
                     log.info(f'failed to delete due to {resp}')
 
-        self.unschedule()
+        await self.unschedule()
 
     async def read_pod_log(self, container):
-        if self.active_inst is None:
+        if self.instance is None:
             return None
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with session.get(f'http://{self.active_inst.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/log') as resp:
+            async with session.get(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/log') as resp:
                 # log.info(resp)
                 return resp.json()
 
     async def read_container_status(self, container):
-        if self.active_inst is None:
+        if self.instance is None:
             return None
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with session.get(f'http://{self.active_inst.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/status') as resp:
+            async with session.get(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/status') as resp:
                 # log.info(resp)
                 return resp.json()
 
     async def status(self):
-        if self.active_inst is None:
+        if self.instance is None:
             return {
                 # pending status
             }
@@ -230,7 +273,7 @@ class Driver:
             raise Exception(f'pod {name} already exists')
 
         try:
-            pod = Pod(name, spec, secrets, output_directory)
+            pod = await Pod.create_pod(name, spec, secrets, output_directory)
         except Exception as err:
             raise Exception(f'invalid pod spec given: {err}')
 
