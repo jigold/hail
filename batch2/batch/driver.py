@@ -1,7 +1,6 @@
 import os
 import asyncio
 import aiohttp
-import json
 import logging
 import google.oauth2.service_account
 import sortedcontainers
@@ -30,7 +29,6 @@ class Pod:
         self.secrets = secrets
         self.output_directory = output_directory
         self.active_inst = None
-        self.running = False
         self.on_ready = False
 
     def config(self):

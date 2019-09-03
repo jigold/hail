@@ -59,6 +59,35 @@ CREATE TABLE IF NOT EXISTS `batch-attributes` (
 ) ENGINE = InnoDB;
 CREATE INDEX batch_attributes_key_value ON `batch-attributes` (`key`, `value`(256));
 
+CREATE TABLE IF NOT EXISTS `instances` (
+  `name` VARCHAR(100) NOT NULL,
+  `token` VARCHAR(100) NOT NULL,
+  `ip_address` VARCHAR(100),
+  `pending` BOOLEAN NOT NULL,
+  `active` BOOLEAN NOT NULL,
+  `deleted` BOOLEAN NOT NULL,
+  `last_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `cores` DOUBLE NOT NULL,
+  `free_cores` DOUBLE NOT NULL,
+  PRIMARY KEY (`name`)  
+) ENGINE = InnoDB;
+CREATE INDEX instances_token ON `instances` (`token`);
+CREATE INDEX instances_free_cores ON `instances` (`free_cores`);
+
+CREATE TABLE IF NOT EXISTS `pods` (
+  `name` VARCHAR(100) NOT NULL,
+  `spec` TEXT(65535) NOT NULL,
+  `secrets` TEXT(65535),
+  `output_directory` VARCHAR(100) NOT NULL,
+  `cores` DOUBLE NOT NULL,
+  `instance` VARCHAR(100),
+  `on_ready` BOOLEAN NOT NULL,
+  `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`name`),
+  FOREIGN KEY (`instance`) REFERENCES instances (`name`) ON DELETE SET NULL
+) ENGINE = InnoDB;
+CREATE INDEX pods_instance ON `pods` (`instance`);
+
 DELIMITER $$
 
 CREATE TRIGGER trigger_jobs_insert AFTER INSERT ON jobs

@@ -50,7 +50,7 @@ class Instance:
         self.inst_pool.free_cores += self.inst_pool.worker_capacity
         self.inst_pool.driver.changed.set()
 
-        print(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
+        log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
     async def deactivate(self):
         if self.pending:
@@ -59,7 +59,7 @@ class Instance:
             self.inst_pool.free_cores -= self.inst_pool.worker_capacity
             assert not self.active
 
-            print(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
+            log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
             return
 
         if not self.active:
