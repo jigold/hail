@@ -11,6 +11,7 @@ from .batch_configuration import BATCH_NAMESPACE
 from .google_compute import GServices
 from .instance_pool import InstancePool
 from .utils import AsyncWorkerPool, parse_cpu
+from .globals import db
 
 log = logging.getLogger('driver')
 
@@ -19,19 +20,19 @@ class Pod:
     @staticmethod
     def from_record(record):
         spec = json.loads(record['spec'])
-        secrets = json.loads(record['secrets'])
-
-        return Pod(name=record['name'], spec=spec, secrets=secrets,
+        return Pod(name=record['name'], spec=spec,
                    output_directory=record['output_directory'], cores=record['cores'],
                    instance=record['instance'], on_ready=record['on_ready'])
 
     @staticmethod
     async def from_db(name):
-        record = await db.pods.get_record(name)
-        return Pod.from_record(record)
+        records = await db.pods.get_record(name)
+        if len(records) == 1:
+            return Pod.from_record(records[0])
+        return None
 
     @staticmethod
-    async def create_pod(name, spec, secrets, output_directory):
+    async def create_pod(name, spec, output_directory):
         container_cpu_requests = [container['resources']['requests']['cpu'] for container in spec['spec']['containers']]
         container_cores = [parse_cpu(cpu) for cpu in container_cpu_requests]
         if any([cores is None for cores in container_cores]):
@@ -40,26 +41,32 @@ class Pod:
         cores = max(container_cores)
 
         spec = json.dumps(spec)
-        secrets = json.dumps(secrets)
-        await db.pods.new_record(name=name, spec=spec, secrets=secrets,
-                                 output_directory=output_directory, cores=cores,
-                                 instance=None, on_ready=False)
+        await db.pods.new_record(name=name, spec=spec, output_directory=output_directory,
+                                 cores=cores, instance=None)
 
-        return Pod(name, spec, secrets, output_directory, cores, instance=None, on_ready=False)
+        return Pod(name, spec, output_directory, cores, instance=None, on_ready=False)
 
-    def __init__(self, name, spec, secrets, output_directory, cores, instance, on_ready):
+    def __init__(self, name, spec, output_directory, cores, instance, on_ready):
         self.name = name
         self.spec = spec
-        self.secrets = secrets
         self.output_directory = output_directory
         self.cores = cores
         self.instance = instance
         self.on_ready = on_ready
 
-    def config(self):
+    async def config(self, driver):
+        future_secrets = []
+        secret_names = []
+        for volume in self.spec['spec']['volumes']:
+            if volume['secret'] is not None:
+                name = volume['secret']['secret_name']
+                secret_names.append(name)
+                future_secrets.append(driver.k8s.read_secret(name))
+        secrets = dict(zip(secret_names, await asyncio.gather(*future_secrets)))
+
         return {
             'spec': self.spec,
-            'secrets': self.secrets,
+            'secrets': secrets,
             'output_directory': self.output_directory
         }
 
@@ -100,24 +107,6 @@ class Pod:
 
         self.instance = inst
 
-        # assert inst.active
-        # assert not self.instance
-        #
-        # # all mine
-        # await self.unschedule()
-        # await self.remove_from_ready(driver)
-        #
-        # inst.pods.add(self)
-        #
-        # # inst.active
-        # inst.inst_pool.instances_by_free_cores.remove(inst)
-        # inst.free_cores -= self.cores
-        # inst.inst_pool.instances_by_free_cores.add(inst)
-        # inst.inst_pool.free_cores -= self.cores
-        # # can't create more scheduling opportunities, don't set changed
-        #
-        # self.instance = inst
-
     async def remove_from_ready(self, driver):
         if not self.on_ready:
             return
@@ -137,9 +126,10 @@ class Pod:
     async def create(self, inst, driver):
         await self.schedule(inst, driver)
         try:
+            config = await self.config(driver)
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                await session.post(f'http://{inst.ip_address}:5000/api/v1alpha/pods/create', json=self.config())
+                await session.post(f'http://{inst.ip_address}:5000/api/v1alpha/pods/create', json=config)
             log.info(f'created {self} on {inst}')
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
@@ -194,8 +184,9 @@ class Pod:
 
 
 class Driver:
-    def __init__(self, batch_gsa_key=None, worker_type='standard', worker_cores=1,
+    def __init__(self, k8s, batch_gsa_key=None, worker_type='standard', worker_cores=1,
                  worker_disk_size_gb=10, pool_size=1, max_instances=2):
+        self.k8s = k8s
         self.pods = {}
         self.complete_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue()
@@ -224,6 +215,10 @@ class Driver:
         credentials = google.oauth2.service_account.Credentials.from_service_account_file(batch_gsa_key)
 
         self.gservices = GServices(self.inst_pool.machine_name_prefix, credentials)
+
+    async def get_secret(self, name):
+        secret = self.k8s.read_secret(name)
+        return secret.data
 
     async def activate_worker(self, request):
         body = await request.json()
@@ -266,14 +261,14 @@ class Driver:
         await self.complete_queue.put(data)
         return web.Response()
 
-    async def create_pod(self, spec, secrets, output_directory):
+    async def create_pod(self, spec, secret_names, output_directory):
         name = spec['metadata']['name']
 
         if name in self.pods:
             raise Exception(f'pod {name} already exists')
 
         try:
-            pod = await Pod.create_pod(name, spec, secrets, output_directory)
+            pod = await Pod.create_pod(self, name, spec, output_directory)
         except Exception as err:
             raise Exception(f'invalid pod spec given: {err}')
 

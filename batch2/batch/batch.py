@@ -27,11 +27,11 @@ from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder
 from .datetime_json import JSON_ENCODER
-from .globals import states, complete_states, valid_state_transitions, tasks
+from .globals import states, complete_states, valid_state_transitions, tasks, db
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
-    HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, QUEUE_SIZE, MAX_PODS, \
-    BATCH_NAMESPACE
+    HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE
 from .driver import Driver
+from .k8s import K8s
 
 from . import schemas
 
@@ -81,7 +81,7 @@ v1 = kube.client.CoreV1Api()
 app = web.Application(client_max_size=None)
 routes = web.RouteTableDef()
 
-db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
+# db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
 
 
 def abort(code, reason=None):
@@ -186,15 +186,14 @@ class Job:
                         }),
             spec=pod_spec)
 
-        secrets = {}
-        for volume in pod_template.spec.volumes:
-            if volume.secret is not None:
-                secret_name = volume.secret.secret_name
-                secret = v1.read_namespaced_secret(secret_name, BATCH_NAMESPACE)
-                secrets[secret_name] = secret.data
+        # secret_names = []
+        # for volume in pod_template.spec.volumes:
+        #     if volume.secret is not None:
+        #         secret_names.append(volume.secret.secret_name)
+                # secret = v1.read_namespaced_secret(secret_name, BATCH_NAMESPACE)  # FIXME: this should be async
+                # secrets[secret_name] = secret.data
 
         err = await app['driver'].create_pod(spec=pod_template.to_dict(),
-                                             secrets=secrets,
                                              output_directory=self.directory)
         if err is not None:
             if err.status == 409:
@@ -1254,7 +1253,8 @@ app.router.add_get("/metrics", server_stats)
 
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
-    driver = Driver()
+    k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
+    driver = Driver(db, k8s)
     app['blocking_pool'] = pool
     app['driver'] = driver
     app['log_store'] = LogStore(pool, INSTANCE_ID)

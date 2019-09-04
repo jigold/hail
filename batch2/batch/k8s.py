@@ -42,6 +42,7 @@ class K8s:
         self._list_pvcs = self._wrap_k8s(k8s_api.list_namespaced_persistent_volume_claim)
         self._get_pod = self._wrap_k8s(k8s_api.read_namespaced_pod)
         self._get_pvc = self._wrap_k8s(k8s_api.read_namespaced_persistent_volume_claim)
+        self._read_secret = self._wrap_k8s(k8s_api.read_namespaced_secret)
 
     async def delete_pod(self, name):
         assert name is not None
@@ -74,6 +75,9 @@ class K8s:
 
     async def get_pvc(self, *args, **kwargs):
         return await self._get_pvc(*args, **kwargs)
+
+    async def read_secret(self, *args, **kwargs):
+        return await self._read_secret(*args, **kwargs)
 
     def _wrap_k8s(self, fun, pc_summary=NoSummary()):
         async def wrapped(*args, **kwargs):
