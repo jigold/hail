@@ -511,11 +511,11 @@ class PodsTable(Table):
     def __init__(self, db):
         super().__init__(db, 'pods')
 
-    # async def update_record(self, name, compare_items=None, **items):
-    #     where_items = {'name': name}
-    #     if compare_items is not None:
-    #         where_items.update(compare_items)
-    #     return await super().update_record(where_items, items)
+    async def update_record(self, name, compare_items=None, **items):
+        where_items = {'name': name}
+        if compare_items is not None:
+            where_items.update(compare_items)
+        return await super().update_record(where_items, items)
 
     async def get_ready_pods(self):
         pass

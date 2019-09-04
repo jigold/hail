@@ -16,6 +16,10 @@ from .globals import db
 log = logging.getLogger('driver')
 
 
+class PodWriteFailure(Exception):
+    pass
+
+
 class Pod:
     @staticmethod
     def from_record(record):
@@ -77,7 +81,14 @@ class Pod:
         inst = self.instance
         inst_pool = inst.inst_pool
 
-        inst.pods.remove(self)
+        n_updated = await db.pods.update_record(self.name,
+                                                compare_items={'instance': inst.name},
+                                                instance=None)
+        if n_updated != 1:
+            log.info(f'changing the instance from {inst.name} -> None failed due to mismatch in db')
+            raise PodWriteFailure
+
+        # inst.pods.remove(self)
 
         assert not inst.pending and inst.active
         inst_pool.instances_by_free_cores.remove(inst)
@@ -92,11 +103,15 @@ class Pod:
         assert inst.active
         assert not self.instance
 
+        await db.pods.update_record(self.name,
+                                    compare_items={'instance': None},
+                                    instance=inst)
+
         # all mine
         await self.unschedule()
         await self.remove_from_ready(driver)
 
-        inst.pods.add(self)
+        # inst.pods.add(self)
 
         # inst.active
         inst.inst_pool.instances_by_free_cores.remove(inst)
@@ -105,11 +120,13 @@ class Pod:
         inst.inst_pool.free_cores -= self.cores
         # can't create more scheduling opportunities, don't set changed
 
+        # await db.pods.update_record(self.name, instance=inst)
         self.instance = inst
 
     async def remove_from_ready(self, driver):
         if not self.on_ready:
             return
+
         self.on_ready = False
         driver.ready_cores -= self.cores
 
@@ -158,7 +175,6 @@ class Pod:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             async with session.get(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/log') as resp:
-                # log.info(resp)
                 return resp.json()
 
     async def read_container_status(self, container):

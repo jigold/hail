@@ -67,8 +67,6 @@ log.info(f'HAIL_POD_NAMESPACE {HAIL_POD_NAMESPACE}')
 log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
 log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 log.info(f'BATCH_IMAGE = {BATCH_IMAGE}')
-log.info(f'MAX_PODS = {MAX_PODS}')
-log.info(f'QUEUE_SIZE = {QUEUE_SIZE}')
 
 STORAGE_CLASS_NAME = 'batch'
 

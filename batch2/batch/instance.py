@@ -10,6 +10,7 @@ log = logging.getLogger('instance')
 
 class Instance:
     def __init__(self, inst_pool, inst_token):
+        self.name = self.machine_name()
         self.inst_pool = inst_pool
         self.pods = set()
         self.token = inst_token
