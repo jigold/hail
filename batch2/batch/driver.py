@@ -144,13 +144,6 @@ class Pod:
         self.on_ready = False
         driver.ready_cores -= self.cores
 
-        # n_updated = await db.pods.update_record(self.name,
-        #                                         compare_items={'on_ready': True},
-        #                                         on_ready=False)
-        # if n_updated != 1:
-        #     log.info(f'setting on_ready={self.on_ready} failed due to mismatch in db')
-        #     raise PodWriteFailure
-
         log.info(f'removed {self} from on ready')
 
     async def put_on_ready(self, driver):
@@ -162,13 +155,6 @@ class Pod:
         driver.ready_cores += self.cores
         await driver.ready_queue.put(self)
         driver.changed.set()
-
-        # n_updated = await db.pods.update_record(self.name,
-        #                                         compare_items={'on_ready': False},
-        #                                         on_ready=True)
-        # if n_updated != 1:
-        #     log.info(f'setting on_ready={self.on_ready} failed due to mismatch in db')
-        #     raise PodWriteFailure
 
         log.info(f'put {self} on ready')
 
@@ -396,5 +382,5 @@ class Driver:
             pod = Pod.from_record(record)
             return pod.name, pod
         self.pods = dict([_pod(record) for record in await db.pods.get_records()])
-        
+
         await self.schedule()
