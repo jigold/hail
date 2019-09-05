@@ -61,6 +61,7 @@ class Pod:
         self.instance = instance
         self.on_ready = on_ready
         self._status = status
+        self.lock = asyncio.Lock()
 
     async def config(self, driver):
         future_secrets = []
@@ -87,76 +88,70 @@ class Pod:
         }
 
     async def unschedule(self):
-        if not self.instance:
-            return
+        log.info(f'unscheduling {self.name}')
+        with self.lock:
+            if not self.instance:
+                return
 
-        inst = self.instance
-        inst_pool = inst.inst_pool
+            inst = self.instance
+            inst_pool = inst.inst_pool
 
-        inst.pods.remove(self)
+            inst.pods.remove(self)
 
-        assert inst.active  # not inst.pending and
-        inst_pool.instances_by_free_cores.remove(inst)
-        inst.free_cores += self.cores
-        inst_pool.free_cores += self.cores
-        inst_pool.instances_by_free_cores.add(inst)
-        inst_pool.driver.changed.set()
+            assert inst.active  # not inst.pending and
+            inst_pool.instances_by_free_cores.remove(inst)
+            inst.free_cores += self.cores
+            inst_pool.free_cores += self.cores
+            inst_pool.instances_by_free_cores.add(inst)
+            inst_pool.driver.changed.set()
 
-        self.instance = None
+            self.instance = None
 
-        n_updated = await db.pods.update_record(self.name,
-                                                compare_items={'instance': inst.name},
-                                                instance=None)
-        if n_updated != 1:
-            log.info(f'changing the instance from {inst.name} -> None failed due to mismatch in db')
-            raise PodWriteFailure
+            await db.pods.update_record(self.name, instance=None)
 
     async def schedule(self, inst, driver):
-        assert inst.active
-        assert not self.instance
+        log.info(f'scheduling {self.name}')
+        with self.lock:
+            assert inst.active
+            assert not self.instance
+            assert self.on_ready
 
-        # all mine
-        # await self.unschedule()  # I don't think this is ever necessary
-        await self.remove_from_ready(driver)
+            # all mine
+            self.on_ready = False
+            driver.ready_cores -= self.cores
+            # await self.remove_from_ready(driver)
 
-        inst.pods.add(self)
+            inst.pods.add(self)
 
-        inst.inst_pool.instances_by_free_cores.remove(inst)
-        inst.free_cores -= self.cores
-        inst.inst_pool.free_cores -= self.cores
-        inst.inst_pool.instances_by_free_cores.add(inst)
-        # can't create more scheduling opportunities, don't set changed
+            inst.inst_pool.instances_by_free_cores.remove(inst)
+            inst.free_cores -= self.cores
+            inst.inst_pool.free_cores -= self.cores
+            inst.inst_pool.instances_by_free_cores.add(inst)
+            # can't create more scheduling opportunities, don't set changed
 
-        self.instance = inst
+            self.instance = inst
 
-        n_updated = await db.pods.update_record(self.name,
-                                                compare_items={'instance': None},
-                                                instance=inst)
-        if n_updated != 1:
-            log.info(f'changing the instance from None -> {inst.name} failed due to mismatch in db')
-            await self.unschedule()  # not sure this will work
-            raise PodWriteFailure
+            await db.pods.update_record(self.name, instance=inst)
 
-    async def remove_from_ready(self, driver):
-        if not self.on_ready:
-            return
-
-        self.on_ready = False
-        driver.ready_cores -= self.cores
-
-        log.info(f'removed {self} from on ready')
+    # async def remove_from_ready(self, driver):
+    #     if not self.on_ready:
+    #         return
+    #
+    #     with self.lock:
+    #         self.on_ready = False
+    #         driver.ready_cores -= self.cores
 
     async def put_on_ready(self, driver):
         if self.on_ready:
             return
 
         await self.unschedule()
-        self.on_ready = True
-        driver.ready_cores += self.cores
-        await driver.ready_queue.put(self)
-        driver.changed.set()
 
-        log.info(f'put {self} on ready')
+        with self.lock:
+            self.on_ready = True
+            driver.ready_cores += self.cores
+            await driver.ready_queue.put(self)
+            driver.changed.set()
 
     async def create(self, inst, driver):
         await self.schedule(inst, driver)
