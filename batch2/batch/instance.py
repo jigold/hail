@@ -70,16 +70,14 @@ class Instance:
             return
 
         pod_list = list(self.pods)
-        # for p in pod_list:
-        #     await p.unschedule()
+        await asyncio.gather(*[p.unschedule() for p in pod_list])
 
         self.active = False
         self.inst_pool.instances_by_free_cores.remove(self)
         self.inst_pool.n_active_instances -= 1
         self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
-        for p in pod_list:
-            await p.put_on_ready(self.inst_pool.driver)
+        await asyncio.gather(*[p.put_on_ready(self.inst_pool.driver) for p in pod_list])
         assert not self.pods
 
         print(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
@@ -139,54 +137,3 @@ class Instance:
 
     def __str__(self):
         return self.machine_name()
-
-    # async def schedule(self, pod):
-    #     if pod.instance is not None:
-    #         log.info(f'pod {pod} already scheduled, ignoring')
-    #         return
-    #
-    #     self.pods.add(pod)
-    #     pod.instance = self
-    #     log.info(f'scheduling pod {pod} to instance {self.machine_name}')
-    #     # self.cores -= pod.cores
-    #     async with aiohttp.ClientSession(
-    #             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-    #         await session.post(f'http://{self.ip_address}:5000/api/v1alpha/pods/create', json=pod.config())
-    #     # inst.update_timestamp()
-    #
-    # async def unschedule(self, pod):
-    #     if pod not in self.pods:
-    #         log.info(f'cannot unschedule unknown pod {pod}, ignoring')
-    #         return
-    #
-    #     self.pods.remove(pod)
-    #     # self.cores += pod.cores
-    #     log.info(f'unscheduling pod {pod} from instance {self.machine_name}')
-    #
-    #     async with aiohttp.ClientSession(
-    #             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-    #         await session.post(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/delete', json=pod.config())
-    #
-    #     self.inst_pool.driver.changed.set()
-    #
-    # async def read_container_status(self, pod, container):
-    #     if pod not in self.pods:
-    #         log.info(f'unknown pod {pod}, ignoring')
-    #         return
-    #
-    #     async with aiohttp.ClientSession(
-    #             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-    #         async with session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/status', json=pod.config()) as resp:
-    #             log.info(resp)
-    #             return None
-    #
-    # async def read_pod_log(self, pod, container):
-    #     if pod not in self.pods:
-    #         log.info(f'unknown pod {pod}, ignoring')
-    #         return
-    #
-    #     async with aiohttp.ClientSession(
-    #             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-    #         async with session.get(f'http://{self.ip_address}:5000/api/v1alpha/pods/{pod.name}/containers/{container}/log', json=pod.config()) as resp:
-    #             log.info(resp)
-    #             return None

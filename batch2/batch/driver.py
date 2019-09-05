@@ -361,13 +361,6 @@ class Driver:
 
     async def list_pods(self):
         return [pod.status() for _, pod in self.pods.items()]
-        #
-        # # FIXME: this is inefficient!
-        # try:
-        #     result = await asyncio.gather(*[pod.status() for _, pod in self.pods.items()])
-        #     return result, None
-        # except Exception as err:
-        #     return None, err
 
     async def schedule(self):
         log.info('scheduler started')
@@ -395,12 +388,13 @@ class Driver:
                     log.info(f'scheduling {pod} cores {pod.cores} on {inst}')
                     await self.pool.call(pod.create, inst, self)
 
-    async def populate_queue(self):
-        queue_size = self.ready_queue.maxsize - self.ready_queue.qsize()
-        pods = [Pod.from_record(record) for record in await db.pods.get_ready_pods()]
-        self.ready_queue.put()
-
     async def run(self):
         await self.inst_pool.start()
         self.pool = AsyncWorkerPool(100)
+
+        def _pod(record):
+            pod = Pod.from_record(record)
+            return pod.name, pod
+        self.pods = dict([_pod(record) for record in await db.pods.get_records()])
+        
         await self.schedule()
