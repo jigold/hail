@@ -517,5 +517,8 @@ class PodsTable(Table):
             where_items.update(compare_items)
         return await super().update_record(where_items, items)
 
+    async def delete_record(self, name):
+        await super().delete_record({'name': name})
+
     async def get_ready_pods(self):
         pass

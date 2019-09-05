@@ -276,15 +276,18 @@ class BatchPod:
     async def _mark_complete(self):
         body = {
             'inst_token': self.worker.token,
-            'data': self.to_dict()
+            'status': self.to_dict()
         }
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with session.post(f'{self.worker.driver_base_url}/api/v1alpha/instances/pod_complete', json=body) as resp:
-                if resp.status == 200:
-                    self.last_updated = time.time()
-                    log.info(f'sent pod complete for {self.name}')
-                    return
+
+        while True:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                async with session.post(f'{self.worker.driver_base_url}/api/v1alpha/instances/pod_complete', json=body) as resp:
+                    if resp.status == 200 or resp.status == 404:
+                        self.last_updated = time.time()
+                        log.info(f'sent pod complete for {self.name}')
+                        return
+            await asyncio.sleep(15)
 
     async def run(self, semaphore=None):
         start = time.time()

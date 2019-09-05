@@ -51,7 +51,7 @@ class Pod:
         await db.pods.new_record(name=name, spec=spec, output_directory=output_directory,
                                  cores=cores, instance=None, on_ready=False)
 
-        return Pod(name, spec, output_directory, cores, instance=None, on_ready=False)
+        return Pod(name, spec, output_directory, cores, instance=None, on_ready=False, status=None)
 
     def __init__(self, name, spec, output_directory, cores, instance, on_ready, status):
         self.name = name
@@ -60,7 +60,7 @@ class Pod:
         self.cores = cores
         self.instance = instance
         self.on_ready = on_ready
-        self.status = status
+        self._status = status
 
     async def config(self, driver):
         future_secrets = []
@@ -95,7 +95,7 @@ class Pod:
 
         inst.pods.remove(self)
 
-        assert not inst.pending and inst.active
+        assert inst.active  # not inst.pending and
         inst_pool.instances_by_free_cores.remove(inst)
         inst.free_cores += self.cores
         inst_pool.free_cores += self.cores
@@ -116,16 +116,15 @@ class Pod:
         assert not self.instance
 
         # all mine
-        await self.unschedule()
+        # await self.unschedule()  # I don't think this is ever necessary
         await self.remove_from_ready(driver)
 
         inst.pods.add(self)
 
-        # inst.active
         inst.inst_pool.instances_by_free_cores.remove(inst)
         inst.free_cores -= self.cores
-        inst.inst_pool.instances_by_free_cores.add(inst)
         inst.inst_pool.free_cores -= self.cores
+        inst.inst_pool.instances_by_free_cores.add(inst)
         # can't create more scheduling opportunities, don't set changed
 
         self.instance = inst
@@ -156,6 +155,7 @@ class Pod:
     async def put_on_ready(self, driver):
         if self.on_ready:
             return
+
         await self.unschedule()
         self.on_ready = True
         driver.ready_cores += self.cores
@@ -173,6 +173,7 @@ class Pod:
 
     async def create(self, inst, driver):
         await self.schedule(inst, driver)
+
         try:
             config = await self.config(driver)  # FIXME: handle missing secrets!
 
@@ -188,18 +189,19 @@ class Pod:
             await self.put_on_ready(driver)
 
     async def delete(self):
-        if not self.instance:
-            return
-
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
-                if resp.status == 200:
-                    log.info(f'successfully deleted {self.name}')
-                else:
-                    log.info(f'failed to delete due to {resp}')
+        if self.instance:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
+                    if resp.status == 200:
+                        log.info(f'successfully deleted {self.name}')
+                    else:
+                        log.info(f'failed to delete due to {resp}')
+                        return
 
         await self.unschedule()
+
+        await db.pods.delete_record(self.name)
 
     async def read_pod_log(self, container):
         if self.instance is None:
@@ -217,17 +219,19 @@ class Pod:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             async with session.get(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/status') as resp:
-                # log.info(resp)
                 return resp.json()
 
-    # async def status(self):
-    #     return self.status
-        # if self.instance is None:
-        #     return {
-        #         # pending status
-        #     }
-        # else:
-        #     return
+    async def status(self):
+        if self._status is None:
+            return {
+                'metadata': self.spec['metadata'],
+                'status': {
+                    'containerStatuses': None,
+                    'phase': 'Pending'
+                }
+            }
+        else:
+            return self._status
 
     def __str__(self):
         return self.name
@@ -300,15 +304,25 @@ class Driver:
     async def pod_complete(self, request):
         body = await request.json()
         inst_token = body['inst_token']
-        data = body['data']
+        status = body['status']
 
         inst = self.inst_pool.token_inst.get(inst_token)
         if not inst:
-            log.warning(f'/pod_complete from unknown inst {inst_token}')
+            log.warning(f'pod_complete from unknown inst {inst_token}')
             raise web.HTTPNotFound()
 
+        pod_name = status['metadata']['name']
+        pod = self.pods.get(pod_name)
+        if pod is None:
+            log.warning(f'pod_complete from unknown pod {pod_name}')
+            return web.HTTPNotFound()
+
+        pod._status = status
+
+        await db.pods.update_record(pod_name, status=status)
+
         log.info(f'adding pod complete to event queue')
-        await self.complete_queue.put(data)
+        await self.complete_queue.put(status)
         return web.Response()
 
     async def create_pod(self, spec, output_directory):
@@ -323,7 +337,7 @@ class Driver:
             raise Exception(f'invalid pod spec given: {err}')
 
         self.pods[name] = pod
-        await pod.put_on_ready(self)
+        await pod.put_on_ready(self)  # This isn't needed if pulling queue from db
 
     async def delete_pod(self, name):
         pod = self.pods.get(name)
@@ -345,6 +359,8 @@ class Driver:
         return await pod.read_container_status(container)
 
     async def list_pods(self):
+        for pod in
+
         # FIXME: this is inefficient!
         try:
             result = await asyncio.gather(*[pod.status() for _, pod in self.pods.items()])

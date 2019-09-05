@@ -70,8 +70,8 @@ class Instance:
             return
 
         pod_list = list(self.pods)
-        for p in pod_list:
-            await p.unschedule()
+        # for p in pod_list:
+        #     await p.unschedule()
 
         self.active = False
         self.inst_pool.instances_by_free_cores.remove(self)
