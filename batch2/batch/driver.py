@@ -5,6 +5,7 @@ import aiohttp
 import logging
 import google.oauth2.service_account
 import sortedcontainers
+import traceback
 from aiohttp import web
 
 from .batch_configuration import BATCH_NAMESPACE
@@ -24,9 +25,11 @@ class Pod:
     @staticmethod
     def from_record(record):
         spec = json.loads(record['spec'])
+        status = json.loads(record['status'])
         return Pod(name=record['name'], spec=spec,
                    output_directory=record['output_directory'], cores=record['cores'],
-                   instance=record['instance'], on_ready=record['on_ready'])
+                   instance=record['instance'], on_ready=record['on_ready'],
+                   status=status)
 
     @staticmethod
     async def from_db(name):
@@ -46,17 +49,18 @@ class Pod:
 
         spec = json.dumps(spec)
         await db.pods.new_record(name=name, spec=spec, output_directory=output_directory,
-                                 cores=cores, instance=None)
+                                 cores=cores, instance=None, on_ready=False)
 
         return Pod(name, spec, output_directory, cores, instance=None, on_ready=False)
 
-    def __init__(self, name, spec, output_directory, cores, instance, on_ready):
+    def __init__(self, name, spec, output_directory, cores, instance, on_ready, status):
         self.name = name
         self.spec = spec
         self.output_directory = output_directory
         self.cores = cores
         self.instance = instance
         self.on_ready = on_ready
+        self.status = status
 
     async def config(self, driver):
         future_secrets = []
@@ -66,7 +70,15 @@ class Pod:
                 name = volume['secret']['secret_name']
                 secret_names.append(name)
                 future_secrets.append(driver.k8s.read_secret(name))
-        secrets = dict(zip(secret_names, await asyncio.gather(*future_secrets)))
+        results = await asyncio.gather(*future_secrets)
+
+        secrets = {}
+        for name, (secret, err) in zip(secret_names, results):
+            if err is not None:
+                traceback.print_tb(err.__traceback__)
+                log.info(f'could not get secret {name} due to {err}')
+                raise err
+            secrets[name] = secret
 
         return {
             'spec': self.spec,
@@ -81,14 +93,7 @@ class Pod:
         inst = self.instance
         inst_pool = inst.inst_pool
 
-        n_updated = await db.pods.update_record(self.name,
-                                                compare_items={'instance': inst.name},
-                                                instance=None)
-        if n_updated != 1:
-            log.info(f'changing the instance from {inst.name} -> None failed due to mismatch in db')
-            raise PodWriteFailure
-
-        # inst.pods.remove(self)
+        inst.pods.remove(self)
 
         assert not inst.pending and inst.active
         inst_pool.instances_by_free_cores.remove(inst)
@@ -99,19 +104,22 @@ class Pod:
 
         self.instance = None
 
+        n_updated = await db.pods.update_record(self.name,
+                                                compare_items={'instance': inst.name},
+                                                instance=None)
+        if n_updated != 1:
+            log.info(f'changing the instance from {inst.name} -> None failed due to mismatch in db')
+            raise PodWriteFailure
+
     async def schedule(self, inst, driver):
         assert inst.active
         assert not self.instance
-
-        await db.pods.update_record(self.name,
-                                    compare_items={'instance': None},
-                                    instance=inst)
 
         # all mine
         await self.unschedule()
         await self.remove_from_ready(driver)
 
-        # inst.pods.add(self)
+        inst.pods.add(self)
 
         # inst.active
         inst.inst_pool.instances_by_free_cores.remove(inst)
@@ -120,8 +128,14 @@ class Pod:
         inst.inst_pool.free_cores -= self.cores
         # can't create more scheduling opportunities, don't set changed
 
-        # await db.pods.update_record(self.name, instance=inst)
         self.instance = inst
+
+        n_updated = await db.pods.update_record(self.name,
+                                                compare_items={'instance': None},
+                                                instance=inst)
+        if n_updated != 1:
+            log.info(f'changing the instance from None -> {inst.name} failed due to mismatch in db')
+            raise PodWriteFailure
 
     async def remove_from_ready(self, driver):
         if not self.on_ready:
@@ -129,6 +143,15 @@ class Pod:
 
         self.on_ready = False
         driver.ready_cores -= self.cores
+
+        # n_updated = await db.pods.update_record(self.name,
+        #                                         compare_items={'on_ready': True},
+        #                                         on_ready=False)
+        # if n_updated != 1:
+        #     log.info(f'setting on_ready={self.on_ready} failed due to mismatch in db')
+        #     raise PodWriteFailure
+
+        log.info(f'removed {self} from on ready')
 
     async def put_on_ready(self, driver):
         if self.on_ready:
@@ -138,15 +161,25 @@ class Pod:
         driver.ready_cores += self.cores
         await driver.ready_queue.put(self)
         driver.changed.set()
+
+        # n_updated = await db.pods.update_record(self.name,
+        #                                         compare_items={'on_ready': False},
+        #                                         on_ready=True)
+        # if n_updated != 1:
+        #     log.info(f'setting on_ready={self.on_ready} failed due to mismatch in db')
+        #     raise PodWriteFailure
+
         log.info(f'put {self} on ready')
 
     async def create(self, inst, driver):
         await self.schedule(inst, driver)
         try:
-            config = await self.config(driver)
+            config = await self.config(driver)  # FIXME: handle missing secrets!
+
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                 await session.post(f'http://{inst.ip_address}:5000/api/v1alpha/pods/create', json=config)
+
             log.info(f'created {self} on {inst}')
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
@@ -187,13 +220,14 @@ class Pod:
                 # log.info(resp)
                 return resp.json()
 
-    async def status(self):
-        if self.instance is None:
-            return {
-                # pending status
-            }
-        else:
-            return
+    # async def status(self):
+    #     return self.status
+        # if self.instance is None:
+        #     return {
+        #         # pending status
+        #     }
+        # else:
+        #     return
 
     def __str__(self):
         return self.name
@@ -277,14 +311,14 @@ class Driver:
         await self.complete_queue.put(data)
         return web.Response()
 
-    async def create_pod(self, spec, secret_names, output_directory):
+    async def create_pod(self, spec, output_directory):
         name = spec['metadata']['name']
 
         if name in self.pods:
             raise Exception(f'pod {name} already exists')
 
         try:
-            pod = await Pod.create_pod(self, name, spec, output_directory)
+            pod = await Pod.create_pod(name, spec, output_directory)
         except Exception as err:
             raise Exception(f'invalid pod spec given: {err}')
 

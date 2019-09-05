@@ -1,6 +1,7 @@
 import time
 import logging
 import googleapiclient.errors
+import asyncio
 
 from hailtop import gear
 
@@ -15,6 +16,8 @@ class Instance:
         self.pods = set()
         self.token = inst_token
         self.ip_address = None
+
+        self.lock = asyncio.Lock()
 
         self.free_cores = inst_pool.worker_capacity
 
