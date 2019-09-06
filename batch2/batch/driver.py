@@ -121,7 +121,8 @@ class Pod:
         assert not self.instance
         assert self.on_ready
 
-        await self.remove_from_ready(driver)
+        self.on_ready = False
+        driver.ready_cores -= self.cores
 
         inst.pods.add(self)
 
@@ -135,24 +136,14 @@ class Pod:
 
         await db.pods.update_record(self.name, instance=inst)
 
-    async def remove_from_ready(self, driver):
-        if not self.on_ready:
+    async def put_on_ready(self, driver):
+        if self.on_ready:
             return
 
-        self.on_ready = False
-        driver.ready_cores -= self.cores
-
-    async def put_on_ready(self, driver):
-        with self.lock:
-            if self.on_ready:
-                return
-
-            await self.unschedule()
-
-            self.on_ready = True
-            driver.ready_cores += self.cores
-            await driver.ready_queue.put(self)
-            driver.changed.set()
+        self.on_ready = True
+        driver.ready_cores += self.cores
+        await driver.ready_queue.put(self)
+        driver.changed.set()
 
     async def create(self, inst, driver):
         with self.lock:
@@ -322,7 +313,7 @@ class Driver:
             raise Exception(f'invalid pod spec given: {err}')
 
         self.pods[name] = pod
-        await pod.put_on_ready(self)  # This isn't needed if pulling queue from db
+        await self.pool.call(pod.put_on_ready)
 
     async def delete_pod(self, name):
         pod = self.pods.get(name)
@@ -372,14 +363,24 @@ class Driver:
                     log.info(f'scheduling {pod} cores {pod.cores} on {inst}')
                     await self.pool.call(pod.create, inst, self)
 
+    async def fill_ready_queue(self):
+        while True:
+            for pod in self.pods:
+                if not pod.on_ready and not pod.instance and not pod._status:
+                    await pod.put_on_ready(self)
+            await asyncio.sleep(15)
+
     async def run(self):
         await self.inst_pool.start()
+
         self.pool = AsyncWorkerPool(100)
 
         def _pod(record):
             pod = Pod.from_record(record)
             return pod.name, pod
 
-        self.pods = dict([_pod(record) for record in await db.pods.get_records()])
+        self.pods = dict([_pod(record) for record in await db.pods.get_all_records()])
+
+        asyncio.ensure_future(self.fill_ready_queue())
 
         await self.schedule()
