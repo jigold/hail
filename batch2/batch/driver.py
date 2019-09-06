@@ -12,14 +12,14 @@ from .batch_configuration import BATCH_NAMESPACE
 from .google_compute import GServices
 from .instance_pool import InstancePool
 from .utils import AsyncWorkerPool, parse_cpu
-# from .globals import db
+from .globals import db
 from .database import BatchDatabase
 
 
 log = logging.getLogger('driver')
 
 
-db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
+# db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
 
 
 class PodWriteFailure(Exception):
@@ -384,7 +384,9 @@ class Driver:
             pod = Pod.from_record(record)
             return pod.name, pod
 
-        self.pods = dict([_pod(record) for record in await db.pods.get_all_records()])
+        records = await db.pods.get_all_records()
+        log.info(records)
+        self.pods = dict([_pod(record) for record in records])
 
         asyncio.ensure_future(self.fill_ready_queue())
 
