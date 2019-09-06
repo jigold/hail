@@ -26,10 +26,15 @@ class Pod:
     def from_record(record):
         spec = json.loads(record['spec'])
         status = json.loads(record['status'])
-        return Pod(name=record['name'], spec=spec,
-                   output_directory=record['output_directory'], cores=record['cores'],
-                   instance=record['instance'], on_ready=record['on_ready'],
-                   status=status)
+        return Pod(
+            name=record['name'],
+            spec=spec,
+            output_directory=record['output_directory'],
+            cores=record['cores'],
+            instance=record['instance'],
+            on_ready=False,
+            status=status
+        )
 
     @staticmethod
     async def from_db(name):
@@ -49,7 +54,7 @@ class Pod:
 
         spec = json.dumps(spec)
         await db.pods.new_record(name=name, spec=spec, output_directory=output_directory,
-                                 cores=cores, instance=None, on_ready=False)
+                                 cores=cores, instance=None)
 
         return Pod(name, spec, output_directory, cores, instance=None, on_ready=False, status=None)
 
@@ -89,101 +94,99 @@ class Pod:
 
     async def unschedule(self):
         log.info(f'unscheduling {self.name}')
-        with self.lock:
-            if not self.instance:
-                return
 
-            inst = self.instance
-            inst_pool = inst.inst_pool
+        if not self.instance:
+            return
 
-            inst.pods.remove(self)
+        inst = self.instance
+        inst_pool = inst.inst_pool
 
-            assert inst.active  # not inst.pending and
-            inst_pool.instances_by_free_cores.remove(inst)
-            inst.free_cores += self.cores
-            inst_pool.free_cores += self.cores
-            inst_pool.instances_by_free_cores.add(inst)
-            inst_pool.driver.changed.set()
+        inst.pods.remove(self)
 
-            self.instance = None
+        assert inst.active  # not inst.pending and
+        inst_pool.instances_by_free_cores.remove(inst)
+        inst.free_cores += self.cores
+        inst_pool.free_cores += self.cores
+        inst_pool.instances_by_free_cores.add(inst)
+        inst_pool.driver.changed.set()
 
-            await db.pods.update_record(self.name, instance=None)
+        self.instance = None
+
+        await db.pods.update_record(self.name, instance=None)
 
     async def schedule(self, inst, driver):
         log.info(f'scheduling {self.name}')
-        with self.lock:
-            assert inst.active
-            assert not self.instance
-            assert self.on_ready
 
-            # all mine
-            self.on_ready = False
-            driver.ready_cores -= self.cores
-            # await self.remove_from_ready(driver)
+        assert inst.active
+        assert not self.instance
+        assert self.on_ready
 
-            inst.pods.add(self)
+        await self.remove_from_ready(driver)
 
-            inst.inst_pool.instances_by_free_cores.remove(inst)
-            inst.free_cores -= self.cores
-            inst.inst_pool.free_cores -= self.cores
-            inst.inst_pool.instances_by_free_cores.add(inst)
-            # can't create more scheduling opportunities, don't set changed
+        inst.pods.add(self)
 
-            self.instance = inst
+        inst.inst_pool.instances_by_free_cores.remove(inst)
+        inst.free_cores -= self.cores
+        inst.inst_pool.free_cores -= self.cores
+        inst.inst_pool.instances_by_free_cores.add(inst)
+        # can't create more scheduling opportunities, don't set changed
 
-            await db.pods.update_record(self.name, instance=inst)
+        self.instance = inst
 
-    # async def remove_from_ready(self, driver):
-    #     if not self.on_ready:
-    #         return
-    #
-    #     with self.lock:
-    #         self.on_ready = False
-    #         driver.ready_cores -= self.cores
+        await db.pods.update_record(self.name, instance=inst)
 
-    async def put_on_ready(self, driver):
-        if self.on_ready:
+    async def remove_from_ready(self, driver):
+        if not self.on_ready:
             return
 
-        await self.unschedule()
+        self.on_ready = False
+        driver.ready_cores -= self.cores
 
+    async def put_on_ready(self, driver):
         with self.lock:
+            if self.on_ready:
+                return
+
+            await self.unschedule()
+
             self.on_ready = True
             driver.ready_cores += self.cores
             await driver.ready_queue.put(self)
             driver.changed.set()
 
     async def create(self, inst, driver):
-        await self.schedule(inst, driver)
+        with self.lock:
+            await self.schedule(inst, driver)
 
-        try:
-            config = await self.config(driver)  # FIXME: handle missing secrets!
+            try:
+                config = await self.config(driver)  # FIXME: handle missing secrets!
 
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                await session.post(f'http://{inst.ip_address}:5000/api/v1alpha/pods/create', json=config)
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    await session.post(f'http://{inst.ip_address}:5000/api/v1alpha/pods/create', json=config)
 
-            log.info(f'created {self} on {inst}')
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
-            raise
-        except Exception:  # pylint: disable=broad-except
-            log.exception(f'failed to execute {self} on {inst}, rescheduling"')
-            await self.put_on_ready(driver)
+                log.info(f'created {self} on {inst}')
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:  # pylint: disable=broad-except
+                log.exception(f'failed to execute {self} on {inst}, rescheduling"')
+                await self.put_on_ready(driver)
 
     async def delete(self):
-        if self.instance:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
-                    if resp.status == 200:
-                        log.info(f'successfully deleted {self.name}')
-                    else:
-                        log.info(f'failed to delete due to {resp}')
-                        return
+        with self.lock:
+            if self.instance:
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
+                        if resp.status == 200:
+                            log.info(f'successfully deleted {self.name}')
+                        else:
+                            log.info(f'failed to delete due to {resp}')
+                            return
 
-        await self.unschedule()
+            await self.unschedule()
 
-        await db.pods.delete_record(self.name)
+            await db.pods.delete_record(self.name)
 
     async def read_pod_log(self, container):
         if self.instance is None:
@@ -376,6 +379,7 @@ class Driver:
         def _pod(record):
             pod = Pod.from_record(record)
             return pod.name, pod
+
         self.pods = dict([_pod(record) for record in await db.pods.get_records()])
 
         await self.schedule()

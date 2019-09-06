@@ -184,13 +184,6 @@ class Job:
                         }),
             spec=pod_spec)
 
-        # secret_names = []
-        # for volume in pod_template.spec.volumes:
-        #     if volume.secret is not None:
-        #         secret_names.append(volume.secret.secret_name)
-                # secret = v1.read_namespaced_secret(secret_name, BATCH_NAMESPACE)  # FIXME: this should be async
-                # secrets[secret_name] = secret.data
-
         err = await app['driver'].create_pod(spec=pod_template.to_dict(),
                                              output_directory=self.directory)
         if err is not None:
