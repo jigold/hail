@@ -226,7 +226,7 @@ class Driver:
     def __init__(self, k8s, batch_gsa_key=None, worker_type='standard', worker_cores=1,
                  worker_disk_size_gb=10, pool_size=1, max_instances=2):
         self.k8s = k8s
-        self.pods = {}
+        self.pods = None  # populated in run
         self.complete_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue(maxsize=1000)
         self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores)
@@ -235,7 +235,7 @@ class Driver:
 
         self.pool = None  # created in run
 
-        self.base_url = f'http://batch2.internal.hail/{BATCH_NAMESPACE}/batch2'
+        self.base_url = f'http://batch2.internal.hail/{BATCH_NAMESPACE}/batch2'  # FIXME: nginx configuration for gateway-internal
 
         if worker_type == 'standard':
             m = 3.75
