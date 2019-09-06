@@ -33,7 +33,7 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL
 from .driver import Driver
 from .k8s import K8s
 
-from . import schemas, globals
+from . import schemas
 
 
 gear.configure_logging()
@@ -79,9 +79,7 @@ v1 = kube.client.CoreV1Api()
 app = web.Application(client_max_size=None)
 routes = web.RouteTableDef()
 
-# db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
-
-globals.db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
+db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
 
 
 def abort(code, reason=None):
@@ -1247,6 +1245,7 @@ app.router.add_get("/metrics", server_stats)
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
+    Driver.set_db(db)
     driver = Driver(k8s)
     app['blocking_pool'] = pool
     app['driver'] = driver

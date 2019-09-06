@@ -12,17 +12,11 @@ from .batch_configuration import BATCH_NAMESPACE
 from .google_compute import GServices
 from .instance_pool import InstancePool
 from .utils import AsyncWorkerPool, parse_cpu
-from . import globals
-# from .database import BatchDatabase
 
 
 log = logging.getLogger('driver')
 
-
-# db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
-
-
-db = globals.db
+db = None
 
 
 class PodWriteFailure(Exception):
@@ -224,6 +218,11 @@ class Pod:
 
 
 class Driver:
+    @staticmethod
+    def set_db(_db):
+        global db
+        db = _db
+
     def __init__(self, k8s, batch_gsa_key=None, worker_type='standard', worker_cores=1,
                  worker_disk_size_gb=10, pool_size=1, max_instances=2):
         self.k8s = k8s
