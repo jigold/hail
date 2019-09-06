@@ -27,15 +27,15 @@ from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder
 from .datetime_json import JSON_ENCODER
-from .globals import states, complete_states, valid_state_transitions, tasks #, db
+from .globals import states, complete_states, valid_state_transitions, tasks, db
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
     HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE
 from .driver import Driver
 from .k8s import K8s
 
-from . import schemas, globals
+from . import schemas #, globals
 
-db = globals.db
+# db = globals.db
 
 gear.configure_logging()
 log = logging.getLogger('batch')
