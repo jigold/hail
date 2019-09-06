@@ -12,7 +12,7 @@ from .batch_configuration import BATCH_NAMESPACE
 from .google_compute import GServices
 from .instance_pool import InstancePool
 from .utils import AsyncWorkerPool, parse_cpu
-from .globals import db
+# from .globals import db
 from .database import BatchDatabase
 
 
@@ -20,6 +20,7 @@ log = logging.getLogger('driver')
 
 
 # db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
+
 
 
 class PodWriteFailure(Exception):
@@ -49,7 +50,7 @@ class Pod:
         return None
 
     @staticmethod
-    async def create_pod(name, spec, output_directory):
+    async def create_pod(db, name, spec, output_directory):
         container_cpu_requests = [container['resources']['requests']['cpu'] for container in spec['spec']['containers']]
         container_cores = [parse_cpu(cpu) for cpu in container_cpu_requests]
         if any([cores is None for cores in container_cores]):
@@ -71,9 +72,7 @@ class Pod:
         self.instance = instance
         self.on_ready = on_ready
         self._status = status
-
-        loop = asyncio.get_event_loop()
-        self.lock = asyncio.Lock(loop=loop)
+        self.lock = asyncio.Lock()
 
     async def config(self, driver):
         future_secrets = []
@@ -119,7 +118,7 @@ class Pod:
 
         self.instance = None
 
-        await db.pods.update_record(self.name, instance=None)
+        await inst_pool.driver.db.pods.update_record(self.name, instance=None)
 
     async def schedule(self, inst, driver):
         log.info(f'scheduling {self.name}')
@@ -141,7 +140,7 @@ class Pod:
 
         self.instance = inst
 
-        await db.pods.update_record(self.name, instance=inst)
+        await driver.db.pods.update_record(self.name, instance=inst)
 
     async def put_on_ready(self, driver):
         if self.on_ready:
@@ -184,7 +183,7 @@ class Pod:
 
             await self.unschedule()
 
-            await db.pods.delete_record(self.name)
+            await self.instance.inst_pool.driver.db.pods.delete_record(self.name)
 
     async def read_pod_log(self, container):
         if self.instance is None:
@@ -221,8 +220,9 @@ class Pod:
 
 
 class Driver:
-    def __init__(self, k8s, batch_gsa_key=None, worker_type='standard', worker_cores=1,
+    def __init__(self, db, k8s, batch_gsa_key=None, worker_type='standard', worker_cores=1,
                  worker_disk_size_gb=10, pool_size=1, max_instances=2):
+        self.db = db
         self.k8s = k8s
         self.pods = None  # populated in run
         self.complete_queue = asyncio.Queue()
@@ -302,7 +302,7 @@ class Driver:
 
         pod._status = status
 
-        await db.pods.update_record(pod_name, status=status)
+        await self.db.pods.update_record(pod_name, status=status)
 
         log.info(f'adding pod complete to event queue')
         await self.complete_queue.put(status)
@@ -315,7 +315,7 @@ class Driver:
             raise Exception(f'pod {name} already exists')
 
         try:
-            pod = await Pod.create_pod(name, spec, output_directory)
+            pod = await Pod.create_pod(self.db, name, spec, output_directory)
         except Exception as err:
             raise Exception(f'invalid pod spec given: {err}')
 
@@ -386,7 +386,7 @@ class Driver:
             pod = Pod.from_record(record)
             return pod.name, pod
 
-        records = await db.pods.get_all_records()
+        records = await self.db.pods.get_all_records()
         log.info(records)
         self.pods = dict([_pod(record) for record in records])
 
