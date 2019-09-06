@@ -1,7 +1,3 @@
-from .globals import init_db
-
-init_db()
-
 from aiohttp import web
 from .batch import app
 

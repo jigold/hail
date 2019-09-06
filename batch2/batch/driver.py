@@ -14,9 +14,6 @@ from .instance_pool import InstancePool
 from .utils import AsyncWorkerPool, parse_cpu
 from .globals import db
 
-# from . import globals
-#
-# db = globals.db
 
 log = logging.getLogger('driver')
 
