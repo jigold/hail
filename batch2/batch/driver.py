@@ -232,7 +232,7 @@ class Driver:
 
         self.pool = None  # created in run
 
-        self.base_url = f'http://hail.internal/{BATCH_NAMESPACE}/batch2'
+        self.base_url = f'http://batch2.internal.hail/{BATCH_NAMESPACE}/batch2'
 
         if worker_type == 'standard':
             m = 3.75
