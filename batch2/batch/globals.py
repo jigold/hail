@@ -20,7 +20,7 @@ valid_state_transitions = {
 tasks = ('setup', 'main', 'cleanup')
 
 
-# db = None
+db = None
 
 
 def init_db():
