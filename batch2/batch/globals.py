@@ -20,4 +20,4 @@ valid_state_transitions = {
 tasks = ('setup', 'main', 'cleanup')
 
 
-# db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
+db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
