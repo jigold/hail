@@ -519,6 +519,3 @@ class PodsTable(Table):
 
     async def delete_record(self, name):
         await super().delete_record({'name': name})
-
-    async def get_ready_pods(self):
-        pass
