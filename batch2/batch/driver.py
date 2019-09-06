@@ -151,7 +151,7 @@ class Pod:
         driver.changed.set()
 
     async def create(self, inst, driver):
-        with self.lock:
+        async with self.lock:
             await self.schedule(inst, driver)
 
             try:
@@ -169,7 +169,7 @@ class Pod:
                 await self.put_on_ready(driver)
 
     async def delete(self):
-        with self.lock:
+        async with self.lock:
             if self.instance:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
