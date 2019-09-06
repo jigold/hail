@@ -12,10 +12,14 @@ from .batch_configuration import BATCH_NAMESPACE
 from .google_compute import GServices
 from .instance_pool import InstancePool
 from .utils import AsyncWorkerPool, parse_cpu
-from .globals import db
+# from .globals import db
+from .database import BatchDatabase
 
 
 log = logging.getLogger('driver')
+
+
+db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
 
 
 class PodWriteFailure(Exception):
