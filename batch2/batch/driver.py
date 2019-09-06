@@ -71,7 +71,9 @@ class Pod:
         self.instance = instance
         self.on_ready = on_ready
         self._status = status
-        self.lock = asyncio.Lock()
+
+        loop = asyncio.get_event_loop()
+        self.lock = asyncio.Lock(loop=loop)
 
     async def config(self, driver):
         future_secrets = []
