@@ -1245,7 +1245,7 @@ app.router.add_get("/metrics", server_stats)
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
-    driver = Driver(db, k8s)
+    driver = Driver(k8s)
     app['blocking_pool'] = pool
     app['driver'] = driver
     app['log_store'] = LogStore(pool, INSTANCE_ID)
