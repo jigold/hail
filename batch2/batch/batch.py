@@ -33,8 +33,9 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL
 from .driver import Driver
 from .k8s import K8s
 
-from . import schemas
+from . import schemas, globals
 
+db = globals.db
 
 gear.configure_logging()
 log = logging.getLogger('batch')
