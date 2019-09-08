@@ -21,7 +21,8 @@ from prometheus_async.aio.web import server_stats
 
 from hailtop import gear
 from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_users_only, \
-    new_csrf_token, check_csrf_token
+    new_csrf_token, check_csrf_token, \
+    async_get_userinfo
 
 from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
@@ -1247,9 +1248,12 @@ async def on_startup(app):
     k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
     Driver.set_db(db)
     driver = Driver(k8s)
+
+    userinfo = await async_get_userinfo()
+
     app['blocking_pool'] = pool
     app['driver'] = driver
-    app['log_store'] = LogStore(pool, INSTANCE_ID)
+    app['log_store'] = LogStore(pool, INSTANCE_ID, userinfo['bucket_name'])
 
     asyncio.ensure_future(driver.run())
     # asyncio.ensure_future(polling_event_loop())
