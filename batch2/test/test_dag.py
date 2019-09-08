@@ -9,6 +9,7 @@ import hailtop.gear.auth as hj
 
 from hailtop.batch_client.client import BatchClient, Job
 import hailtop.batch_client.aioclient as aioclient
+from hailtop.gear.auth import get_userinfo
 from .serverthread import ServerThread
 
 
@@ -17,15 +18,9 @@ def client():
     session = aiohttp.ClientSession(
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
-    client = BatchClient(session, url=os.environ.get('BATCH_URL'))
+    client = BatchClient(session)
     yield client
     client.close()
-
-
-def test_user():
-    fname = os.environ.get("HAIL_TOKEN_FILE")
-    with open(fname, 'rb') as f:
-        return hj.JWTClient.unsafe_decode(f.read())
 
 
 def batch_status_job_counter(batch_status, job_state):
@@ -44,7 +39,7 @@ def test_simple(client):
     status = batch.wait()
     assert batch_status_job_counter(status, 'Success') == 2, status
     assert batch_status_exit_codes(status) == [
-        {'input': 0, 'main': 0, 'output': 0}, {'input': 0, 'main': 0, 'output': 0}], status
+        {'setup': 0, 'main': 0, 'cleanup': 0}, {'setup': 0, 'main': 0, 'cleanup': 0}], status
 
 
 def test_missing_parent_is_400(client):
@@ -127,10 +122,13 @@ def test_callback(client):
 
     @app.route('/test', methods=['POST'])
     def test():
-        output.append(request.get_json())
+        body = request.get_json()
+        print(f'body {body}')
+        output.append(body)
         return Response(status=200)
 
     try:
+        print('starting...')
         server = ServerThread(app)
         server.start()
         batch = client.create_batch(callback=server.url_for('/test'))
@@ -139,6 +137,7 @@ def test_callback(client):
         right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
         batch = batch.submit()
+        print(f'ids {head.job_id} {left.job_id} {right.job_id} {tail.job_id}')
         batch_status = batch.wait()
 
         i = 0
@@ -157,8 +156,10 @@ def test_callback(client):
         assert output[3]['job_id'] == tail.job_id, (output, batch_status)
     finally:
         if server:
+            print('shutting down...')
             server.shutdown()
             server.join()
+            print('shut down, joined')
 
 
 def test_no_parents_allowed_in_other_batches(client):
@@ -174,7 +175,7 @@ def test_no_parents_allowed_in_other_batches(client):
 
 
 def test_input_dependency(client):
-    user = test_user()
+    user = get_userinfo()
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
@@ -186,11 +187,12 @@ def test_input_dependency(client):
     batch.submit()
     tail.wait()
     assert head.status()['exit_code']['main'] == 0, head._status
+    print(head.log())
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
 def test_input_dependency_directory(client):
-    user = test_user()
+    user = get_userinfo()
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
