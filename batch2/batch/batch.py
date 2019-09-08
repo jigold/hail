@@ -19,7 +19,7 @@ import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 
-from hailtop import gear
+from hailtop.gear import unzip, setup_aiohttp_session
 from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_users_only, \
     new_csrf_token, check_csrf_token, \
     async_get_userinfo
@@ -37,7 +37,6 @@ from .k8s import K8s
 from . import schemas
 
 
-gear.configure_logging()
 log = logging.getLogger('batch')
 
 REQUEST_TIME = pc.Summary('batch_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
@@ -78,6 +77,8 @@ else:
 v1 = kube.client.CoreV1Api()
 
 app = web.Application(client_max_size=None)
+setup_aiohttp_session(app)
+
 routes = web.RouteTableDef()
 
 db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
@@ -976,7 +977,7 @@ async def delete_batch(request, userdata):
 @routes.get('/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
 @aiohttp_jinja2.template('batch.html')
-@web_authenticated_users_only
+@web_authenticated_users_only()
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -991,7 +992,7 @@ async def ui_batch(request, userdata):
 @prom_async_time(REQUEST_TIME_POST_CANCEL_BATCH_UI)
 @aiohttp_jinja2.template('batches.html')
 @check_csrf_token
-@web_authenticated_users_only
+@web_authenticated_users_only(redirect=False)
 async def ui_cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1002,7 +1003,7 @@ async def ui_cancel_batch(request, userdata):
 
 @routes.get('/batches', name='batches')
 @prom_async_time(REQUEST_TIME_GET_BATCHES_UI)
-@web_authenticated_users_only
+@web_authenticated_users_only()
 async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
@@ -1020,7 +1021,7 @@ async def ui_batches(request, userdata):
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
 @prom_async_time(REQUEST_TIME_GET_LOGS_UI)
 @aiohttp_jinja2.template('job_log.html')
-@web_authenticated_users_only
+@web_authenticated_users_only()
 async def ui_get_job_log(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
@@ -1032,7 +1033,7 @@ async def ui_get_job_log(request, userdata):
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
 @prom_async_time(REQUEST_TIME_GET_POD_STATUS_UI)
 @aiohttp_jinja2.template('pod_status.html')
-@web_authenticated_users_only
+@web_authenticated_users_only()
 async def ui_get_pod_status(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
