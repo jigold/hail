@@ -11,11 +11,12 @@ log = logging.getLogger('instance')
 
 class Instance:
     def __init__(self, inst_pool, inst_token):
-        self.name = self.machine_name()
         self.inst_pool = inst_pool
         self.pods = set()
         self.token = inst_token
         self.ip_address = None
+
+        self.name = self.inst_pool.token_machine_name(inst_token)
 
         self.lock = asyncio.Lock()
 
@@ -32,9 +33,6 @@ class Instance:
         self.last_updated = time.time()
 
         log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
-
-    def machine_name(self):
-        return self.inst_pool.token_machine_name(self.token)
 
     def activate(self, ip_address):
         if self.active:
@@ -103,8 +101,8 @@ class Instance:
         if self.deleted:
             return
         await self.deactivate()
-        await self.inst_pool.driver.gservices.delete_instance(self.machine_name())
-        log.info(f'deleted machine {self.machine_name()}')
+        await self.inst_pool.driver.gservices.delete_instance(self.name)
+        log.info(f'deleted machine {self.name}')
         self.deleted = True
 
     async def handle_preempt_event(self):
@@ -113,14 +111,14 @@ class Instance:
 
     async def heal(self):
         try:
-            spec = await self.inst_pool.driver.gservices.get_instance(self.machine_name())
+            spec = await self.inst_pool.driver.gservices.get_instance(self.name)
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
                 await self.remove()
                 return
 
         status = spec['status']
-        log.info(f'heal: machine {self.machine_name()} status {status}')
+        log.info(f'heal: machine {self.name} status {status}')
 
         # preempted goes into terminated state
         if status == 'TERMINATED' and self.deleted:
@@ -136,4 +134,4 @@ class Instance:
         self.update_timestamp()
 
     def __str__(self):
-        return self.machine_name()
+        return self.name
