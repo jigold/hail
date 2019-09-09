@@ -15,7 +15,7 @@ import aiodocker
 from aiodocker.exceptions import DockerError
 
 # from hailtop import gear
-from hailtop.gear import DeployConfig
+from hailtop.gear import get_deploy_config
 
 from .utils import jsonify, abort, parse_cpu
 from .semaphore import NullWeightedSemaphore, WeightedSemaphore
@@ -518,7 +518,7 @@ config = {
     'service_namespace': {}
 }
 
-deploy_config = DeployConfig(_config=config)
+deploy_config = get_deploy_config(_config=config)
 worker = Worker(cores, deploy_config, inst_token, ip_address)
 
 loop = asyncio.get_event_loop()
