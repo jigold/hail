@@ -364,6 +364,7 @@ class Worker:
         self.ip_address = ip_address
 
         pool = concurrent.futures.ThreadPoolExecutor()
+
         self.gcs_client = GCS(pool)
 
     async def _create_pod(self, parameters):

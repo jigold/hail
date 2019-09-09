@@ -18,12 +18,6 @@ class GCS:
 
     def __init__(self, blocking_pool, credentials=None):
         self.blocking_pool = blocking_pool
-
-        if credentials is None:
-            batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
-            credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-                batch_gsa_key)
-
         self.gcs_client = google.cloud.storage.Client(credentials=credentials)
         self._wrapped_write_gs_file = self._wrap_nonreturning_network_call(GCS._write_gs_file)
         self._wrapped_read_gs_file = self._wrap_returning_network_call(GCS._read_gs_file)

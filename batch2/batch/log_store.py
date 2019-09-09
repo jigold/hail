@@ -1,3 +1,4 @@
+import os
 import logging
 import asyncio
 import google
@@ -23,7 +24,12 @@ class LogStore:
     def __init__(self, blocking_pool, instance_id, batch_bucket_name):
         self.instance_id = instance_id
         self.batch_bucket_name = batch_bucket_name
-        self.gcs = GCS(blocking_pool)
+
+        batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
+        credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+            batch_gsa_key)
+
+        self.gcs = GCS(blocking_pool, credentials)
 
     def gs_job_output_directory(self, batch_id, job_id, token):
         return f'gs://{self.batch_bucket_name}/{self.instance_id}/{batch_id}/{job_id}/{token}/'
