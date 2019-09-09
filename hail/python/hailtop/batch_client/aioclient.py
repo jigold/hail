@@ -432,7 +432,7 @@ class BatchBuilder:
 class BatchClient:
     async def __init__(self, session=None, headers=None, _token=None):
         deploy_config = get_deploy_config()
-        self.url = deploy_config.base_url('batch')
+        self.url = deploy_config.base_url('batch2')
 
         if session is None:
             session = aiohttp.ClientSession(raise_for_status=True,
@@ -448,7 +448,7 @@ class BatchClient:
         if _token:
             h['Authorization'] = f'Bearer {_token}'
         else:
-            h.update(auth_headers('batch'))
+            h.update(auth_headers('batch2'))
         self._headers = h
 
     async def _get(self, path, params=None):
