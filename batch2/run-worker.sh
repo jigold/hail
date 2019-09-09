@@ -16,4 +16,4 @@ python3 -u -m "batch.agent"
 
 export NAME=$(curl http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 export ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
-gcloud -q compute instances delete $NAME --zone=$ZONE
+#gcloud -q compute instances delete $NAME --zone=$ZONE
