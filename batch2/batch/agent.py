@@ -15,6 +15,7 @@ import aiodocker
 from aiodocker.exceptions import DockerError
 
 # from hailtop import gear
+from hailtop.gear import DeployConfig
 
 from .utils import jsonify, abort, parse_cpu
 from .semaphore import NullWeightedSemaphore, WeightedSemaphore
@@ -281,7 +282,7 @@ class BatchPod:
         while True:
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                async with session.post(f'{self.worker.driver_base_url}/api/v1alpha/instances/pod_complete', json=body) as resp:
+                async with session.post(self.worker.deploy_config.url('batch2', '/api/v1alpha/instances/pod_complete'), json=body) as resp:
                     if resp.status == 200 or resp.status == 404:
                         self.last_updated = time.time()
                         log.info(f'sent pod complete for {self.name}')
@@ -352,9 +353,9 @@ class BatchPod:
 
 
 class Worker:
-    def __init__(self, cores, driver_base_url, token, ip_address):
+    def __init__(self, cores, deploy_config, token, ip_address):
         self.cores = cores
-        self.driver_base_url = driver_base_url
+        self.deploy_config = deploy_config
         self.token = token
         self.free_cores = cores
         self.last_updated = time.time()
@@ -473,7 +474,7 @@ class Worker:
             body = {'inst_token': self.token}
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                async with session.post(f'{self.driver_base_url}/api/v1alpha/instances/deactivate', json=body):
+                async with session.post(self.deploy_config.url('batch2', '/api/v1alpha/instances/deactivate'), json=body):
                     log.info('deactivated')
         finally:
             if site:
@@ -490,7 +491,7 @@ class Worker:
                         'ip_address': self.ip_address}
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    async with session.post(f'{self.driver_base_url}/api/v1alpha/instances/activate', json=body) as resp:
+                    async with session.post(self.deploy_config.url('batch2', '/api/v1alpha/instances/activate'), json=body) as resp:
                         if resp.status == 200:
                             self.last_updated = time.time()
                             log.info('registered')
@@ -507,10 +508,18 @@ class Worker:
 
 
 cores = int(os.environ['CORES'])
-driver_base_url = os.environ['DRIVER_BASE_URL']
+namespace = os.environ['NAMESPACE']
 inst_token = os.environ['INST_TOKEN']
 ip_address = os.environ['INTERNAL_IP']
-worker = Worker(cores, driver_base_url, inst_token, ip_address)
+
+config = {
+    'location': 'gce',
+    'default_namespace': namespace,
+    'service_namespace': {}
+}
+
+deploy_config = DeployConfig(_config=config)
+worker = Worker(cores, deploy_config, inst_token, ip_address)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())

@@ -8,7 +8,8 @@ import sortedcontainers
 import traceback
 from aiohttp import web
 
-from .batch_configuration import BATCH_NAMESPACE
+from hailtop.gear import get_deploy_config
+
 from .google_compute import GServices
 from .instance_pool import InstancePool
 from .utils import AsyncWorkerPool, parse_cpu
@@ -235,7 +236,9 @@ class Driver:
 
         self.pool = None  # created in run
 
-        self.base_url = f'http://batch2.internal.hail/{BATCH_NAMESPACE}/batch2'  # FIXME: nginx configuration for gateway-internal
+        deploy_config = get_deploy_config()
+
+        self.base_url = deploy_config.base_url('batch2')
 
         if worker_type == 'standard':
             m = 3.75

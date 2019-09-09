@@ -120,9 +120,6 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock -v /batch:/batch -p 5000
                     'key': 'inst_token',
                     'value': inst_token
                 }, {
-                    'key': 'driver_base_url',
-                    'value': self.driver.base_url
-                }, {
                     'key': 'batch_image',
                     'value': BATCH_IMAGE
                 }, {
