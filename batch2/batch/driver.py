@@ -322,7 +322,7 @@ class Driver:
             raise Exception(f'invalid pod spec given: {err}')
 
         self.pods[name] = pod
-        await self.pool.call(pod.put_on_ready)
+        await self.pool.call(pod.put_on_ready, self)
 
     async def delete_pod(self, name):
         pod = self.pods.get(name)
