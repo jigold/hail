@@ -374,7 +374,7 @@ class Driver:
 
     async def fill_ready_queue(self):
         while True:
-            for pod in self.pods:
+            for _, pod in self.pods.items():
                 if not pod.on_ready and not pod.instance and not pod._status:
                     await pod.put_on_ready(self)
             await asyncio.sleep(15)
