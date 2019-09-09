@@ -52,14 +52,14 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
- - kind: deploy
-   name: deploy_default_admin_admin
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: batch2/default-admin-admin.yaml
-   dependsOn:
-    - default_ns
-    - batch_pods_ns    
+# - kind: deploy
+#   name: deploy_default_admin_admin
+#   namespace:
+#     valueFrom: batch_pods_ns.name
+#   config: batch2/default-admin-admin.yaml
+#   dependsOn:
+#    - default_ns
+#    - batch_pods_ns    
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
