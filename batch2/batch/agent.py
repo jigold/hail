@@ -1,6 +1,5 @@
 import abc
 import os
-from shlex import quote as shq
 import time
 import logging
 import asyncio
