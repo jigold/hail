@@ -21,10 +21,9 @@ tasks = ('setup', 'main', 'cleanup')
 db = None
 
 
-def get_db():
+async def get_db():
     global db
     if not db:
-        loop = asyncio.get_event_loop()
-        db = loop.run_until_complete(BatchDatabase('/batch-user-secret/sql-config.json'))
+        db = await BatchDatabase('/batch-user-secret/sql-config.json')
         # db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
     return db
