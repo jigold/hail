@@ -89,7 +89,7 @@ class Pod:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'could not get secret {name} due to {err}')
                 raise err
-            secrets[name] = secret
+            secrets[name] = secret.data
 
         return {
             'spec': self.spec,
