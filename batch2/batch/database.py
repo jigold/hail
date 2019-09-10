@@ -10,18 +10,18 @@ log = logging.getLogger('batch.database')
 MAX_RETRIES = 2
 
 
-# def run_synchronous(coro):
-#     loop = asyncio.get_event_loop()
-#     return loop.run_until_complete(coro)
+def run_synchronous(coro):
+    loop = asyncio.get_event_loop()
+    return loop.run_until_complete(coro)
 
 
 @asyncinit
 class Database:
-    # @classmethod
-    # def create_synchronous(cls, config_file):
-    #     db = object.__new__(cls)
-    #     run_synchronous(cls.__init__(db, config_file))
-    #     return db
+    @classmethod
+    def create_synchronous(cls, config_file):
+        db = object.__new__(cls)
+        run_synchronous(cls.__init__(db, config_file))
+        return db
 
     async def __init__(self, config_file):
         with open(config_file, 'r') as f:

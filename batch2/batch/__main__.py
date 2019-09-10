@@ -3,7 +3,7 @@ from aiohttp import web
 from hailtop.gear import configure_logging, get_deploy_config
 
 from .batch import app
-from .globals import get_db
+# from .globals import get_db
 
 configure_logging()
 
@@ -11,4 +11,4 @@ deploy_config = get_deploy_config()
 
 web.run_app(deploy_config.prefix_application(app, 'batch2'), host='0.0.0.0', port=5000)
 
-db = get_db()
+# db = get_db()
