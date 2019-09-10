@@ -15,6 +15,7 @@ valid_state_transitions = {
 
 tasks = ('setup', 'main', 'cleanup')
 
+# db = BatchDatabase('/batch-user-secret/sql-config.json')
 
 db = None
 
@@ -22,5 +23,6 @@ db = None
 def get_db():
     global db
     if not db:
-        db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
+        db = BatchDatabase('/batch-user-secret/sql-config.json')
+        # db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
     return db

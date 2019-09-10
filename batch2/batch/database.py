@@ -15,15 +15,15 @@ def run_synchronous(coro):
     return loop.run_until_complete(coro)
 
 
-@asyncinit
+# @asyncinit
 class Database:
-    @classmethod
-    def create_synchronous(cls, config_file):
-        db = object.__new__(cls)
-        run_synchronous(cls.__init__(db, config_file))
-        return db
+    # @classmethod
+    # def create_synchronous(cls, config_file):
+    #     db = object.__new__(cls)
+    #     run_synchronous(cls.__init__(db, config_file))
+    #     return db
 
-    async def __init__(self, config_file):
+    def __init__(self, config_file):
         with open(config_file, 'r') as f:
             config = json.loads(f.read().strip())
 
@@ -33,16 +33,33 @@ class Database:
         self.db = config['db']
         self.password = config['password']
         self.charset = 'utf8'
+        self._pool = None
 
-        self.pool = await aiomysql.create_pool(host=self.host,
-                                               port=self.port,
-                                               db=self.db,
-                                               user=self.user,
-                                               password=self.password,
-                                               charset=self.charset,
-                                               cursorclass=aiomysql.cursors.DictCursor,
-                                               autocommit=True)
+        # self.pool = await aiomysql.create_pool(host=self.host,
+        #                                        port=self.port,
+        #                                        db=self.db,
+        #                                        user=self.user,
+        #                                        password=self.password,
+        #                                        charset=self.charset,
+        #                                        cursorclass=aiomysql.cursors.DictCursor,
+        #                                        autocommit=True)
 
+    @property
+    def pool(self):
+        if not self._pool:
+            future_pool = aiomysql.create_pool(
+                host=self.host,
+                port=self.port,
+                db=self.db,
+                user=self.user,
+                password=self.password,
+                charset=self.charset,
+                cursorclass=aiomysql.cursors.DictCursor,
+                autocommit=True
+            )
+
+            self._pool = run_synchronous(future_pool)
+        return self._pool
 
 def make_where_statement(items):
     template = []
@@ -209,8 +226,8 @@ class JobsBuilder:
 
 
 class BatchDatabase(Database):
-    async def __init__(self, config_file):
-        await super().__init__(config_file)
+    def __init__(self, config_file):
+        super().__init__(config_file)
 
         self.jobs = JobsTable(self)
         self.jobs_parents = JobsParentsTable(self)
