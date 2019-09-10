@@ -15,6 +15,7 @@ import cerberus
 import kubernetes as kube
 import requests
 import uvloop
+uvloop.install()
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
@@ -59,7 +60,6 @@ REQUEST_TIME_GET_POD_STATUS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id
 POD_EVICTIONS = pc.Counter('batch_pod_evictions', 'Count of batch pod evictions')
 READ_POD_LOG_FAILURES = pc.Counter('batch_read_pod_log_failures', 'Count of batch read_pod_log failures')
 
-uvloop.install()
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
