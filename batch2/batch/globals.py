@@ -1,3 +1,4 @@
+import asyncio
 from .database import BatchDatabase
 
 states = {'Pending', 'Running', 'Cancelled', 'Error', 'Failed', 'Success'}
@@ -23,6 +24,7 @@ db = None
 def get_db():
     global db
     if not db:
-        db = BatchDatabase('/batch-user-secret/sql-config.json')
+        loop = asyncio.get_event_loop()
+        db = loop.run_until_complete(BatchDatabase('/batch-user-secret/sql-config.json'))
         # db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
     return db
