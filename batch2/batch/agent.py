@@ -34,8 +34,8 @@ docker = aiodocker.Docker()
 
 # batch_pods = {}
 
-MAX_IDLE_TIME_WITH_PODS = 60 * 5  # seconds
-MAX_IDLE_TIME_WITHOUT_PODS = 60 * 5  # seconds
+MAX_IDLE_TIME_WITH_PODS = 60 * 2  # seconds
+MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1 # seconds
 
 
 class Container:
@@ -50,7 +50,7 @@ class Container:
         self.image_pull_backoff = None
 
     async def create(self, volumes):
-        print(f'creating container {self.id}')
+        log.info(f'creating container {self.id}')
 
         config = {
             "AttachStdin": False,
@@ -230,7 +230,7 @@ class EmptyDir(Volume):
 
 class BatchPod:
     async def _create_volumes(self):
-        print(f'creating volumes for pod {self.name}')
+        log.info(f'creating volumes for pod {self.name}')
         volumes = {}
         for volume_spec in self.spec['spec']['volumes']:
             name = volume_spec['name']
@@ -263,13 +263,13 @@ class BatchPod:
         self._run_task = asyncio.ensure_future(self.run(cpu_sem))
 
     async def _create(self):
-        print(f'creating pod {self.name}')
+        log.info(f'creating pod {self.name}')
         self.volumes = await self._create_volumes()
         created = await asyncio.gather(*[container.create(self.volumes) for container in self.containers.values()])
         return all(created)
 
     async def _cleanup(self):
-        print(f'cleaning up pod {self.name}')
+        log.info(f'cleaning up pod {self.name}')
         await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
         await asyncio.gather(*[v.delete() for _, v in self.volumes.items()])
 
@@ -316,16 +316,16 @@ class BatchPod:
             self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
 
             await self._mark_complete()
-            print(f'took {time.time() - start} seconds to run pod {self.name}')
+            log.info(f'took {time.time() - start} seconds to run pod {self.name}')
 
         except asyncio.CancelledError:
-            print(f'pod {self.name} was cancelled')
+            log.info(f'pod {self.name} was cancelled')
             if create_task is not None:
                 await create_task
             raise
 
     async def delete(self):
-        print(f'deleting pod {self.name}')
+        log.info(f'deleting pod {self.name}')
         self._run_task.cancel()
         try:
             await self._run_task
@@ -372,11 +372,11 @@ class Worker:
             bp = BatchPod(self, parameters, self.cpu_sem)
             self.pods[bp.name] = bp
         except DockerError as err:
-            print(err)
+            log.error(err)
             raise err
             # return web.Response(body=err.message, status=err.status)
         except Exception as err:
-            print(err)
+            log.error(err)
             raise err
 
     async def create_pod(self, request):
