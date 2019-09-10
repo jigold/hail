@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS `pods` (
   `status` TEXT(65535),
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`name`),
-  FOREIGN KEY (`instance`) REFERENCES instances (`name`) ON DELETE SET NULL
+#  FOREIGN KEY (`instance`) REFERENCES instances (`name`) ON DELETE SET NULL
 ) ENGINE = InnoDB;
 CREATE INDEX pods_instance ON `pods` (`instance`);
 

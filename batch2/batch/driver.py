@@ -139,7 +139,7 @@ class Pod:
 
         self.instance = inst
 
-        await db.pods.update_record(self.name, instance=inst)
+        await db.pods.update_record(self.name, instance=inst.name)
 
     async def put_on_ready(self, driver):
         if self.on_ready:
