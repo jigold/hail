@@ -145,9 +145,9 @@ class Pod:
         if self.on_ready:
             return
 
+        await driver.ready_queue.put(self)
         self.on_ready = True
         driver.ready_cores += self.cores
-        await driver.ready_queue.put(self)
         driver.changed.set()
 
     async def create(self, inst, driver):
