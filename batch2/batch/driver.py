@@ -55,8 +55,7 @@ class Pod:
                             f'{[cpu for cpu, cores in zip(container_cpu_requests, container_cores) if cores is None]}')
         cores = max(container_cores)
 
-        spec = json.dumps(spec)
-        await db.pods.new_record(name=name, spec=spec, output_directory=output_directory,
+        await db.pods.new_record(name=name, spec=json.dumps(spec), output_directory=output_directory,
                                  cores=cores, instance=None)
 
         return Pod(name, spec, output_directory, cores, instance=None, on_ready=False, status=None)

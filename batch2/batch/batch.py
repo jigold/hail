@@ -1205,7 +1205,6 @@ async def driver_event_loop():
         await asyncio.sleep(5)
 
 
-
 async def db_cleanup_event_loop():
     await asyncio.sleep(1)
     while True:
