@@ -307,7 +307,7 @@ class Driver:
 
         pod._status = status
 
-        await db.pods.update_record(pod_name, status=status)
+        await db.pods.update_record(pod_name, status=json.dumps(status))
 
         log.info(f'adding pod complete to event queue')
         await self.complete_queue.put(status)
