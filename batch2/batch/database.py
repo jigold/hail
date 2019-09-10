@@ -47,6 +47,8 @@ class Database:
     @property
     def pool(self):
         if not self._pool:
+            loop = asyncio.get_event_loop()
+
             future_pool = aiomysql.create_pool(
                 host=self.host,
                 port=self.port,
@@ -55,11 +57,13 @@ class Database:
                 password=self.password,
                 charset=self.charset,
                 cursorclass=aiomysql.cursors.DictCursor,
-                autocommit=True
+                autocommit=True,
+                loop=loop
             )
 
             self._pool = run_synchronous(future_pool)
         return self._pool
+
 
 def make_where_statement(items):
     template = []
