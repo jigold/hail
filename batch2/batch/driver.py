@@ -75,7 +75,7 @@ class Pod:
     async def config(self, driver):
         future_secrets = []
         secret_names = []
-        log.info(json.dumps(self.spec, indent=2))
+
         for volume in self.spec['spec']['volumes']:
             if volume['secret'] is not None:
                 name = volume['secret']['secret_name']
