@@ -247,7 +247,6 @@ class BatchPod:
         return volumes
 
     def __init__(self, worker, parameters, cpu_sem):
-        # print(json.dumps(parameters['spec'], indent=4))
         self.worker = worker
         self.spec = parameters['spec']
         self.secrets_data = parameters['secrets']
@@ -296,7 +295,7 @@ class BatchPod:
             create_task = asyncio.ensure_future(self._create())
             created = await asyncio.shield(create_task)
             if not created:
-                print(f'unable to create all containers for {self.name}')
+                log.info(f'unable to create all containers for {self.name}')
                 await self._mark_complete()
                 return
 
