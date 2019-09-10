@@ -13,11 +13,12 @@ from hailtop.gear import get_deploy_config
 from .google_compute import GServices
 from .instance_pool import InstancePool
 from .utils import AsyncWorkerPool, parse_cpu
+from .globals import get_db
 
 
 log = logging.getLogger('driver')
 
-db = None
+db = get_db()
 
 
 class PodWriteFailure(Exception):
@@ -219,10 +220,10 @@ class Pod:
 
 
 class Driver:
-    @staticmethod
-    def set_db(_db):
-        global db
-        db = _db
+    # @staticmethod
+    # def set_db(_db):
+    #     global db
+    #     db = _db
 
     def __init__(self, k8s, batch_gsa_key=None, worker_type='standard', worker_cores=1,
                  worker_disk_size_gb=10, pool_size=1, max_instances=2):
@@ -392,7 +393,6 @@ class Driver:
             return pod.name, pod
 
         records = await db.pods.get_all_records()
-        log.info(records)
         self.pods = dict([_pod(record) for record in records])
 
         asyncio.ensure_future(self.fill_ready_queue())

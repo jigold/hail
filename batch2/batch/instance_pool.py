@@ -45,6 +45,11 @@ class InstancePool:
 
     async def start(self):
         log.info('starting instance pool')
+
+        # get all instances from database
+
+        # for each instance, compute free cores
+
         asyncio.ensure_future(self.control_loop())
         asyncio.ensure_future(self.event_loop())
         asyncio.ensure_future(self.heal_loop())

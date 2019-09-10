@@ -28,7 +28,7 @@ from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder
 from .datetime_json import JSON_ENCODER
-from .globals import states, complete_states, valid_state_transitions, tasks
+from .globals import states, complete_states, valid_state_transitions, tasks, get_db
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
     HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE
 from .driver import Driver
@@ -81,7 +81,9 @@ setup_aiohttp_session(app)
 
 routes = web.RouteTableDef()
 
-db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
+# db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
+# globals.db = db
+db = get_db()
 
 
 def abort(code, reason=None):
@@ -1246,7 +1248,7 @@ app.router.add_get("/metrics", server_stats)
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
-    Driver.set_db(db)
+    # Driver.set_db(db)
     driver = Driver(k8s)
 
     userinfo = await async_get_userinfo()
