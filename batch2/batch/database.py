@@ -33,7 +33,6 @@ class Database:
         self.db = config['db']
         self.password = config['password']
         self.charset = 'utf8'
-        # self._pool = None
 
         self.pool = await aiomysql.create_pool(host=self.host,
                                                port=self.port,
@@ -43,26 +42,6 @@ class Database:
                                                charset=self.charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
                                                autocommit=True)
-
-    # @property
-    # def pool(self):
-    #     if not self._pool:
-    #         loop = asyncio.get_event_loop()
-    #
-    #         future_pool = aiomysql.create_pool(
-    #             host=self.host,
-    #             port=self.port,
-    #             db=self.db,
-    #             user=self.user,
-    #             password=self.password,
-    #             charset=self.charset,
-    #             cursorclass=aiomysql.cursors.DictCursor,
-    #             autocommit=True,
-    #             loop=loop
-    #         )
-    #
-    #         self._pool = loop.run_until_complete(future_pool)
-    #     return self._pool
 
 
 def make_where_statement(items):

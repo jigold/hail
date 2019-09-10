@@ -220,11 +220,6 @@ class Pod:
 
 
 class Driver:
-    # @staticmethod
-    # def set_db(_db):
-    #     global db
-    #     db = _db
-
     def __init__(self, k8s, batch_gsa_key=None, worker_type='standard', worker_cores=1,
                  worker_disk_size_gb=10, pool_size=1, max_instances=2):
         self.k8s = k8s
