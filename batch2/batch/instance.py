@@ -78,7 +78,7 @@ class Instance:
         await asyncio.gather(*[p.put_on_ready(self.inst_pool.driver) for p in pod_list])
         assert not self.pods
 
-        print(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
+        log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
     def update_timestamp(self):
         if self in self.inst_pool.instances:
