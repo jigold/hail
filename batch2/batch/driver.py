@@ -183,8 +183,6 @@ class Pod:
         log.info(f'deleting {self.name} from instance {self.instance}')
         async with self.lock:
             if self.instance:
-                await self.unschedule()
-
                 try:
                     async with aiohttp.ClientSession(
                             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
@@ -199,6 +197,8 @@ class Pod:
                 except Exception as err:  # pylint: disable=broad-except
                     log.exception(f'failed to delete {self.name} on {self.instance} due to err {err}, ignoring')
                     await self.instance._heal()
+
+                await self.unschedule()
 
             await db.pods.delete_record(self.name)
 
