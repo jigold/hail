@@ -99,7 +99,7 @@ class Pod:
         }
 
     async def unschedule(self):
-        log.info(f'unscheduling {self.name}')
+        log.info(f'unscheduling {self.name} cores {self.cores} from {self.instance}')
 
         if not self.instance:
             return
@@ -121,11 +121,12 @@ class Pod:
         await db.pods.update_record(self.name, instance=None)
 
     async def schedule(self, inst, driver):
-        log.info(f'scheduling {self.name}')
+        log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
 
         assert inst.active
         assert not self.instance
         assert self.on_ready
+        assert not self._status
 
         self.on_ready = False
         driver.ready_cores -= self.cores
@@ -143,8 +144,15 @@ class Pod:
         await db.pods.update_record(self.name, instance=inst.name)
 
     async def put_on_ready(self, driver):
-        if self.on_ready:
+        if self._status:
+            log.info(f'{self.name} already complete, ignoring')
             return
+
+        if self.on_ready:
+            log.info(f'{self.name} already on the ready queue, ignoring')
+            return
+
+        log.info(f'put {self.name} on the ready queue')
 
         await driver.ready_queue.put(self)
         self.on_ready = True
@@ -152,6 +160,7 @@ class Pod:
         driver.changed.set()
 
     async def create(self, inst, driver):
+        log.info(f'creating {self.name} on instance {inst}')
         async with self.lock:
             await self.schedule(inst, driver)
 
@@ -170,6 +179,7 @@ class Pod:
                 await self.put_on_ready(driver)
 
     async def delete(self):
+        log.info(f'deleting {self.name} from instance {self.instance}')
         async with self.lock:
             if self.instance:
                 async with aiohttp.ClientSession(
@@ -186,6 +196,8 @@ class Pod:
             await db.pods.delete_record(self.name)
 
     async def read_pod_log(self, container):
+        log.info(f'reading pod log for {self.name} from instance {self.instance}')
+
         if self.instance is None:
             return None
 
@@ -195,6 +207,8 @@ class Pod:
                 return resp.json()
 
     async def read_container_status(self, container):
+        log.info(f'reading container status for {self.name} from instance {self.instance}')
+
         if self.instance is None:
             return None
 
@@ -300,17 +314,19 @@ class Driver:
         if pod is None:
             log.warning(f'pod_complete from unknown pod {pod_name}')
             return web.HTTPNotFound()
+        else:
+            log.info(f'pod_complete from pod {pod_name}')
 
         pod._status = status
 
         await db.pods.update_record(pod_name, status=json.dumps(status))
 
-        log.info(f'adding pod complete to event queue')
         await self.complete_queue.put(status)
         return web.Response()
 
     async def create_pod(self, spec, output_directory):
         name = spec['metadata']['name']
+        log.info(f'request to create pod {name}')
 
         if name in self.pods:
             raise Exception(f'pod {name} already exists')
@@ -324,6 +340,7 @@ class Driver:
         await self.pool.call(pod.put_on_ready, self)
 
     async def delete_pod(self, name):
+        log.info(f'request to delete pod {name}')
         pod = self.pods.get(name)
         if pod is None:
             raise Exception(f'pod {name} does not exist')
@@ -331,18 +348,21 @@ class Driver:
         del self.pods[name]
 
     async def read_pod_log(self, name, container):
+        log.info(f'request to read pod log for {name}, {container}')
         pod = self.pods.get(name)
         if pod is None:
             raise Exception(f'pod {name} does not exist')
         return await pod.read_pod_log(container)
 
     async def read_container_status(self, name, container):
+        log.info(f'request to read status for {name}, {container}')
         pod = self.pods.get(name)
         if pod is None:
             raise Exception(f'pod {name} does not exist')
         return await pod.read_container_status(container)
 
     async def list_pods(self):
+        log.info(f'request to list pods')
         return [pod.status() for _, pod in self.pods.items()]
 
     async def schedule(self):
@@ -368,7 +388,6 @@ class Driver:
                     assert pod.cores <= inst.free_cores
                     self.ready.remove(pod)
                     should_wait = False
-                    log.info(f'scheduling {pod} cores {pod.cores} on {inst}')
                     await self.pool.call(pod.create, inst, self)
 
     async def fill_ready_queue(self):
