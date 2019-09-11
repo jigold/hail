@@ -198,8 +198,7 @@ class Pod:
                     log.exception(f'failed to delete {self.name} on {self.instance} due to err {err}, ignoring')
                     await self.instance._heal()
 
-                await self.unschedule()
-
+            await self.unschedule()
             await db.pods.delete_record(self.name)
 
     async def read_pod_log(self, container):
