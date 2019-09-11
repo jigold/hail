@@ -175,21 +175,28 @@ class Pod:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
-                log.exception(f'failed to execute {self} on {inst}, rescheduling"')
+                log.exception(f'failed to execute {self} on {inst}, rescheduling')
+                await inst._heal()
                 await self.put_on_ready(driver)
 
     async def delete(self):
         log.info(f'deleting {self.name} from instance {self.instance}')
         async with self.lock:
             if self.instance:
-                async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
-                        if resp.status == 200:
-                            log.info(f'successfully deleted {self.name}')
-                        else:
-                            log.info(f'failed to delete due to {resp}')
-                            return
+                try:
+                    async with aiohttp.ClientSession(
+                            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                        async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
+                            if resp.status == 200:
+                                log.info(f'successfully deleted {self.name}')
+                            else:
+                                log.info(f'failed to delete due to {resp}')
+                                return
+                except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                    raise
+                except Exception:  # pylint: disable=broad-except
+                    log.exception(f'failed to delete {self} on {self.instance}, ignoring')
+                    await self.instance._heal()
 
             await self.unschedule()
 
