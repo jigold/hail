@@ -7,7 +7,8 @@ from flask import Response
 
 from hailtop.batch_client.client import BatchClient, Job
 import hailtop.batch_client.aioclient as aioclient
-from hailtop.gear.auth import get_userinfo
+from hailtop.auth import get_userinfo
+
 from .serverthread import ServerThread
 
 
