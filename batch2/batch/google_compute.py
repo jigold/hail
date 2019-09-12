@@ -8,12 +8,8 @@ import threading
 import googleapiclient.discovery
 import google.cloud.logging
 
-from hailtop import gear
-
 from .batch_configuration import PROJECT, ZONE
 
-
-gear.configure_logging()
 log = logging.getLogger('google_compute')
 
 

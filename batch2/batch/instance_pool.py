@@ -4,14 +4,11 @@ import logging
 import time
 import math
 
-from hailtop import gear
-
 from .utils import new_token
 from .batch_configuration import BATCH_NAMESPACE, BATCH_IMAGE, INSTANCE_ID, PROJECT, ZONE
 from .instance import Instance
 from .globals import get_db
 
-gear.configure_logging()
 log = logging.getLogger('instance_pool')
 db = get_db()
 
