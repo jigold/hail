@@ -5,8 +5,6 @@ import aiohttp
 import re
 from flask import Response
 
-import hailtop.gear.auth as hj
-
 from hailtop.batch_client.client import BatchClient, Job
 import hailtop.batch_client.aioclient as aioclient
 from hailtop.gear.auth import get_userinfo
