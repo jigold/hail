@@ -494,7 +494,7 @@ class Worker:
                         'ip_address': self.ip_address}
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    url = self.deploy_config.url('batch2', '/api/v1alpha/instances/activate')
+                    url = self.deploy_config.('batch2', '/api/v1alpha/instances/activate')
                     log.info(url)
                     async with session.post(url, json=body) as resp:
                         if resp.status == 200:
@@ -524,7 +524,7 @@ config = {
     'service_namespace': {}
 }
 
-deploy_config = get_deploy_config(_config=config)  # FIXME
+deploy_config = DeployConfig.from_config(config)  # FIXME
 worker = Worker(image, cores, deploy_config, inst_token, ip_address)
 
 loop = asyncio.get_event_loop()
