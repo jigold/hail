@@ -156,14 +156,7 @@ class Instance:
         self.update_timestamp()
 
     async def heal(self):
-        try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                await session.get(f'http://{self.ip_address}:5000/healthcheck')
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
-            raise
-        except Exception as err:  # pylint: disable=broad-except
-            log.info(f'healthcheck failed for {self.name} due to err {err}; asking gce instead')
+        async def _heal_gce():
             try:
                 spec = await self.inst_pool.driver.gservices.get_instance(self.name)
             except googleapiclient.errors.HttpError as e:
@@ -184,6 +177,19 @@ class Instance:
 
                 if status == 'TERMINATED' and not self.deleted:
                     await self.delete()
+
+        if self.ip_address:
+            try:
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    await session.get(f'http://{self.ip_address}:5000/healthcheck')
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception as err:  # pylint: disable=broad-except
+                log.info(f'healthcheck failed for {self.name} due to err {err}; asking gce instead')
+                await _heal_gce()
+        else:
+            await _heal_gce()
 
         self.update_timestamp()
 
