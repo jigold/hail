@@ -481,10 +481,13 @@ class Worker:
                 async with session.post(url, json=body):
                     log.info('deactivated')
         finally:
+            log.info('shutting down')
             if site:
                 await site.stop()
+                log.info('stopping site')
             if app_runner:
                 await app_runner.cleanup()
+                log.info('cleaning up app runner')
 
     async def register(self):
         tries = 0
