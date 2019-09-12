@@ -1,5 +1,3 @@
-from hailtop.gear.auth import async_get_userinfo
-
 from .database import BatchDatabase
 
 states = {'Pending', 'Running', 'Cancelled', 'Error', 'Failed', 'Success'}

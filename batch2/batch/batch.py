@@ -22,7 +22,7 @@ from hailtop.utils import unzip, blocking_to_async
 from hailtop.auth import async_get_userinfo
 from gear import setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
-    new_csrf_token, check_csrf_token # , configure_logging FIXME: where is this now?
+    new_csrf_token, check_csrf_token
 
 import uvloop
 uvloop.install()

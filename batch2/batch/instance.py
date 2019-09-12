@@ -4,11 +4,8 @@ import googleapiclient.errors
 import asyncio
 import aiohttp
 
-from hailtop import gear
-
 from .globals import get_db
 
-gear.configure_logging()
 log = logging.getLogger('instance')
 db = get_db()
 

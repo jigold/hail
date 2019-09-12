@@ -4,9 +4,6 @@ from aiohttp import web
 import secrets
 import logging
 
-from hailtop import gear
-
-gear.configure_logging()
 log = logging.getLogger('utils')
 
 

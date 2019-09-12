@@ -8,7 +8,7 @@ import sortedcontainers
 import traceback
 from aiohttp import web
 
-from hailtop.gear import get_deploy_config
+from hailtop.config import get_deploy_config
 
 from .google_compute import GServices
 from .instance_pool import InstancePool
