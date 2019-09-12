@@ -477,7 +477,8 @@ class Worker:
             body = {'inst_token': self.token}
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                async with session.post(self.deploy_config.url('batch2', '/api/v1alpha/instances/deactivate'), json=body):
+                url = self.deploy_config.url('batch2', '/api/v1alpha/instances/deactivate')
+                async with session.post(url, json=body):
                     log.info('deactivated')
         finally:
             if site:
@@ -495,7 +496,6 @@ class Worker:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     url = self.deploy_config.url('batch2', '/api/v1alpha/instances/activate')
-                    log.info(url)
                     async with session.post(url, json=body) as resp:
                         if resp.status == 200:
                             self.last_updated = time.time()
@@ -518,7 +518,6 @@ inst_token = os.environ['INST_TOKEN']
 ip_address = os.environ['INTERNAL_IP']
 image = os.environ['BATCH_IMAGE']
 
-log.info(f'NAMESPACE={namespace}')
 deploy_config = DeployConfig('gce', namespace, {})
 worker = Worker(image, cores, deploy_config, inst_token, ip_address)
 

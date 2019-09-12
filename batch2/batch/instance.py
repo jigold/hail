@@ -57,7 +57,7 @@ class Instance:
 
     def unschedule(self, pod):
         assert self.active
-        self.pods.remove(self)
+        self.pods.remove(pod)
 
         self.inst_pool.instances_by_free_cores.remove(self)
         self.free_cores += pod.cores
@@ -163,7 +163,7 @@ class Instance:
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception as err:  # pylint: disable=broad-except
-            log.info(f'healthcheck failed for {self.name}; asking gce instead')
+            log.info(f'healthcheck failed for {self.name} due to err {err}; asking gce instead')
             try:
                 spec = await self.inst_pool.driver.gservices.get_instance(self.name)
             except googleapiclient.errors.HttpError as e:
@@ -185,7 +185,7 @@ class Instance:
                 if status == 'TERMINATED' and not self.deleted:
                     await self.delete()
 
-            self.update_timestamp()
+        self.update_timestamp()
 
     def __str__(self):
         return self.name
