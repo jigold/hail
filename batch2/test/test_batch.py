@@ -33,10 +33,7 @@ def poll_until(p, max_polls=None):
 
 class Test(unittest.TestCase):
     def setUp(self):
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        self.client = BatchClient(session)
+        self.client = BatchClient()
 
     def tearDown(self):
         self.client.close()
@@ -339,15 +336,12 @@ class Test(unittest.TestCase):
             (requests.get, '/batches/0', 302),
             (requests.get, '/batches/0/jobs/0/log', 302)]
         for f, url, expected in endpoints:
-            r = f(deploy_config.url('batch2', url))
+            r = f(deploy_config.url('batch', url))
             assert r.status_code == 401, r
 
     def test_bad_token(self):
         token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        bc = BatchClient(session, _token=token)
+        bc = BatchClient(_token=token)
         try:
             b = bc.create_batch()
             j = b.create_job('alpine', ['false'])
