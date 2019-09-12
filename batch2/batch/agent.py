@@ -526,8 +526,10 @@ worker = Worker(image, cores, deploy_config, inst_token, ip_address)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())
+log.info(f'shutting down asyncgens')
 loop.run_until_complete(loop.shutdown_asyncgens())
-
+log.info(f'closing')
+loop.close()
 
 # @routes.post('/api/v1alpha/pods/create')
 # async def create_pod(request):
