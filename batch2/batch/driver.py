@@ -359,6 +359,7 @@ class Driver:
                     self.ready.add(pod)
                 else:
                     log.info(f'skipping pod {pod.name} from ready; already deleted')
+                    self.ready_cores -= pod.cores
 
             should_wait = True
             if self.inst_pool.instances_by_free_cores and self.ready:
