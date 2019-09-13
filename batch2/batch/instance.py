@@ -14,7 +14,7 @@ class Instance:
     @staticmethod
     def from_record(inst_pool, record):
         inst = Instance(inst_pool, record['name'], record['token'],
-                        ip_address=['ip_address'], state='Active')
+                        ip_address=record['ip_address'], state='Active')
 
         inst_pool.n_active_instances += 1
         inst_pool.instances_by_free_cores.add(inst)
