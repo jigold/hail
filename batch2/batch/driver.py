@@ -352,8 +352,11 @@ class Driver:
 
             while len(self.ready) < 1 and not self.ready_queue.empty():  # FIXME: replace with 50
                 pod = self.ready_queue.get_nowait()
-                if pod in self.pods:
+                if pod.name in self.pods:
+                    log.info(f'added pod {pod.name} to ready')
                     self.ready.add(pod)
+                else:
+                    log.info(f'skipping pod {pod.name} from ready; already deleted')
 
             should_wait = True
             if self.inst_pool.instances_by_free_cores and self.ready:
