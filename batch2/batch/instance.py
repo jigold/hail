@@ -64,6 +64,7 @@ class Instance:
         log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
     def unschedule(self, pod):
+        log.info(f'unschedule pod {pod.name} on instance {self.name}')
         assert self.state == 'Active'
         self.pods.remove(pod)
 
@@ -74,6 +75,7 @@ class Instance:
         self.inst_pool.driver.changed.set()
 
     def schedule(self, pod):
+        log.info(f'schedule pod {pod.name} on instance {self.name}')
         self.pods.add(pod)
         self.inst_pool.instances_by_free_cores.remove(self)
         self.free_cores -= pod.cores
