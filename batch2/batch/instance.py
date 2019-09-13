@@ -14,7 +14,8 @@ class Instance:
     @staticmethod
     def from_record(inst_pool, record):
         inst = Instance(inst_pool, record['name'], record['token'],
-                        ip_address=record['ip_address'], state='Active')
+                        ip_address=record['ip_address'], pending=False,
+                        active=True, deleted=False)
 
         inst_pool.n_active_instances += 1
         inst_pool.instances_by_free_cores.add(inst)
@@ -40,9 +41,10 @@ class Instance:
         inst_pool.n_pending_instances += 1
         inst_pool.free_cores += inst_pool.worker_capacity
 
-        return Instance(inst_pool, name, token, ip_address=None, state='Pending')
+        return Instance(inst_pool, name, token, ip_address=None, pending=True,
+                        active=False, deleted=False)
 
-    def __init__(self, inst_pool, name, token, ip_address, state):
+    def __init__(self, inst_pool, name, token, ip_address, pending, active, deleted):
         self.inst_pool = inst_pool
         self.name = name
         self.token = token
@@ -54,10 +56,9 @@ class Instance:
         self.free_cores = inst_pool.worker_capacity
 
         # state: pending, active, deactivated (and/or deleted)
-        self.state = state
-        # self.pending = True
-        # self.active = False
-        # self.deleted = False
+        self.pending = pending
+        self.active = active
+        self.deleted = deleted
 
         self.last_updated = time.time()
 
@@ -65,9 +66,8 @@ class Instance:
 
     def unschedule(self, pod):
         log.info(f'unschedule pod {pod.name} on instance {self.name}')
-        assert self.state == 'Active'
+        assert not self.pending and self.active
         self.pods.remove(pod)
-
         self.inst_pool.instances_by_free_cores.remove(self)
         self.free_cores += pod.cores
         self.inst_pool.free_cores += pod.cores
@@ -85,16 +85,17 @@ class Instance:
 
     async def activate(self, ip_address):
         log.info(f'activating instance {self.name}')
-        if self.state == 'Active':
+        if self.active:
             return
-        if self.state == 'Deleted':
+        if self.deleted:
             return
 
-        if self.state == 'Pending':
+        if self.pending:
+            self.pending = False
             self.inst_pool.n_pending_instances -= 1
             self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
-        self.state = 'Active'
+        self.active = True
         self.ip_address = ip_address
         self.inst_pool.n_active_instances += 1
         self.inst_pool.instances_by_free_cores.add(self)
@@ -108,15 +109,15 @@ class Instance:
 
     async def deactivate(self):
         log.info(f'deactivating instance {self.name}')
-        if self.state == 'Pending':
-            self.state = 'Deactivated'
+        if self.pending:
+            self.pending = False
             self.inst_pool.n_pending_instances -= 1
             self.inst_pool.free_cores -= self.inst_pool.worker_capacity
+            assert not self.active
             log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
             return
 
-        if self.state != 'Active':
-            log.info(f'instance {self.name} already deactivated')
+        if not self.active:
             return
 
         self.inst_pool.instances_by_free_cores.remove(self)
@@ -131,7 +132,7 @@ class Instance:
         await asyncio.gather(*[_remove_pod(p) for p in pod_list])
         assert not self.pods
 
-        self.state = 'Deactivated'
+        self.active = False
 
         log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
@@ -152,16 +153,16 @@ class Instance:
     async def handle_call_delete_event(self):
         log.info(f'handling call delete event for {self.name}')
         await self.deactivate()
-        self.state = 'Deleted'
+        self.deleted = True
         self.update_timestamp()
 
     async def delete(self):
         log.info(f'deleting instance {self.name}')
-        if self.state == 'Deleted':
+        if self.deleted:
             return
         await self.deactivate()
         await self.inst_pool.driver.gservices.delete_instance(self.name)
-        self.state = 'Deleted'
+        self.deleted = True
         log.info(f'deleted instance {self.name}')
 
     async def handle_preempt_event(self):
@@ -184,14 +185,14 @@ class Instance:
             log.info(f'heal: machine {self.name} status {status}')
 
             # preempted goes into terminated state
-            if status == 'TERMINATED' and self.state == 'Deleted':
+            if status == 'TERMINATED' and self.deleted:
                 await self.remove()
                 return
 
             if status in ('TERMINATED', 'STOPPING'):
                 await self.deactivate()
 
-            if status == 'TERMINATED' and self.state != 'Deleted':
+            if status == 'TERMINATED' and not self.deleted:
                 await self.delete()
 
         if self.ip_address:

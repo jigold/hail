@@ -106,7 +106,7 @@ class Pod:
     async def schedule(self, inst, driver):
         log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
 
-        assert inst.state == 'Active'
+        assert inst.active
         assert not self.instance
         assert self.on_ready
         assert not self._status
