@@ -122,16 +122,15 @@ class Instance:
         if not self.active:
             return
 
+        pod_list = list(self.pods)
+        await asyncio.gather(*[p.unschedule() for p in pod_list])
+
         self.inst_pool.instances_by_free_cores.remove(self)
         self.inst_pool.n_active_instances -= 1
         self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
-        async def _remove_pod(pod):
-            await pod.unschedule()
-            await pod.put_on_ready(self.inst_pool.driver)
+        await asyncio.gather(*[p.put_on_ready(self.inst_pool.driver) for p in pod_list])
 
-        pod_list = list(self.pods)
-        await asyncio.gather(*[_remove_pod(p) for p in pod_list])
         assert not self.pods
 
         self.active = False
