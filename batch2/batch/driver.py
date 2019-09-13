@@ -298,7 +298,9 @@ class Driver:
 
         await db.pods.update_record(pod_name, status=json.dumps(status))
 
+        log.info(f'adding status to db for pod {pod_name}')
         await self.complete_queue.put(status)
+        log.info(f'added to complete queue for pod {pod_name}')
         return web.Response()
 
     async def create_pod(self, spec, output_directory):
