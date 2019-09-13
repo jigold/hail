@@ -365,7 +365,7 @@ class Driver:
                 i = self.ready.bisect_key_right(inst.free_cores)
                 if i > 0:
                     pod = self.ready[i - 1]
-                    log.info(f'pod {pod.name} has {pod.free_cores} and instance {inst.name} has {inst.free_cores} free cores and {len(inst.pods)} pods')
+                    log.info(f'pod {pod.name} has {pod.cores} and instance {inst.name} has {inst.free_cores} free cores and {len(inst.pods)} pods')
                     assert pod.cores <= inst.free_cores
                     self.ready.remove(pod)
                     should_wait = False
