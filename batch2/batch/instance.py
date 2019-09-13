@@ -195,6 +195,8 @@ class Instance:
             if status == 'TERMINATED' and not self.deleted:
                 await self.delete()
 
+            ## FIXME: maybe add something to delete machines that are running but not responding
+
         if self.ip_address:
             try:
                 async with aiohttp.ClientSession(
