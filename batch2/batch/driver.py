@@ -153,7 +153,7 @@ class Pod:
                 raise
             except Exception as err:  # pylint: disable=broad-except
                 log.exception(f'failed to execute {self.name} on {inst} due to err {err}, rescheduling')
-                await inst._heal()
+                await inst.heal()
                 await self.put_on_ready(driver)
 
     async def delete(self):
@@ -173,7 +173,7 @@ class Pod:
                     raise
                 except Exception as err:  # pylint: disable=broad-except
                     log.exception(f'failed to delete {self.name} on {self.instance} due to err {err}, ignoring')
-                    await self.instance._heal()
+                    await self.instance.heal()
 
             await self.unschedule()
             await db.pods.delete_record(self.name)

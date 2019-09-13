@@ -118,15 +118,17 @@ class Instance:
         if self.state != 'Active':
             return
 
-        pod_list = list(self.pods)
-        await asyncio.gather(*[p.unschedule() for p in pod_list])
-
         self.state = 'Deactivated'
         self.inst_pool.instances_by_free_cores.remove(self)
         self.inst_pool.n_active_instances -= 1
         self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
-        await asyncio.gather(*[p.put_on_ready(self.inst_pool.driver) for p in pod_list])
+        async def _unschedule_pod(pod):
+            await pod.unschedule()
+            await pod.put_on_ready(self.inst_pool.driver)
+
+        pod_list = list(self.pods)
+        await asyncio.gather(*[_unschedule_pod(p) for p in pod_list])
         assert not self.pods
 
         log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
@@ -146,11 +148,13 @@ class Instance:
         await db.instances.delete_record(self.name)
 
     async def handle_call_delete_event(self):
+        log.info(f'handling call delete event for {self.name}')
         await self.deactivate()
         self.state = 'Deleted'
         self.update_timestamp()
 
     async def delete(self):
+        log.info(f'deleting instance {self.name}')
         if self.state == 'Deleted':
             return
         await self.deactivate()
@@ -159,6 +163,7 @@ class Instance:
         log.info(f'deleted instance {self.name}')
 
     async def handle_preempt_event(self):
+        log.info(f'handling preemption event for {self.name}')
         await self.delete()
         self.update_timestamp()
 
