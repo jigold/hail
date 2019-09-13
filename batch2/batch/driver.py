@@ -129,9 +129,10 @@ class Pod:
             log.info(f'{self.name} already on the ready queue, ignoring')
             return
 
-        log.info(f'put {self.name} on the ready queue')
+        await self.unschedule()
 
         await driver.ready_queue.put(self)
+        log.info(f'put {self.name} on the ready queue')
         self.on_ready = True
         driver.ready_cores += self.cores
         log.info(f'added {self.cores} cores to ready_cores')
@@ -140,7 +141,7 @@ class Pod:
     async def create(self, inst, driver):
         log.info(f'creating {self.name} on instance {inst}')
         async with self.lock:
-            await self.schedule(inst, driver)
+            # await self.schedule(inst, driver)
 
             try:
                 config = await self.config(driver)  # FIXME: handle missing secrets!
@@ -369,6 +370,7 @@ class Driver:
                     assert pod.cores <= inst.free_cores
                     self.ready.remove(pod)
                     should_wait = False
+                    await pod.schedule(inst, self)
                     await self.pool.call(pod.create, inst, self)
 
     async def fill_ready_queue(self):
