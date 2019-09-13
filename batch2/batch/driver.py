@@ -134,6 +134,7 @@ class Pod:
         await driver.ready_queue.put(self)
         self.on_ready = True
         driver.ready_cores += self.cores
+        log.info(f'added {self.cores} cores to ready_cores')
         driver.changed.set()
 
     async def create(self, inst, driver):
@@ -223,7 +224,7 @@ class Driver:
         self.batch_bucket= batch_bucket
         self.pods = None  # populated in run
         self.complete_queue = asyncio.Queue()
-        self.ready_queue = asyncio.Queue(maxsize=1000)  # FIXME: test the fill ready queue works...
+        self.ready_queue = asyncio.Queue(maxsize=5)  # FIXME: 1000
         self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores)
         self.ready_cores = 0
         self.changed = asyncio.Event()
@@ -364,6 +365,7 @@ class Driver:
                 i = self.ready.bisect_key_right(inst.free_cores)
                 if i > 0:
                     pod = self.ready[i - 1]
+                    log.info(f'pod {pod.name} has {pod.free_cores} and instance {inst.name} has {inst.free_cores} free cores and {len(inst.pods)} pods')
                     assert pod.cores <= inst.free_cores
                     self.ready.remove(pod)
                     should_wait = False
