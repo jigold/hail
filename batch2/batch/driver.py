@@ -25,7 +25,7 @@ class Pod:
     @staticmethod
     def from_record(driver, record):
         spec = json.loads(record['spec'])
-        status = json.loads(record['status'])
+        status = json.loads(record['status']) if record['status'] else None
 
         inst = driver.inst_pool.token_inst.get(record['instance'])
 
