@@ -8,4 +8,4 @@ RUN python3 -m pip install --no-cache-dir /hailtop \
 COPY batch2/test/ /test/
 RUN python3 -m pip install --no-cache-dir pytest-instafail==0.4.1 pytest-xdist==1.29.0
 
-CMD ["python3", "-m", "pytest", "-s", "-v", "--instafail", "-n", "1", "/test/"]
+CMD ["python3", "-m", "pytest", "-s", "-v", "--instafail", "-n", "8", "/test/"]
