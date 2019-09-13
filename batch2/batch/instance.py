@@ -65,6 +65,7 @@ class Instance:
 
     def unschedule(self, pod):
         log.info(f'unschedule pod {pod.name} on instance {self.name}')
+        assert self.state == 'Active'
         self.pods.remove(pod)
 
         self.inst_pool.instances_by_free_cores.remove(self)
@@ -118,7 +119,6 @@ class Instance:
             log.info(f'instance {self.name} already deactivated')
             return
 
-        self.state = 'Deactivated'
         self.inst_pool.instances_by_free_cores.remove(self)
         self.inst_pool.n_active_instances -= 1
         self.inst_pool.free_cores -= self.inst_pool.worker_capacity
@@ -130,6 +130,8 @@ class Instance:
         pod_list = list(self.pods)
         await asyncio.gather(*[_remove_pod(p) for p in pod_list])
         assert not self.pods
+
+        self.state = 'Deactivated'
 
         log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
