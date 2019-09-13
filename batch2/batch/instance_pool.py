@@ -64,10 +64,12 @@ class InstancePool:
             self.token_inst[inst.token] = inst
             self.instances.add(inst)
 
-    async def start(self):
+
         log.info('healing instance pool')
         await asyncio.gather(*[inst.heal() for inst in self.instances])
+        log.info('instance pool healed')
 
+    async def start(self):
         log.info('starting instance pool')
         asyncio.ensure_future(self.control_loop())
         asyncio.ensure_future(self.event_loop())
