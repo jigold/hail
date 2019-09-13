@@ -64,7 +64,6 @@ class InstancePool:
             self.token_inst[inst.token] = inst
             self.instances.add(inst)
 
-
         log.info('healing instance pool')
         await asyncio.gather(*[inst.heal() for inst in self.instances])
         log.info('instance pool healed')

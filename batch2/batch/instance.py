@@ -131,8 +131,6 @@ class Instance:
         await asyncio.gather(*[_remove_pod(p) for p in pod_list])
         assert not self.pods
 
-
-
         log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
     def update_timestamp(self):
@@ -180,19 +178,19 @@ class Instance:
                     await self.remove()
                     return
 
-                status = spec['status']
-                log.info(f'heal: machine {self.name} status {status}')
+            status = spec['status']
+            log.info(f'heal: machine {self.name} status {status}')
 
-                # preempted goes into terminated state
-                if status == 'TERMINATED' and self.state == 'Deleted':
-                    await self.remove()
-                    return
+            # preempted goes into terminated state
+            if status == 'TERMINATED' and self.state == 'Deleted':
+                await self.remove()
+                return
 
-                if status in ('TERMINATED', 'STOPPING'):
-                    await self.deactivate()
+            if status in ('TERMINATED', 'STOPPING'):
+                await self.deactivate()
 
-                if status == 'TERMINATED' and self.state != 'Deleted':
-                    await self.delete()
+            if status == 'TERMINATED' and self.state != 'Deleted':
+                await self.delete()
 
         if self.ip_address:
             try:
