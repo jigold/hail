@@ -116,6 +116,7 @@ class Pod:
 
         self.on_ready = False
         self.driver.ready_cores -= self.cores
+        log.info(f'removed {self.cores} cores from ready queue')
 
         inst.schedule(self)
 
@@ -144,8 +145,6 @@ class Pod:
     async def create(self, inst):
         log.info(f'creating {self.name} on instance {inst}')
         async with self.lock:
-            # await self.schedule(inst, driver)
-
             try:
                 config = await self.config()  # FIXME: handle missing secrets!
 
@@ -387,7 +386,7 @@ class Driver:
     async def fill_ready_queue(self):
         while True:
             for pod in list(self.pods.values()):
-                if not pod.on_ready and not pod.instance and not pod._status:
+                if not pod.on_ready and not pod.instance and not pod._status and not pod.deleted:
                     await pod.put_on_ready()
             await asyncio.sleep(60)
 
