@@ -308,6 +308,7 @@ class BatchPod:
 
             last_ec = None
             for _, container in self.containers.items():
+                log.info(f'running container ({self.name}, {container.name}) with {container.cores} cores')
                 async with semaphore(container.cores):
                     await container.run(self.output_directory)
                     last_ec = container.exit_code
