@@ -1175,7 +1175,6 @@ async def driver_event_loop():
             await pod_changed(pod)
         except Exception as exc:
             log.exception(f'driver event loop failed due to exception: {exc}')
-        await asyncio.sleep(5)
 
 
 async def db_cleanup_event_loop():
