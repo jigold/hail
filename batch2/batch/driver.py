@@ -316,12 +316,12 @@ class Driver:
         log.info(f'request to create pod {name}')
 
         if name in self.pods:
-            raise Exception(f'pod {name} already exists')
+            return Exception(f'pod {name} already exists')
 
         try:
             pod = await Pod.create_pod(self, name, spec, output_directory)
         except Exception as err:
-            raise Exception(f'invalid pod spec given: {err}')
+            return Exception(f'invalid pod spec given: {err}')
 
         self.pods[name] = pod
         await self.pool.call(pod.put_on_ready)
@@ -330,7 +330,7 @@ class Driver:
         log.info(f'request to delete pod {name}')
         pod = self.pods.get(name)
         if pod is None:
-            raise Exception(f'pod {name} does not exist')
+            return Exception(f'pod {name} does not exist')
         await self.pool.call(pod.delete)
         del self.pods[name]
 
@@ -338,15 +338,15 @@ class Driver:
         log.info(f'request to read pod log for {name}, {container}')
         pod = self.pods.get(name)
         if pod is None:
-            raise Exception(f'pod {name} does not exist')
-        return await pod.read_pod_log(container)
+            return None, Exception(f'pod {name} does not exist')
+        return await pod.read_pod_log(container), None
 
     async def read_container_status(self, name, container):
         log.info(f'request to read status for {name}, {container}')
         pod = self.pods.get(name)
         if pod is None:
-            raise Exception(f'pod {name} does not exist')
-        return await pod.read_container_status(container)
+            return None, Exception(f'pod {name} does not exist')
+        return await pod.read_container_status(container), None
 
     async def list_pods(self):
         log.info(f'request to list pods')
