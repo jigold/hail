@@ -113,6 +113,7 @@ class Pod:
         assert not self.instance
         assert self.on_ready
         assert not self._status
+        assert not self.deleted
 
         self.on_ready = False
         self.driver.ready_cores -= self.cores
