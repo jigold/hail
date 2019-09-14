@@ -114,13 +114,13 @@ class Pod:
         assert self.on_ready
         assert not self._status
 
-        if self.deleted:
-            log.info(f'pod {self.name} was already deleted; not scheduling')
-            return
-
         self.on_ready = False
         self.driver.ready_cores -= self.cores
         log.info(f'removed {self.cores} cores from ready queue')
+
+        if self.deleted:
+            log.info(f'pod {self.name} was already deleted; not scheduling on {inst.name}')
+            return
 
         inst.schedule(self)
 
