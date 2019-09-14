@@ -167,6 +167,7 @@ class Pod:
             self.deleted = True
             if self.on_ready:
                 self.driver.ready_cores -= self.cores
+                log.info(f'removed {self.cores} cores from the ready queue')
 
             if self.instance:
                 try:
@@ -367,6 +368,7 @@ class Driver:
                     log.info(f'added pod {pod.name} to ready')
                     self.ready.add(pod)
                 else:
+                    pod.on_ready = False
                     log.info(f'skipping pod {pod.name} from ready; already deleted')
 
             should_wait = True
