@@ -384,8 +384,11 @@ class Driver:
                     assert pod.cores <= inst.free_cores
                     self.ready.remove(pod)
                     should_wait = False
-                    await pod.schedule(inst)
-                    await self.pool.call(pod.create, inst)
+                    if not pod.deleted:
+                        await pod.schedule(inst)
+                        await self.pool.call(pod.create, inst)
+                    else:
+                        log.info(f'not scheduling pod {pod.name}; already deleted')
 
     async def initialize(self):
         await self.inst_pool.initialize()
