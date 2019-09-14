@@ -126,64 +126,69 @@ class Pod:
         await db.pods.update_record(self.name, instance=inst.name)
 
     async def put_on_ready(self):
-        if self._status:
-            log.info(f'{self.name} already complete, ignoring')
-            return
+        async with self.lock:
+            if self._status:
+                log.info(f'{self.name} already complete, ignoring')
+                return
 
-        if self.on_ready:
-            log.info(f'{self.name} already on the ready queue, ignoring')
-            return
+            if self.on_ready:
+                log.info(f'{self.name} already on the ready queue, ignoring')
+                return
 
-        await self.unschedule()
+            await self.unschedule()
 
-        await self.driver.ready_queue.put(self)
-        log.info(f'put {self.name} on the ready queue')
-        self.on_ready = True
-        self.driver.ready_cores += self.cores
-        log.info(f'added {self.cores} cores to ready_cores')
-        self.driver.changed.set()
+            await self.driver.ready_queue.put(self)
+            log.info(f'put {self.name} on the ready queue')
+            self.on_ready = True
+            self.driver.ready_cores += self.cores
+            log.info(f'added {self.cores} cores to ready_cores')
+            self.driver.changed.set()
 
     async def create(self, inst):
+        if self.deleted:
+            log.info(f'pod already deleted {self.name}')
+            return
+
         log.info(f'creating {self.name} on instance {inst}')
-        async with self.lock:
-            try:
-                config = await self.config()  # FIXME: handle missing secrets!
+        
+        try:
+            config = await self.config()  # FIXME: handle missing secrets!
 
-                async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    await session.post(f'http://{inst.ip_address}:5000/api/v1alpha/pods/create', json=config)
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                await session.post(f'http://{inst.ip_address}:5000/api/v1alpha/pods/create', json=config)
 
-                log.info(f'created {self} on {inst}')
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception as err:  # pylint: disable=broad-except
-                log.info(f'failed to execute {self.name} on {inst} due to err {err}, rescheduling')
-                await inst.heal()
-                await self.put_on_ready()
+            log.info(f'created {self} on {inst}')
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
+        except Exception as err:  # pylint: disable=broad-except
+            log.info(f'failed to execute {self.name} on {inst} due to err {err}, rescheduling')
+            await inst.heal()
+            await self.put_on_ready()
 
     async def delete(self):
         log.info(f'deleting {self.name} from instance {self.instance}')
-        async with self.lock:
-            self.deleted = True
-            if self.on_ready:
-                self.driver.ready_cores -= self.cores
-                log.info(f'removed {self.cores} cores from the ready queue')
+        self.deleted = True
 
-            if self.instance:
-                try:
-                    async with aiohttp.ClientSession(
-                            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                        async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
-                            if resp.status == 200:
-                                log.info(f'successfully deleted {self.name}')
-                            else:
-                                log.info(f'failed to delete due to {resp}')
-                                return
-                except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                    raise
-                except Exception as err:  # pylint: disable=broad-except
-                    log.info(f'failed to delete {self.name} on {self.instance} due to err {err}, ignoring')
-                    await self.instance.heal()
+        if self.on_ready:
+            self.driver.ready_cores -= self.cores
+            log.info(f'removed {self.cores} cores from the ready queue')
+
+        if self.instance:
+            try:
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
+                        if resp.status == 200:
+                            log.info(f'successfully deleted {self.name}')
+                        else:
+                            log.info(f'failed to delete due to {resp}')
+                            return
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception as err:  # pylint: disable=broad-except
+                log.info(f'failed to delete {self.name} on {self.instance} due to err {err}, ignoring')
+                await self.instance.heal()
 
             await self.unschedule()
             await db.pods.delete_record(self.name)
