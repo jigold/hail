@@ -388,7 +388,7 @@ class Driver:
         while True:
             for pod in list(self.pods.values()):
                 if not pod.on_ready and not pod.instance and not pod._status:
-                    await pod.put_on_ready(self)
+                    await pod.put_on_ready()
             await asyncio.sleep(60)
 
     async def initialize(self):
