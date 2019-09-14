@@ -127,7 +127,7 @@ class Instance:
         self.inst_pool.n_active_instances -= 1
         self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
-        await asyncio.gather(*[p.put_on_ready(self.inst_pool.driver) for p in pod_list])
+        await asyncio.gather(*[p.put_on_ready() for p in pod_list])
 
         assert not self.pods
 

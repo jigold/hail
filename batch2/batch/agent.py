@@ -257,6 +257,7 @@ class BatchPod:
         self.metadata = self.spec['metadata']
         self.name = self.metadata['name']
         self.token = uuid.uuid4().hex
+        self.events = []
         self.volumes = {}
 
         self.containers = {cspec['name']: Container(cspec, self) for cspec in self.spec['spec']['containers']}
@@ -280,17 +281,23 @@ class BatchPod:
     async def _mark_complete(self):
         body = {
             'inst_token': self.worker.token,
-            'status': self.to_dict()
+            'status': self.to_dict(),
+            'events': self.events
         }
 
         while True:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                async with session.post(self.worker.deploy_config.url('batch2', '/api/v1alpha/instances/pod_complete'), json=body) as resp:
-                    if resp.status == 200 or resp.status == 404:
-                        self.last_updated = time.time()
-                        log.info(f'sent pod complete for {self.name}')
-                        return
+            try:
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    async with session.post(self.worker.deploy_config.url('batch2', '/api/v1alpha/instances/pod_complete'), json=body) as resp:
+                        if resp.status == 200 or resp.status == 404:
+                            self.last_updated = time.time()
+                            log.info(f'sent pod complete for {self.name}')
+                            return
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception as e:  # pylint: disable=broad-except
+                log.exception(f'caught exception while marking pod {self.name} complete, will try again later')
             await asyncio.sleep(15)
 
     async def run(self, semaphore=None):
@@ -311,8 +318,8 @@ class BatchPod:
 
             last_ec = None
             for _, container in self.containers.items():
-                log.info(f'running container ({self.name}, {container.name}) with {container.cores} cores')
                 async with semaphore(container.cores):
+                    log.info(f'running container ({self.name}, {container.name}) with {container.cores} cores')
                     await container.run(self.output_directory)
                     last_ec = container.exit_code
                     if last_ec != 0:
@@ -478,20 +485,25 @@ class Worker:
 
             log.info('idle 60s or no pods, exiting')
 
-            body = {'inst_token': self.token}
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                url = self.deploy_config.url('batch2', '/api/v1alpha/instances/deactivate')
-                async with session.post(url, json=body):
-                    log.info('deactivated')
+            try:
+                body = {'inst_token': self.token}
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    url = self.deploy_config.url('batch2', '/api/v1alpha/instances/deactivate')
+                    async with session.post(url, json=body):
+                        log.info('deactivated')
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception as e:  # pylint: disable=broad-except
+                log.exception('caught exception while deactivating')
         finally:
             log.info('shutting down')
             if site:
                 await site.stop()
-                log.info('stopping site')
+                log.info('stopped site')
             if app_runner:
                 await app_runner.cleanup()
-                log.info('cleaning up app runner')
+                log.info('cleaned up app runner')
 
     async def register(self):
         tries = 0
