@@ -125,7 +125,7 @@ class Pod:
 
         await db.pods.update_record(self.name, instance=inst.name)
 
-    async def put_on_ready(self):
+    async def _put_on_ready(self):
         if self._status:
             log.info(f'{self.name} already complete, ignoring')
             return
@@ -138,6 +138,10 @@ class Pod:
         self.driver.ready_cores += self.cores
         log.info(f'added {self.cores} cores to ready_cores for pod {self.name}')
         self.driver.changed.set()
+
+    async def put_on_ready(self):
+        async with self.lock:
+            await self._put_on_ready()
 
     async def create(self, inst):
         async with self.lock:
@@ -160,7 +164,7 @@ class Pod:
             except Exception as err:  # pylint: disable=broad-except
                 log.info(f'failed to execute {self.name} on {inst} due to err {err}, rescheduling')
                 await inst.heal()
-                await self.put_on_ready()
+                await self._put_on_ready()
 
     async def delete(self):
         async with self.lock:
