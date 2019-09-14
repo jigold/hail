@@ -241,7 +241,7 @@ class BatchPod:
                 volumes[name] = volume
             elif volume_spec['secret'] is not None:
                 secret_name = volume_spec['secret']['secret_name']
-                path = f'/batch/pods/{self.name}/{self.token}/secrets/{secret_name}'
+                path = f'{self.scratch}/secrets/{secret_name}'
                 secret = await Secret.create(name, path, self.secrets_data.get(secret_name))
                 volumes[name] = secret
             else:
@@ -263,6 +263,8 @@ class BatchPod:
         self.phase = 'Pending'
         self._run_task = asyncio.ensure_future(self.run(cpu_sem))
 
+        self.scratch = f'/batch/pods/{self.name}/{self.token}'
+
     async def _create(self):
         log.info(f'creating pod {self.name}')
         self.volumes = await self._create_volumes()
@@ -273,6 +275,7 @@ class BatchPod:
         log.info(f'cleaning up pod {self.name}')
         await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
         await asyncio.gather(*[v.delete() for _, v in self.volumes.items()])
+        shutil.rmtree(self.scratch, ignore_errors=True)
 
     async def _mark_complete(self):
         body = {
