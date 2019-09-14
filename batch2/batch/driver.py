@@ -169,7 +169,7 @@ class Pod:
 
             if self.on_ready:
                 self.driver.ready_cores -= self.cores
-                log.info(f'removed {self.cores} cores from the ready queue for pod {self.name}')
+                log.info(f'removed {self.cores} cores from the ready_cores for pod {self.name}')
 
             if self.instance:
                 try:
