@@ -381,7 +381,7 @@ class Driver:
                     assert pod.cores <= inst.free_cores
                     self.ready.remove(pod)
                     should_wait = False
-                    await pod.schedule(inst, self)
+                    await pod.schedule(inst)
                     await self.pool.call(pod.create, inst)
 
     async def fill_ready_queue(self):
