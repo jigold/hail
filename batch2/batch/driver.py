@@ -117,11 +117,7 @@ class Pod:
 
         self.on_ready = False
         self.driver.ready_cores -= self.cores
-        log.info(f'removed {self.cores} cores from ready queue')
-
-        # if self.deleted:
-        #     log.info(f'pod {self.name} was already deleted; not scheduling on {inst.name}')
-        #     return
+        log.info(f'removed {self.cores} cores from ready_cores for pod {self.name}')
 
         inst.schedule(self)
 
@@ -140,7 +136,7 @@ class Pod:
         log.info(f'put {self.name} on the ready queue')
         self.on_ready = True
         self.driver.ready_cores += self.cores
-        log.info(f'added {self.cores} cores to ready_cores')
+        log.info(f'added {self.cores} cores to ready_cores for pod {self.name}')
         self.driver.changed.set()
 
     async def create(self, inst):
@@ -173,7 +169,7 @@ class Pod:
 
             if self.on_ready:
                 self.driver.ready_cores -= self.cores
-                log.info(f'removed {self.cores} cores from the ready queue')
+                log.info(f'removed {self.cores} cores from the ready queue for pod {self.name}')
 
             if self.instance:
                 try:
