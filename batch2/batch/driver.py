@@ -113,7 +113,10 @@ class Pod:
         assert not self.instance
         assert self.on_ready
         assert not self._status
-        assert not self.deleted
+
+        if self.deleted:
+            log.info(f'pod {self.name} was already deleted; not scheduling')
+            return
 
         self.on_ready = False
         self.driver.ready_cores -= self.cores
@@ -150,7 +153,7 @@ class Pod:
             return
 
         log.info(f'creating {self.name} on instance {inst}')
-        
+
         try:
             config = await self.config()  # FIXME: handle missing secrets!
 
