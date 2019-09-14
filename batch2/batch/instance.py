@@ -71,7 +71,6 @@ class Instance:
         self.inst_pool.instances_by_free_cores.remove(self)
         self.free_cores += pod.cores
         self.inst_pool.free_cores += pod.cores
-        log.info(f'pool free cores after unscheduling {pod.cores} = {self.inst_pool.free_cores}')
         self.inst_pool.instances_by_free_cores.add(self)
         self.inst_pool.driver.changed.set()
 
@@ -81,7 +80,6 @@ class Instance:
         self.inst_pool.instances_by_free_cores.remove(self)
         self.free_cores -= pod.cores
         self.inst_pool.free_cores -= pod.cores
-        log.info(f'pool free cores after scheduling {pod.cores} = {self.inst_pool.free_cores}')
         self.inst_pool.instances_by_free_cores.add(self)
         # can't create more scheduling opportunities, don't set changed
 

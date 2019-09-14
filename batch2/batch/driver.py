@@ -30,6 +30,7 @@ class Pod:
         inst = driver.inst_pool.token_inst.get(record['instance'])
 
         pod = Pod(
+            driver=driver,
             name=record['name'],
             spec=spec,
             output_directory=record['output_directory'],
@@ -44,7 +45,7 @@ class Pod:
         return pod
 
     @staticmethod
-    async def create_pod(name, spec, output_directory):
+    async def create_pod(driver, name, spec, output_directory):
         container_cpu_requests = [container['resources']['requests']['cpu'] for container in spec['spec']['containers']]
         container_cores = [parse_cpu(cpu) for cpu in container_cpu_requests]
         if any([cores is None for cores in container_cores]):
@@ -55,9 +56,10 @@ class Pod:
         await db.pods.new_record(name=name, spec=json.dumps(spec), output_directory=output_directory,
                                  cores=cores, instance=None)
 
-        return Pod(name, spec, output_directory, cores)
+        return Pod(driver, name, spec, output_directory, cores)
 
-    def __init__(self, name, spec, output_directory, cores, instance=None, on_ready=False, status=None):
+    def __init__(self, driver, name, spec, output_directory, cores, instance=None, on_ready=False, status=None):
+        self.driver = driver
         self.name = name
         self.spec = spec
         self.output_directory = output_directory
@@ -65,11 +67,12 @@ class Pod:
         self.instance = instance
         self.on_ready = on_ready
         self._status = status
+        self.deleted = False
 
         loop = asyncio.get_event_loop()
         self.lock = asyncio.Lock(loop=loop)
 
-    async def config(self, driver):
+    async def config(self):
         future_secrets = []
         secret_names = []
 
@@ -77,7 +80,7 @@ class Pod:
             if volume['secret'] is not None:
                 name = volume['secret']['secret_name']
                 secret_names.append(name)
-                future_secrets.append(driver.k8s.read_secret(name))
+                future_secrets.append(self.driver.k8s.read_secret(name))
         results = await asyncio.gather(*future_secrets)
 
         secrets = {}
@@ -103,7 +106,7 @@ class Pod:
         self.instance = None
         await db.pods.update_record(self.name, instance=None)
 
-    async def schedule(self, inst, driver):
+    async def schedule(self, inst):
         log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
 
         assert inst.active
@@ -112,7 +115,7 @@ class Pod:
         assert not self._status
 
         self.on_ready = False
-        driver.ready_cores -= self.cores
+        self.driver.ready_cores -= self.cores
 
         inst.schedule(self)
 
@@ -120,7 +123,7 @@ class Pod:
 
         await db.pods.update_record(self.name, instance=inst.name)
 
-    async def put_on_ready(self, driver):
+    async def put_on_ready(self):
         if self._status:
             log.info(f'{self.name} already complete, ignoring')
             return
@@ -131,20 +134,20 @@ class Pod:
 
         await self.unschedule()
 
-        await driver.ready_queue.put(self)
+        await self.driver.ready_queue.put(self)
         log.info(f'put {self.name} on the ready queue')
         self.on_ready = True
-        driver.ready_cores += self.cores
+        self.driver.ready_cores += self.cores
         log.info(f'added {self.cores} cores to ready_cores')
-        driver.changed.set()
+        self.driver.changed.set()
 
-    async def create(self, inst, driver):
+    async def create(self, inst):
         log.info(f'creating {self.name} on instance {inst}')
         async with self.lock:
             # await self.schedule(inst, driver)
 
             try:
-                config = await self.config(driver)  # FIXME: handle missing secrets!
+                config = await self.config()  # FIXME: handle missing secrets!
 
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
@@ -154,13 +157,17 @@ class Pod:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as err:  # pylint: disable=broad-except
-                log.exception(f'failed to execute {self.name} on {inst} due to err {err}, rescheduling')
+                log.info(f'failed to execute {self.name} on {inst} due to err {err}, rescheduling')
                 await inst.heal()
-                await self.put_on_ready(driver)
+                await self.put_on_ready()
 
     async def delete(self):
         log.info(f'deleting {self.name} from instance {self.instance}')
         async with self.lock:
+            self.deleted = True
+            if self.on_ready:
+                self.driver.ready_cores -= self.cores
+
             if self.instance:
                 try:
                     async with aiohttp.ClientSession(
@@ -174,7 +181,7 @@ class Pod:
                 except asyncio.CancelledError:  # pylint: disable=try-except-raise
                     raise
                 except Exception as err:  # pylint: disable=broad-except
-                    log.exception(f'failed to delete {self.name} on {self.instance} due to err {err}, ignoring')
+                    log.info(f'failed to delete {self.name} on {self.instance} due to err {err}, ignoring')
                     await self.instance.heal()
 
             await self.unschedule()
@@ -311,12 +318,12 @@ class Driver:
             raise Exception(f'pod {name} already exists')
 
         try:
-            pod = await Pod.create_pod(name, spec, output_directory)
+            pod = await Pod.create_pod(self, name, spec, output_directory)
         except Exception as err:
             raise Exception(f'invalid pod spec given: {err}')
 
         self.pods[name] = pod
-        await self.pool.call(pod.put_on_ready, self)
+        await self.pool.call(pod.put_on_ready)
 
     async def delete_pod(self, name):
         log.info(f'request to delete pod {name}')
@@ -356,12 +363,11 @@ class Driver:
 
             while len(self.ready) < 1 and not self.ready_queue.empty():  # FIXME: replace with 50
                 pod = self.ready_queue.get_nowait()
-                if pod.name in self.pods:
+                if not pod.deleted:
                     log.info(f'added pod {pod.name} to ready')
                     self.ready.add(pod)
                 else:
                     log.info(f'skipping pod {pod.name} from ready; already deleted')
-                    self.ready_cores -= pod.cores
 
             should_wait = True
             if self.inst_pool.instances_by_free_cores and self.ready:
@@ -369,12 +375,12 @@ class Driver:
                 i = self.ready.bisect_key_right(inst.free_cores)
                 if i > 0:
                     pod = self.ready[i - 1]
-                    log.info(f'pod {pod.name} has {pod.cores} and instance {inst.name} has {inst.free_cores} free cores and {len(inst.pods)} pods')
+                    log.info(f'pod {pod.name} has {pod.cores} cores and instance {inst.name} has {inst.free_cores} free cores and {len(inst.pods)} pods')
                     assert pod.cores <= inst.free_cores
                     self.ready.remove(pod)
                     should_wait = False
                     await pod.schedule(inst, self)
-                    await self.pool.call(pod.create, inst, self)
+                    await self.pool.call(pod.create, inst)
 
     async def fill_ready_queue(self):
         while True:
