@@ -378,7 +378,6 @@ class Driver:
                     log.info(f'skipping pod {pod.name} from ready; already deleted')
 
             should_wait = True
-            log.info(f'{self.inst_pool.instances_by_free_cores}')
             if self.inst_pool.instances_by_free_cores and self.ready:
                 inst = self.inst_pool.instances_by_free_cores[-1]
                 i = self.ready.bisect_key_right(inst.free_cores)
