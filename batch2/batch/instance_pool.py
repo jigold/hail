@@ -240,6 +240,7 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock \
             log.warning(f'unknown event subtype {event_subtype}')
 
     async def event_loop(self):
+        log.info(f'starting event loop')
         while True:
             try:
                 async for event in await self.driver.gservices.stream_entries():
@@ -251,6 +252,7 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock \
             await asyncio.sleep(15)
 
     async def heal_loop(self):
+        log.info(f'starting heal loop')
         while True:
             try:
                 if self.instances:
@@ -268,6 +270,7 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock \
             await asyncio.sleep(1)
 
     async def control_loop(self):
+        log.info(f'starting control loop')
         while True:
             try:
                 log.info(f'n_pending_instances {self.n_pending_instances}'
@@ -287,7 +290,7 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock \
                                            300)
                     if instances_needed > 0:
                         log.info(f'creating {instances_needed} new instances')
-                        # parallelism will be bounded by thread pool
+                        # parallelism will be bounded by thread pool  # FIXME: is this true?
                         await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise

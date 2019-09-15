@@ -297,7 +297,7 @@ class BatchPod:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:  # pylint: disable=broad-except
-                log.exception(f'caught exception while marking pod {self.name} complete, will try again later')
+                log.exception(f'caught exception {e} while marking pod {self.name} complete, will try again later')
             await asyncio.sleep(15)
 
     async def run(self, semaphore=None):
@@ -546,6 +546,7 @@ log.info(f'shutting down asyncgens')
 loop.run_until_complete(loop.shutdown_asyncgens())
 log.info(f'closing')
 loop.close()
+log.info(f'closed')
 
 # @routes.post('/api/v1alpha/pods/create')
 # async def create_pod(request):

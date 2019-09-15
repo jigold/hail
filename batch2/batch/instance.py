@@ -141,6 +141,7 @@ class Instance:
 
     def update_timestamp(self):
         if self in self.inst_pool.instances:
+            log.info(f'updating timestamp for {self.name}')
             self.inst_pool.instances.remove(self)
             self.last_updated = time.time()
             self.inst_pool.instances.add(self)

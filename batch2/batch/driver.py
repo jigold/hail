@@ -408,9 +408,7 @@ class Driver:
         for pod in list(self.pods.values()):
             if not pod.instance and not pod._status:
                 log.info(f'putting pod {pod.name} on the ready queue on init')
-                await pod.put_on_ready()
-
-
+                await self.pool.call(pod.put_on_ready)
 
     async def run(self):
         await self.inst_pool.start()
