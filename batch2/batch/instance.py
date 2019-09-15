@@ -21,6 +21,8 @@ class Instance:
         inst_pool.instances_by_free_cores.add(inst)
         inst_pool.free_cores += inst_pool.worker_capacity
 
+        log.info(f'added instance {inst.name} to the instance pool')
+
         return inst
 
     @staticmethod

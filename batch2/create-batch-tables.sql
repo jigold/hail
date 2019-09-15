@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
 #  `cores` DOUBLE NOT NULL,  
 #  `disk_size` DOUBLE NOT NULL,
 #  `memory` DOUBLE NOT NULL,
-  PRIMARY KEY (`name`)  
+  PRIMARY KEY (`token`)  
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `pods` (
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS `pods` (
   `status` TEXT(65535),
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`name`),
-  FOREIGN KEY (`instance`) REFERENCES instances (`name`) ON DELETE SET NULL
+  FOREIGN KEY (`instance`) REFERENCES instances (`token`) ON DELETE SET NULL
 ) ENGINE = InnoDB;
 CREATE INDEX pods_instance ON `pods` (`instance`);
 

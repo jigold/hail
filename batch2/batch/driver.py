@@ -120,7 +120,7 @@ class Pod:
 
         self.instance = inst
 
-        await db.pods.update_record(self.name, instance=inst.name)
+        await db.pods.update_record(self.name, instance=inst.token)
 
     async def _put_on_ready(self):
         if self._status:
@@ -378,6 +378,7 @@ class Driver:
                     log.info(f'skipping pod {pod.name} from ready; already deleted')
 
             should_wait = True
+            log.info(f'{self.inst_pool.instances_by_free_cores}')
             if self.inst_pool.instances_by_free_cores and self.ready:
                 inst = self.inst_pool.instances_by_free_cores[-1]
                 i = self.ready.bisect_key_right(inst.free_cores)
@@ -407,7 +408,10 @@ class Driver:
 
         for pod in list(self.pods.values()):
             if not pod.instance and not pod._status:
+                log.info(f'putting pod {pod.name} on the ready queue on init')
                 await pod.put_on_ready()
+
+
 
     async def run(self):
         await self.inst_pool.start()
