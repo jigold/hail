@@ -6,18 +6,21 @@ import unittest
 from hailtop.batch_client.aioclient import BatchClient
 
 
-
-def async_to_blocking(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+#
+# def async_to_blocking(coro):
+#     return asyncio.get_event_loop().run_until_complete(coro)
 
 
 class Test(unittest.TestCase):
-    def setUp(self):
-        self.client = async_to_blocking(BatchClient())
+    @pytest.mark.asyncio
+    async def setUp(self):
+        self.client = await BatchClient()
 
-    def tearDown(self):
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.client.close())
+    @pytest.mark.asyncio
+    async def tearDown(self):
+        await self.client.close()
+        # loop = asyncio.get_event_loop()
+        # loop.run_until_complete(self.client.close())
 
     @pytest.mark.asyncio
     async def test_job(self):
