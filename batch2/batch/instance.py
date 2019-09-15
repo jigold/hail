@@ -196,7 +196,7 @@ class Instance:
             if status == 'TERMINATED' and not self.deleted:
                 await self.delete()
 
-            if status == 'RUNNING' and time.time() - self.last_updated > 60:
+            if status == 'RUNNING' and time.time() - self.last_updated > 60 * 5:
                 await self.delete()
 
         if self.ip_address:
