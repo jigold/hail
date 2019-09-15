@@ -12,8 +12,9 @@ async def client():
 
 
 async def test_job(client):
-    j = client.create_job('alpine', ['echo', 'test'])
-    await client.submit()
+    b = client.create_batch()
+    j = b.create_job('alpine', ['echo', 'test'])
+    await b.submit()
     status = await j.wait()
     assert 'attributes' not in status, (status, await j.log())
     assert status['state'] == 'Success', (status, await j.log())
