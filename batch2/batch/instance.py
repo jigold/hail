@@ -197,6 +197,7 @@ class Instance:
                 await self.delete()
 
             if status == 'RUNNING' and time.time() - self.last_updated > 60 * 5:
+                log.info(f'instance {self.name} has been running for > 5 minutes with no communication')
                 await self.delete()
 
         if self.ip_address:
