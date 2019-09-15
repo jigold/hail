@@ -109,11 +109,8 @@ class Pod:
     async def schedule(self, inst):
         log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
 
-        assert inst.active
-        assert not self.instance
-        assert self.on_ready
-        assert not self._status
-        assert not self.deleted
+        assert inst.active and not self.instance
+        assert self.on_ready and not self._status and not self.deleted
 
         self.on_ready = False
         self.driver.ready_cores -= self.cores
@@ -163,7 +160,8 @@ class Pod:
                 raise
             except Exception as err:  # pylint: disable=broad-except
                 log.info(f'failed to execute {self.name} on {inst} due to err {err}, rescheduling')
-                await inst.heal()
+                if inst.active:
+                    await inst.heal()
                 await self._put_on_ready()
 
     async def delete(self):
@@ -189,7 +187,8 @@ class Pod:
                     raise
                 except Exception as err:  # pylint: disable=broad-except
                     log.info(f'failed to delete {self.name} on {self.instance} due to err {err}, ignoring')
-                    await self.instance.heal()
+                    if self.instance.active:
+                        await self.instance.heal()
 
                 await self.unschedule()
                 await db.pods.delete_record(self.name)
