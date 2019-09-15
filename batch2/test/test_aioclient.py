@@ -20,7 +20,8 @@ async def batch_client():
     await bc.close()
 
 
-async def test_job(bc):
+async def test_job(batch_client):
+    bc = batch_client
     j = bc.create_job('alpine', ['echo', 'test'])
     await bc.submit()
     status = await j.wait()
