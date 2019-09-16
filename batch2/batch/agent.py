@@ -319,7 +319,7 @@ class BatchPod:
 
             last_ec = None
             for _, container in self.containers.items():
-                log.info(f'waiting to run container ({self.name}, {container.name}) with {container.cores} cores')
+                log.info(f'waiting to run container ({self.name}, {container.name}) with {container.cores} cores; available {semaphore.value}')
                 async with semaphore(container.cores):
                     log.info(f'running container ({self.name}, {container.name}) with {container.cores} cores')
                     await container.run(self.output_directory)
