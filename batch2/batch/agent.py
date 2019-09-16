@@ -319,6 +319,7 @@ class BatchPod:
 
             last_ec = None
             for _, container in self.containers.items():
+                log.info(f'waiting to run container ({self.name}, {container.name}) with {container.cores} cores')
                 async with semaphore(container.cores):
                     log.info(f'running container ({self.name}, {container.name}) with {container.cores} cores')
                     await container.run(self.output_directory)
@@ -548,4 +549,4 @@ loop.run_until_complete(loop.shutdown_asyncgens())
 log.info(f'closing')
 loop.close()
 log.info(f'closed')
-# sys.exit(0)
+sys.exit(0)

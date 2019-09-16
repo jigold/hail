@@ -231,12 +231,15 @@ class Instance:
                 log.info(f'instance {self.name} is {status} and not healthy, deleting')
                 await self.delete()
 
+            self.update_timestamp()
+
         if self.ip_address:
             try:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                     await session.get(f'http://{self.ip_address}:5000/healthcheck')
                     self.mark_as_healthy()
+                    self.update_timestamp()
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as err:  # pylint: disable=broad-except
@@ -245,8 +248,6 @@ class Instance:
                 await _heal_gce()
         else:
             await _heal_gce()
-
-        self.update_timestamp()
 
     def __str__(self):
         return self.name

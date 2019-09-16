@@ -318,7 +318,7 @@ class Driver:
         if not inst:
             log.warning(f'pod_complete from unknown inst {inst_token}')
             raise web.HTTPNotFound()
-        inst.update_timestamp()
+        inst.mark_as_healthy()
 
         pod_name = status['metadata']['name']
         pod = self.pods.get(pod_name)
