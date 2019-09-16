@@ -158,9 +158,10 @@ class Instance:
         self.inst_pool.instances.add(self)
         log.info(f'{self.inst_pool.instances!r}')
 
-        self.inst_pool.instances_by_free_cores.remove(self)
-        self.inst_pool.n_active_instances -= 1
-        self.inst_pool.free_cores -= self.inst_pool.worker_capacity
+        if self in self.inst_pool.instances_by_free_cores:
+            self.inst_pool.instances_by_free_cores.remove(self)
+            self.inst_pool.n_active_instances -= 1
+            self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
     def mark_as_healthy(self):
         if self.healthy:
@@ -172,10 +173,11 @@ class Instance:
         self.inst_pool.instances.add(self)
         log.info(f'{self.inst_pool.instances!r}')
 
-        self.inst_pool.n_active_instances += 1
-        self.inst_pool.instances_by_free_cores.add(self)
-        self.inst_pool.free_cores += self.inst_pool.worker_capacity
-        self.inst_pool.driver.changed.set()
+        if self not in self.inst_pool.instances_by_free_cores:
+            self.inst_pool.n_active_instances += 1
+            self.inst_pool.instances_by_free_cores.add(self)
+            self.inst_pool.free_cores += self.inst_pool.worker_capacity
+            self.inst_pool.driver.changed.set()
 
     async def remove(self):
         log.info(f'removing instance {self.name}')
