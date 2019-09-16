@@ -152,9 +152,9 @@ class Instance:
         if not self.healthy:
             return
 
-        self.healthy = False
         log.info(f'{self.inst_pool.instances!r}')
         self.inst_pool.instances.remove(self)
+        self.healthy = False
         self.inst_pool.instances.add(self)
         log.info(f'{self.inst_pool.instances!r}')
 
@@ -166,9 +166,9 @@ class Instance:
         if self.healthy:
             return
 
-        self.healthy = True
         log.info(f'{self.inst_pool.instances!r}')
         self.inst_pool.instances.remove(self)
+        self.healthy = True
         self.inst_pool.instances.add(self)
         log.info(f'{self.inst_pool.instances!r}')
 
@@ -259,3 +259,6 @@ class Instance:
 
     def __str__(self):
         return self.name
+
+    def __eq__(self, other):
+        return self.name == other.name
