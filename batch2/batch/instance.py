@@ -142,21 +142,17 @@ class Instance:
     def update_timestamp(self):
         if self in self.inst_pool.instances:
             log.info(f'updating timestamp for {self.name}')
-            log.info(f'{self.inst_pool.instances!r}')
             self.inst_pool.instances.remove(self)
             self.last_updated = time.time()
             self.inst_pool.instances.add(self)
-            log.info(f'{self.inst_pool.instances!r}')
 
     def mark_as_unhealthy(self):
         if not self.healthy:
             return
 
-        log.info(f'{self.inst_pool.instances!r}')
         self.inst_pool.instances.remove(self)
         self.healthy = False
         self.inst_pool.instances.add(self)
-        log.info(f'{self.inst_pool.instances!r}')
 
         if self in self.inst_pool.instances_by_free_cores:
             self.inst_pool.instances_by_free_cores.remove(self)
@@ -167,11 +163,9 @@ class Instance:
         if self.healthy:
             return
 
-        log.info(f'{self.inst_pool.instances!r}')
         self.inst_pool.instances.remove(self)
         self.healthy = True
         self.inst_pool.instances.add(self)
-        log.info(f'{self.inst_pool.instances!r}')
 
         if self not in self.inst_pool.instances_by_free_cores:
             self.inst_pool.n_active_instances += 1
