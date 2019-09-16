@@ -153,16 +153,20 @@ class Pod:
 
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    await session.post(f'http://{inst.ip_address}:5000/api/v1alpha/pods/create', json=config)
-
-                log.info(f'created {self} on {inst}')
+                    async with session.post(f'http://{inst.ip_address}:5000/api/v1alpha/pods/create', json=config) as resp:
+                        inst.mark_as_healthy()
+                        if resp.status == 200:
+                            log.info(f'successfully created {self.name} on inst {inst.name}')
+                            return None
+                        else:
+                            log.info(f'failed to create {self.name} on inst {inst.name} due to {resp}')
+                            return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as err:  # pylint: disable=broad-except
                 log.info(f'failed to execute {self.name} on {inst} due to err {err}, rescheduling')
-                if inst.active:
-                    await inst.heal()
-                await self._put_on_ready()
+                inst.mark_as_unhealthy()
+                await self._put_on_ready()  # IS this even necessary -- unschedule put back on queue? But if it goes back to running, never unscheduled. So, this is correct.
 
     async def delete(self):
         async with self.lock:
@@ -178,6 +182,7 @@ class Pod:
                     async with aiohttp.ClientSession(
                             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                         async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
+                            self.instance.mark_as_healthy()
                             if resp.status == 200:
                                 log.info(f'successfully deleted {self.name}')
                             else:
@@ -187,22 +192,29 @@ class Pod:
                     raise
                 except Exception as err:  # pylint: disable=broad-except
                     log.info(f'failed to delete {self.name} on {self.instance} due to err {err}, ignoring')
-                    if self.instance.active:
-                        await self.instance.heal()
+                    self.instance.mark_as_unhealthy()
 
-                await self.unschedule()
-                await db.pods.delete_record(self.name)
+            await self.unschedule()
+            await db.pods.delete_record(self.name)
 
     async def read_pod_log(self, container):
         log.info(f'reading pod log for {self.name} from instance {self.instance}')
 
         if self.instance is None:
-            return None
+            return None, None
 
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with session.get(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/log') as resp:
-                return resp.json()
+        try:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                async with session.get(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/log') as resp:
+                    self.instance.mark_as_healthy()
+                    return resp.json(), None
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
+        except Exception as err:  # pylint: disable=broad-except
+            log.info(f'failed to read pod log {self.name} on {self.instance} due to err {err}, ignoring')
+            self.instance.mark_as_unhealthy()
+            return None, err
 
     async def read_container_status(self, container):
         log.info(f'reading container status for {self.name} from instance {self.instance}')
@@ -210,10 +222,18 @@ class Pod:
         if self.instance is None:
             return None
 
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with session.get(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/status') as resp:
-                return resp.json()
+        try:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                async with session.get(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/status') as resp:
+                    self.instance.mark_as_healthy()
+                    return resp.json(), None
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
+        except Exception as err:  # pylint: disable=broad-except
+            log.info(f'failed to read container status {self.name} on {self.instance} due to err {err}, ignoring')
+            self.instance.mark_as_unhealthy()
+            return None, err
 
     def status(self):
         if self._status is None:
@@ -235,7 +255,7 @@ class Driver:
     def __init__(self, k8s, batch_bucket, batch_gsa_key=None, worker_type='standard', worker_cores=1,
                  worker_disk_size_gb=10, pool_size=1, max_instances=2):
         self.k8s = k8s
-        self.batch_bucket= batch_bucket
+        self.batch_bucket = batch_bucket
         self.pods = None  # populated in run
         self.complete_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue(maxsize=5)  # FIXME: 1000
@@ -285,7 +305,7 @@ class Driver:
             log.warning(f'/deactivate_worker from unknown inst {inst_token}')
             raise web.HTTPNotFound()
 
-        log.info(f'deactivating {inst}')
+        log.info(f'received /deactivate_worker from inst {inst}')
         await inst.deactivate()
         return web.Response()
 

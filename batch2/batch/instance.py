@@ -52,8 +52,6 @@ class Instance:
         self.token = token
         self.ip_address = ip_address
 
-        # self.lock = asyncio.Lock()
-
         self.pods = set()
         self.free_cores = inst_pool.worker_capacity
 
@@ -62,6 +60,7 @@ class Instance:
         self.active = active
         self.deleted = deleted
 
+        self.healthy = True
         self.last_updated = time.time()
 
         log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
@@ -127,9 +126,10 @@ class Instance:
         pod_list = list(self.pods)
         await asyncio.gather(*[p.unschedule() for p in pod_list])
 
-        self.inst_pool.instances_by_free_cores.remove(self)
-        self.inst_pool.n_active_instances -= 1
-        self.inst_pool.free_cores -= self.inst_pool.worker_capacity
+        if self.healthy:
+            self.inst_pool.instances_by_free_cores.remove(self)
+            self.inst_pool.n_active_instances -= 1
+            self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
         await asyncio.gather(*[p.put_on_ready() for p in pod_list])
 
@@ -145,6 +145,31 @@ class Instance:
             self.inst_pool.instances.remove(self)
             self.last_updated = time.time()
             self.inst_pool.instances.add(self)
+
+    def mark_as_unhealthy(self):
+        if not self.healthy:
+            return
+
+        self.healthy = False
+        self.inst_pool.instances.remove(self)
+        self.inst_pool.instances.add(self)
+
+        self.inst_pool.instances_by_free_cores.remove(self)
+        self.inst_pool.n_active_instances -= 1
+        self.inst_pool.free_cores -= self.inst_pool.worker_capacity
+
+    def mark_as_healthy(self):
+        if self.healthy:
+            return
+
+        self.healthy = True
+        self.inst_pool.instances.remove(self)
+        self.inst_pool.instances.add(self)
+
+        self.inst_pool.n_active_instances += 1
+        self.inst_pool.instances_by_free_cores.add(self)
+        self.inst_pool.free_cores += self.inst_pool.worker_capacity
+        self.inst_pool.driver.changed.set()
 
     async def remove(self):
         log.info(f'removing instance {self.name}')
@@ -190,17 +215,20 @@ class Instance:
 
             # preempted goes into terminated state
             if status == 'TERMINATED' and self.deleted:
+                log.info(f'instance {self.name} is terminated and deleted, removing')
                 await self.remove()
                 return
 
             if status in ('TERMINATED', 'STOPPING'):
+                log.info(f'instance {self.name} is {status}, deactivating')
                 await self.deactivate()
 
             if status == 'TERMINATED' and not self.deleted:
+                log.info(f'instance {self.name} is {status} and not deleted, deleting')
                 await self.delete()
 
-            if status == 'RUNNING' and time.time() - self.last_updated > 60 * 5:
-                log.info(f'instance {self.name} has been running for > 5 minutes with no communication')
+            if status == 'RUNNING' and not self.healthy:
+                log.info(f'instance {self.name} is {status} and not healthy, deleting')
                 await self.delete()
 
         if self.ip_address:
@@ -208,10 +236,12 @@ class Instance:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                     await session.get(f'http://{self.ip_address}:5000/healthcheck')
+                    self.mark_as_healthy()
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as err:  # pylint: disable=broad-except
                 log.info(f'healthcheck failed for {self.name} due to err {err}; asking gce instead')
+                self.mark_as_unhealthy()
                 await _heal_gce()
         else:
             await _heal_gce()

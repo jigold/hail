@@ -1,5 +1,6 @@
 import abc
 import os
+import sys
 import time
 import logging
 import asyncio
@@ -297,7 +298,7 @@ class BatchPod:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:  # pylint: disable=broad-except
-                log.exception(f'caught exception {e} while marking pod {self.name} complete, will try again later')
+                log.exception(f'caught exception while marking pod {self.name} complete, will try again later')
             await asyncio.sleep(15)
 
     async def run(self, semaphore=None):
@@ -547,87 +548,4 @@ loop.run_until_complete(loop.shutdown_asyncgens())
 log.info(f'closing')
 loop.close()
 log.info(f'closed')
-
-# @routes.post('/api/v1alpha/pods/create')
-# async def create_pod(request):
-#     parameters = await request.json()
-#     try:
-#         bp = BatchPod(parameters)
-#         batch_pods[bp.name] = bp
-#     except DockerError as err:
-#         print(err)
-#         return web.Response(body=err.message, status=err.status)
-#     except Exception as err:
-#         print(err)
-#         raise err
-#     return jsonify({})
-#
-#
-# @routes.post('/api/v1alpha/pods/{pod_name}/containers/{container_name}/log')
-# async def get_container_log(request):
-#     pod_name = request.match_info['pod_name']
-#     container_name = request.match_info['container_name']
-#
-#     if pod_name not in batch_pods:
-#         abort(404, 'unknown pod name')
-#     bp = batch_pods[pod_name]
-#
-#     if container_name not in bp.containers:
-#         abort(404, 'unknown container name')
-#     result = await bp.log(container_name)
-#
-#     return jsonify(result)
-#
-#
-# @routes.post('/api/v1alpha/pods/{pod_name}/containers/{container_name}/status')
-# async def get_container_status(request):
-#     pod_name = request.match_info['pod_name']
-#     container_name = request.match_info['container_name']
-#
-#     if pod_name not in batch_pods:
-#         abort(404, 'unknown pod name')
-#     bp = batch_pods[pod_name]
-#
-#     if container_name not in bp.containers:
-#         abort(404, 'unknown container name')
-#     result = bp.container_status(container_name)
-#
-#     return jsonify(result)
-#
-#
-# @routes.post('/api/v1alpha/pods/{pod_name}')
-# async def get_pod(request):
-#     pod_name = request.match_info['pod_name']
-#     if pod_name not in batch_pods:
-#         abort(404, 'unknown pod name')
-#     bp = batch_pods[pod_name]
-#     return jsonify(bp.to_dict())
-#
-#
-# @routes.delete('/api/v1alpha/pods/{pod_name}/delete')
-# async def delete_pod(request):
-#     pod_name = request.match_info['pod_name']
-#
-#     if pod_name not in batch_pods:
-#         abort(404, 'unknown pod name')
-#     bp = batch_pods[pod_name]
-#     del batch_pods[pod_name]
-#
-#     asyncio.ensure_future(bp.delete())
-#
-#     return jsonify({})
-#
-#
-# @routes.get('/api/v1alpha/pods')
-# async def list_pods(request):
-#     pods = [bp.to_dict() for _, bp in batch_pods.items()]
-#     return jsonify(pods)
-#
-#
-# @routes.get('/healthcheck')
-# async def get_healthcheck(request):  # pylint: disable=W0613
-#     return web.Response()
-#
-#
-# app.add_routes(routes)
-# web.run_app(app, host='0.0.0.0', port=5000)
+# sys.exit(0)

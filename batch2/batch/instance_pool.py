@@ -41,7 +41,7 @@ class InstancePool:
         self.worker_logs_directory = f'gs://{self.driver.batch_bucket}/{BATCH_NAMESPACE}/{INSTANCE_ID}'
         log.info(f'writing worker logs to {self.worker_logs_directory}')
 
-        self.instances = sortedcontainers.SortedSet(key=lambda inst: inst.last_updated)
+        self.instances = sortedcontainers.SortedSet(key=lambda inst: (inst.healthy, inst.last_updated))
 
         # for active instances only
         self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores)
