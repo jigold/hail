@@ -176,9 +176,7 @@ class Instance:
     async def remove(self):
         log.info(f'removing instance {self.name}')
         await self.deactivate()
-        log.info(f'{self.inst_pool.instances!r}')
         self.inst_pool.instances.remove(self)
-        log.info(f'{self.inst_pool.instances!r}')
         if self.token in self.inst_pool.token_inst:
             del self.inst_pool.token_inst[self.token]
         await db.instances.delete_record(self.name)
@@ -237,7 +235,7 @@ class Instance:
 
             self.update_timestamp()
 
-        if self.ip_address:
+        if self.ip_address and self.active:
             try:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
