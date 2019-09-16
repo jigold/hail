@@ -142,17 +142,21 @@ class Instance:
     def update_timestamp(self):
         if self in self.inst_pool.instances:
             log.info(f'updating timestamp for {self.name}')
+            log.info(f'{self.inst_pool.instances!r}')
             self.inst_pool.instances.remove(self)
             self.last_updated = time.time()
             self.inst_pool.instances.add(self)
+            log.info(f'{self.inst_pool.instances!r}')
 
     def mark_as_unhealthy(self):
         if not self.healthy:
             return
 
         self.healthy = False
+        log.info(f'{self.inst_pool.instances!r}')
         self.inst_pool.instances.remove(self)
         self.inst_pool.instances.add(self)
+        log.info(f'{self.inst_pool.instances!r}')
 
         self.inst_pool.instances_by_free_cores.remove(self)
         self.inst_pool.n_active_instances -= 1
@@ -163,8 +167,10 @@ class Instance:
             return
 
         self.healthy = True
+        log.info(f'{self.inst_pool.instances!r}')
         self.inst_pool.instances.remove(self)
         self.inst_pool.instances.add(self)
+        log.info(f'{self.inst_pool.instances!r}')
 
         self.inst_pool.n_active_instances += 1
         self.inst_pool.instances_by_free_cores.add(self)
@@ -174,7 +180,9 @@ class Instance:
     async def remove(self):
         log.info(f'removing instance {self.name}')
         await self.deactivate()
+        log.info(f'{self.inst_pool.instances!r}')
         self.inst_pool.instances.remove(self)
+        log.info(f'{self.inst_pool.instances!r}')
         if self.token in self.inst_pool.token_inst:
             del self.inst_pool.token_inst[self.token]
         await db.instances.delete_record(self.name)
