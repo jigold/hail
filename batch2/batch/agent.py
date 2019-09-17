@@ -88,12 +88,14 @@ class Container:
                     await docker.pull(config['Image'])
                     self._container = await docker.containers.create(config, name=self.id)
                 except DockerError as err:
+                    log.exception(f'caught error while creating container {self.id}')
                     if err.status == 404:
                         self.image_pull_backoff = err.message
                         return False
-                    else:
+                    else:                        
                         raise err
             else:
+                log.exception(f'caught error while creating container {self.id}')
                 raise err
 
         self._container = await docker.containers.get(self._container._id)
@@ -272,7 +274,7 @@ class BatchPod:
     async def _create(self):
         log.info(f'creating pod {self.name}')
         self.volumes = await self._create_volumes()
-        created = await asyncio.gather(*[container.create(self.volumes) for container in self.containers.values()])
+        created = await asyncio.gather(*[container.create(self.volumes) for container in self.containers.values()])  # FIXME: errors not handled properly
         return all(created)
 
     async def _cleanup(self):
