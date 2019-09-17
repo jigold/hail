@@ -92,8 +92,8 @@ class Container:
                     if err.status == 404:
                         self.image_pull_backoff = err.message
                         return False
-                    else:                        
-                        raise err
+                    else:
+                        raise err  # FIXME: how should these be handled?
             else:
                 log.exception(f'caught error while creating container {self.id}')
                 raise err
