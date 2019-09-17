@@ -20,11 +20,11 @@ def batch_status_exit_codes(batch_status):
 
 
 def test_scale(client):
-    n_jobs = 10
+    n_jobs = 100
     batch = client.create_batch()
     for idx in range(n_jobs):
         sleep_time = random.uniform(0, 30)
-        batch.create_job('alpine:3.8', command=['sleep', str(sleep_time)])
+        batch.create_job('alpine:3.8', command=['sleep', str(round(sleep_time))])
 
     batch = batch.submit()
     status = batch.wait()
