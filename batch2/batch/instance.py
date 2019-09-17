@@ -158,6 +158,7 @@ class Instance:
             self.inst_pool.instances.add(self)
 
     def mark_as_unhealthy(self):
+        log.info(f'marking inst {self.name} as unhealthy')
         if not self.healthy:
             return
 
@@ -173,6 +174,7 @@ class Instance:
         self.update_timestamp()
 
     def mark_as_healthy(self):
+        log.info(f'marking inst {self.name} as healthy')
         if self.healthy:
             return
 
