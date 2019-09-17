@@ -37,8 +37,8 @@ docker = aiodocker.Docker()
 
 # batch_pods = {}
 
-MAX_IDLE_TIME_WITH_PODS = 60 * 2  # seconds
-MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1 # seconds
+MAX_IDLE_TIME_WITH_PODS = 60 * 10  # seconds
+MAX_IDLE_TIME_WITHOUT_PODS = 60 * 10 # seconds
 
 
 class Container:
@@ -391,11 +391,11 @@ class Worker:
             bp = BatchPod(self, parameters, self.cpu_sem)
             self.pods[bp.name] = bp
         except DockerError as err:
-            log.error(err)
+            log.exception(err)
             raise err
             # return web.Response(body=err.message, status=err.status)
         except Exception as err:
-            log.error(err)
+            log.exception(err)
             raise err
 
     async def create_pod(self, request):
@@ -489,7 +489,10 @@ class Worker:
                 await asyncio.sleep(15)
                 last_ping = time.time() - self.last_updated
 
-            log.info('idle 60s or no pods, exiting')
+            if self.pods:
+                log.info(f'idle {MAX_IDLE_TIME_WITH_PODS} seconds with pods, exiting')
+            else:
+                log.info(f'idle {MAX_IDLE_TIME_WITHOUT_PODS} seconds with no pods, exiting')
 
             try:
                 body = {'inst_token': self.token}
