@@ -29,6 +29,9 @@ class Pod:
 
         inst = driver.inst_pool.token_inst.get(record['instance'])
 
+        log.info(f'{driver.inst_pool.token_inst!r}')
+        log.info(f'found instance {inst.name} from {record["instance"]}')
+
         pod = Pod(
             driver=driver,
             name=record['name'],

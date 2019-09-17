@@ -21,7 +21,7 @@ class Instance:
         inst_pool.instances_by_free_cores.add(inst)
         inst_pool.free_cores += inst_pool.worker_capacity
 
-        log.info(f'added instance {inst.name} to the instance pool')
+        log.info(f'added instance {inst.name} to the instance pool with ip address {inst.ip_address}')
 
         return inst
 
@@ -158,6 +158,8 @@ class Instance:
             self.inst_pool.instances_by_free_cores.remove(self)
             self.inst_pool.n_active_instances -= 1
             self.inst_pool.free_cores -= self.inst_pool.worker_capacity
+
+        self.update_timestamp()
 
     def mark_as_healthy(self):
         if self.healthy:
