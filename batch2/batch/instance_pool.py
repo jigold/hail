@@ -169,7 +169,7 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock \
         }
 
         await self.driver.gservices.create_instance(config)
-        log.info(f'created machine {machine_name}')
+        log.info(f'created machine {machine_name} with logs at {self.worker_logs_directory}/{inst_token}/worker.log')
 
         inst = await Instance.create(self, machine_name, inst_token)
 
