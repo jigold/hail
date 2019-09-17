@@ -73,6 +73,7 @@ class Instance:
 
         self.healthy = True
         self.last_updated = time.time()
+        self.time_created = time.time()
 
         log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
@@ -246,6 +247,10 @@ class Instance:
 
             if status == 'RUNNING' and not self.healthy:
                 log.info(f'instance {self.name} is {status} and not healthy, deleting')
+                await self.delete()
+
+            if status == 'RUNNING' and not self.active and time.time() - self.time_created > 60 * 5:
+                log.info(f'instance {self.name} is {status} and not active and older than 5 minutes, deleting')
                 await self.delete()
 
             self.update_timestamp()
