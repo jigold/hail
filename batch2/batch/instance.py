@@ -13,13 +13,24 @@ db = get_db()
 class Instance:
     @staticmethod
     def from_record(inst_pool, record):
-        inst = Instance(inst_pool, record['name'], record['token'],
-                        ip_address=record['ip_address'], pending=False,
-                        active=True, deleted=False)
+        ip_address = record['ip_address']
 
-        inst_pool.n_active_instances += 1
-        inst_pool.instances_by_free_cores.add(inst)
+        pending = ip_address is None
+        active = ip_address is not None
+        deleted = False
+
+        inst = Instance(inst_pool, record['name'], record['token'],
+                        ip_address=ip_address, pending=pending,
+                        active=active, deleted=deleted)
+
         inst_pool.free_cores += inst_pool.worker_capacity
+
+        if active:
+            inst_pool.n_active_instances += 1
+            inst_pool.instances_by_free_cores.add(inst)
+        else:
+            assert pending
+            inst_pool.n_pending_instances += 1
 
         log.info(f'added instance {inst.name} to the instance pool with ip address {inst.ip_address}')
 
