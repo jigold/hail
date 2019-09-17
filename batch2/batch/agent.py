@@ -98,9 +98,12 @@ class Container:
 
     async def run(self, log_directory):
         assert self.image_pull_backoff is None
-
+        log.info(f'running container {self.id}')
         await self._container.start()
+        log.info(f'started container {self.id}')
         await self._container.wait()
+        log.info(f'container {self.id} finished')
+
         self._container = await docker.containers.get(self._container._id)
         self.exit_code = self._container['State']['ExitCode']
 
@@ -110,6 +113,7 @@ class Container:
         upload_log = self.pod.worker.gcs_client.write_gs_file(log_path, await self.log())
         upload_status = self.pod.worker.gcs_client.write_gs_file(status_path, str(self._container._container))
         await asyncio.gather(upload_log, upload_status)
+        log.info(f'uploaded all logs for container {self.id}')
 
     async def delete(self):
         if self._container is not None:
@@ -323,6 +327,7 @@ class BatchPod:
                     log.info(f'running container ({self.name}, {container.name}) with {container.cores} cores')
                     await container.run(self.output_directory)
                     last_ec = container.exit_code
+                    log.info(f'ran container {container.id} with exit code {container.exit_code}')
                     if last_ec != 0:
                         break
 
