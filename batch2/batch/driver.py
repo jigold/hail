@@ -28,9 +28,8 @@ class Pod:
         status = json.loads(record['status']) if record['status'] else None
 
         inst = driver.inst_pool.token_inst.get(record['instance'])
-
         log.info(f'{driver.inst_pool.token_inst!r}')
-        log.info(f'found instance {inst.name} from {record["instance"]}')
+        log.info(f'found instance {inst} from {record["instance"]}')
 
         pod = Pod(
             driver=driver,
