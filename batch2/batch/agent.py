@@ -32,13 +32,8 @@ uvloop.install()
 
 docker = aiodocker.Docker()
 
-# app = web.Application()
-# routes = web.RouteTableDef()
-
-# batch_pods = {}
-
-MAX_IDLE_TIME_WITH_PODS = 60 * 10  # seconds
-MAX_IDLE_TIME_WITHOUT_PODS = 60 * 10 # seconds
+MAX_IDLE_TIME_WITH_PODS = 60 * 2  # seconds
+MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1  # seconds
 
 
 class Container:
