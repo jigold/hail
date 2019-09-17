@@ -255,12 +255,12 @@ class Pod:
 
 class Driver:
     def __init__(self, k8s, batch_bucket, batch_gsa_key=None, worker_type='standard', worker_cores=1,
-                 worker_disk_size_gb=10, pool_size=5, max_instances=8):
+                 worker_disk_size_gb=10, pool_size=10, max_instances=15):
         self.k8s = k8s
         self.batch_bucket = batch_bucket
         self.pods = None  # populated in run
         self.complete_queue = asyncio.Queue()
-        self.ready_queue = asyncio.Queue(maxsize=5)  # FIXME: 1000
+        self.ready_queue = asyncio.Queue(maxsize=100)  # FIXME: 1000
         self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores)
         self.ready_cores = 0
         self.changed = asyncio.Event()
