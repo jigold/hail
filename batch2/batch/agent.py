@@ -63,8 +63,8 @@ class Container:
             'OpenStdin': False,
             'Cmd': self.spec['command'],
             'Image': self.spec['image'],
-            'HostConfig': {'CpuPeriod': '100000',
-                           'CpuQuota': str(self.cores * 100000)}
+            'HostConfig': {'CpuPeriod': 100000,
+                           'CpuQuota': round(self.cores * 100000)}
         }
 
         volume_mounts = []
