@@ -11,4 +11,4 @@ RUN python3 -m pip install --no-cache-dir \
   pytest-xdist==1.29.0 \
   pytest-asyncio==0.10.0
 
-CMD ["python3", "-m", "pytest", "-s", "-v", "--instafail", "-n", "8", "/test/"]
+CMD ["python3", "-m", "pytest", "-s", "-v", "--instafail", "-n", "1", "-k", "test_scale", "/test/"]
