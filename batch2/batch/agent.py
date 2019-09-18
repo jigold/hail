@@ -278,7 +278,7 @@ class BatchPod:
 
     async def _cleanup(self):
         log.info(f'cleaning up pod {self.name}')
-        await asyncio.gather(*[asyncio.shield(c.delete()) for _, c in self.containers.items()])
+        await asyncio.gather(*[c.delete() for _, c in self.containers.items()])
         await asyncio.gather(*[v.delete() for _, v in self.volumes.items()])
         shutil.rmtree(self.scratch, ignore_errors=True)
 
@@ -309,7 +309,8 @@ class BatchPod:
         create_task = None
         try:
             create_task = asyncio.ensure_future(self._create())
-            created = await asyncio.shield(create_task)
+            # created = await asyncio.shield(create_task)
+            created = await create_task
             if not created:
                 log.info(f'unable to create all containers for {self.name}')
                 await self._mark_complete()
@@ -348,7 +349,7 @@ class BatchPod:
         try:
             await self._run_task
         finally:
-            await asyncio.shield(self._cleanup())
+            await self._cleanup()
 
     async def log(self, container_name):
         c = self.containers[container_name]
