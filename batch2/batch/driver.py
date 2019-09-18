@@ -352,7 +352,7 @@ class Driver:
             return Exception(f'invalid pod spec given: {err}')
 
         self.pods[name] = pod
-        await self.pool.call(pod.put_on_ready)
+        asyncio.ensure_future(pod.put_on_ready())
 
     async def delete_pod(self, name):
         log.info(f'request to delete pod {name}')
@@ -433,7 +433,7 @@ class Driver:
         for pod in list(self.pods.values()):
             if not pod.instance and not pod._status:
                 log.info(f'putting pod {pod.name} on the ready queue on init')
-                await self.pool.call(pod.put_on_ready)
+                asyncio.ensure_future(pod.put_on_ready())
 
     async def run(self):
         await self.inst_pool.start()
