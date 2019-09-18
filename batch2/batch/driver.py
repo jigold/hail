@@ -255,7 +255,7 @@ class Pod:
 
 class Driver:
     def __init__(self, k8s, batch_bucket, batch_gsa_key=None, worker_type='standard', worker_cores=1,
-                 worker_disk_size_gb=10, pool_size=150, max_instances=152):
+                 worker_disk_size_gb=10, pool_size=200, max_instances=205):
         self.k8s = k8s
         self.batch_bucket = batch_bucket
         self.pods = None  # populated in run
