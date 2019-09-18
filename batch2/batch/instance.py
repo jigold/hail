@@ -74,6 +74,7 @@ class Instance:
         self.healthy = True
         self.last_updated = time.time()
         self.time_created = time.time()
+        self.last_ping = time.time()
 
         log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
@@ -84,7 +85,8 @@ class Instance:
         self.inst_pool.instances_by_free_cores.remove(self)
         self.free_cores += pod.cores
         self.inst_pool.free_cores += pod.cores
-        assert self.inst_pool.free_cores >= 0
+        log.info(f'inst {self.name} has {self.free_cores} free cores and the instance pool has {self.inst_pool.free_cores} free cores after adding {pod.cores} from pod {pod.name}')
+        assert self.inst_pool.free_cores >= 0, (self.inst_pool.free_cores, pod.cores)
         self.inst_pool.instances_by_free_cores.add(self)
         self.inst_pool.driver.changed.set()
 
@@ -94,7 +96,8 @@ class Instance:
         self.inst_pool.instances_by_free_cores.remove(self)
         self.free_cores -= pod.cores
         self.inst_pool.free_cores -= pod.cores
-        assert self.inst_pool.free_cores >= 0
+        log.info(f'inst {self.name} has {self.free_cores} free cores and the instance pool has {self.inst_pool.free_cores} free cores after subtracting {pod.cores} from pod {pod.name}')
+        assert self.inst_pool.free_cores >= 0, (self.inst_pool.free_cores, pod.cores)
         self.inst_pool.instances_by_free_cores.add(self)
         # can't create more scheduling opportunities, don't set changed
 
@@ -176,6 +179,8 @@ class Instance:
 
     def mark_as_healthy(self):
         log.info(f'marking inst {self.name} as healthy')
+        self.last_ping = time.time()
+
         if self.healthy:
             return
 
@@ -245,7 +250,7 @@ class Instance:
                 log.info(f'instance {self.name} is {status} and not deleted, deleting')
                 await self.delete()
 
-            if status == 'RUNNING' and not self.healthy:
+            if status == 'RUNNING' and not self.healthy and time.time() - self.last_ping > 60 * 5:
                 log.info(f'instance {self.name} is {status} and not healthy, deleting')
                 await self.delete()
 

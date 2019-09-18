@@ -106,7 +106,7 @@ class Pod:
         log.info(f'unscheduling {self.name} cores {self.cores} from {self.instance}')
         self.instance.unschedule(self)
         self.instance = None
-        await db.pods.update_record(self.name, instance=None)
+        asyncio.ensure_future(await db.pods.update_record(self.name, instance=None))
 
     async def schedule(self, inst):
         log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
@@ -122,7 +122,7 @@ class Pod:
 
         self.instance = inst
 
-        await db.pods.update_record(self.name, instance=inst.token)
+        asyncio.ensure_future(db.pods.update_record(self.name, instance=inst.token))
 
     async def _put_on_ready(self):
         if self._status:
@@ -296,6 +296,7 @@ class Driver:
 
         log.info(f'activating {inst}')
         await inst.activate(ip_address)
+        inst.mark_as_healthy()
         return web.Response()
 
     async def deactivate_worker(self, request):
@@ -309,6 +310,7 @@ class Driver:
 
         log.info(f'received /deactivate_worker from inst {inst}')
         await inst.deactivate()
+        inst.mark_as_healthy()
         return web.Response()
 
     async def pod_complete(self, request):
