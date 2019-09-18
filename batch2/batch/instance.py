@@ -112,12 +112,14 @@ class Instance:
             self.pending = False
             self.inst_pool.n_pending_instances -= 1
             self.inst_pool.free_cores -= self.inst_pool.worker_capacity
+            log.info(f'the instance pool has {self.inst_pool.free_cores} free cores after subtracting pending inst {self.name} with {self.free_cores} free cores when activating')
 
         self.active = True
         self.ip_address = ip_address
         self.inst_pool.n_active_instances += 1
         self.inst_pool.instances_by_free_cores.add(self)
         self.inst_pool.free_cores += self.inst_pool.worker_capacity
+        log.info(f'the instance pool has {self.inst_pool.free_cores} free cores after adding inst {self.name} with {self.free_cores} free cores when activating')
         self.inst_pool.driver.changed.set()
 
         await db.instances.update_record(self.name,
@@ -131,6 +133,7 @@ class Instance:
             self.pending = False
             self.inst_pool.n_pending_instances -= 1
             self.inst_pool.free_cores -= self.inst_pool.worker_capacity
+            log.info(f'the instance pool has {self.inst_pool.free_cores} free cores after removing inst {self.name} with {self.free_cores} free cores when deactivating')
             assert not self.active
             log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
             return
@@ -142,9 +145,11 @@ class Instance:
         await asyncio.gather(*[p.unschedule() for p in pod_list])
 
         if self.healthy:
+            log.info(f'removing healthy instance {self.name} from instances_by_free_cores')
             self.inst_pool.instances_by_free_cores.remove(self)
             self.inst_pool.n_active_instances -= 1
             self.inst_pool.free_cores -= self.inst_pool.worker_capacity
+            log.info(f'the instance pool has {self.inst_pool.free_cores} free cores after removing healthy inst {self.name} with {self.free_cores} free cores when deactivating')
 
         await asyncio.gather(*[p.put_on_ready() for p in pod_list])
 
@@ -250,8 +255,8 @@ class Instance:
                 log.info(f'instance {self.name} is {status} and not deleted, deleting')
                 await self.delete()
 
-            if status == 'RUNNING' and not self.healthy and time.time() - self.last_ping > 60 * 5:
-                log.info(f'instance {self.name} is {status} and not healthy, deleting')
+            if status == 'RUNNING' and self.active and not self.healthy and time.time() - self.last_ping > 60 * 5:
+                log.info(f'instance {self.name} is {status} and not healthy and last ping was greater than 5 minutes, deleting')
                 await self.delete()
 
             if status == 'RUNNING' and not self.active and time.time() - self.time_created > 60 * 5:

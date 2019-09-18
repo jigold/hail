@@ -126,7 +126,7 @@ class Job:
             name=name,
             command=['/bin/sh', '-c', sh_expression],
             resources=kube.client.V1ResourceRequirements(
-                requests={'cpu': '500m'}),
+                requests={'cpu': '500m' if files else '100m'}),
             volume_mounts=[kube.client.V1VolumeMount(
                 mount_path='/batch-gsa-key',
                 name='batch-gsa-key')])
