@@ -106,7 +106,7 @@ class Pod:
         log.info(f'unscheduling {self.name} cores {self.cores} from {self.instance}')
         self.instance.unschedule(self)
         self.instance = None
-        asyncio.ensure_future(await db.pods.update_record(self.name, instance=None))
+        asyncio.ensure_future(db.pods.update_record(self.name, instance=None))
 
     async def schedule(self, inst):
         log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
