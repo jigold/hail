@@ -260,7 +260,7 @@ class Driver:
         self.batch_bucket = batch_bucket
         self.pods = None  # populated in run
         self.complete_queue = asyncio.Queue()
-        self.ready_queue = asyncio.Queue(maxsize=100)  # FIXME: 1000
+        self.ready_queue = asyncio.Queue(maxsize=1000)
         self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores)
         self.ready_cores = 0
         self.changed = asyncio.Event()
