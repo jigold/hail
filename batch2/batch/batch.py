@@ -1071,8 +1071,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
         def image_pull_back_off_reason(container_status):
             if (container_status.state and
                     container_status.state.waiting and
-                    (container_status.state.waiting.reason == 'ImagePullBackOff' or
-                    container_status.state.waiting.reason == 'RunContainerError')):
+                    container_status.state.waiting.reason):
                 return (container_status.state.waiting.reason +
                         ': ' +
                         container_status.state.waiting.message)
