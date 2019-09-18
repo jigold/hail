@@ -45,7 +45,7 @@ class Container:
         self.cores = parse_cpu(spec['resources']['requests']['cpu'])
         self.exit_code = None
         self.id = pod.name + '-' + self.name
-        self.image_pull_backoff = None
+        self.error = None
 
     async def create(self, volumes):
         log.info(f'creating container {self.id}')
@@ -84,25 +84,29 @@ class Container:
                     self._container = await docker.containers.create(config, name=self.id)
                 except DockerError as err:
                     log.exception(f'caught error while creating container {self.id}')
-                    if err.status == 404:
-                        self.image_pull_backoff = err.message
-                        return False
-                    else:
-                        raise err  # FIXME: how should these be handled?
+                    self.error = err.message
+                    return False
             else:
                 log.exception(f'caught error while creating container {self.id}')
-                raise err
+                self.error = err.message
+                return False
 
         self._container = await docker.containers.get(self._container._id)
         return True
 
     async def run(self, log_directory):
-        assert self.image_pull_backoff is None
+        assert self.error is None
         log.info(f'running container {self.id}')
-        await self._container.start()
-        log.info(f'started container {self.id}')
-        await self._container.wait()
-        log.info(f'container {self.id} finished')
+
+        try:
+            await self._container.start()
+            log.info(f'started container {self.id}')
+            await self._container.wait()
+            log.info(f'container {self.id} finished')
+        except DockerError as err:
+            log.exception(f'caught error while starting container {self.id}')
+            self.error = err.message
+
 
         self._container = await docker.containers.get(self._container._id)
         self.exit_code = self._container['State']['ExitCode']
@@ -131,10 +135,10 @@ class Container:
 
     def to_dict(self):
         if self._container is None:
-            if self.image_pull_backoff is not None:
+            if self.error is not None:
                 waiting_reason = {
                     'reason': 'ImagePullBackOff',
-                    'message': self.image_pull_backoff
+                    'message': self.error
                 }
             else:
                 waiting_reason = {}
