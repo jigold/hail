@@ -36,6 +36,28 @@ MAX_IDLE_TIME_WITH_PODS = 60 * 2  # seconds
 MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1  # seconds
 
 
+class Error:
+    def __init__(self, reason, msg):
+        self.reason = reason
+        self.message = msg
+
+    def to_dict(self):
+        return {
+            'reason': self.reason,
+            'message': self.message
+        }
+
+
+class ImagePullBackOff(Error):
+    def __init__(self, msg):
+        super(ImagePullBackOff, self).__init__('ImagePullBackOff', msg)
+
+
+class RunContainerError(Error):
+    def __init__(self, msg):
+        super(RunContainerError, self).__init__('RunContainerError', msg)
+
+
 class Container:
     def __init__(self, spec, pod):
         self.pod = pod
@@ -84,11 +106,16 @@ class Container:
                     self._container = await docker.containers.create(config, name=self.id)
                 except DockerError as err:
                     log.exception(f'caught error while creating container {self.id}')
-                    self.error = err.message
-                    return False
+                    if err.status == 404:
+                        self.error = ImagePullBackOff(err.message)
+                        return False
+                    else:
+                        log.exception(f'caught error while creating container {self.id}')
+                        self.error = Error(reason='Unknown', msg=err.message)
+                        return False
             else:
                 log.exception(f'caught error while creating container {self.id}')
-                self.error = err.message
+                self.error = Error(reason='Unknown', msg=err.message)
                 return False
 
         self._container = await docker.containers.get(self._container._id)
@@ -101,12 +128,13 @@ class Container:
         try:
             await self._container.start()
             log.info(f'started container {self.id}')
-            await self._container.wait()
-            log.info(f'container {self.id} finished')
         except DockerError as err:
             log.exception(f'caught error while starting container {self.id}')
-            self.error = err.message
+            self.error = RunContainerError(err.message)
+            await self.delete()
+            return
 
+        await self._container.wait()
 
         self._container = await docker.containers.get(self._container._id)
         self.exit_code = self._container['State']['ExitCode']
@@ -123,6 +151,7 @@ class Container:
         if self._container is not None:
             await self._container.stop()
             await self._container.delete()
+            self._container = None
 
     @property
     def status(self):
@@ -136,10 +165,7 @@ class Container:
     def to_dict(self):
         if self._container is None:
             if self.error is not None:
-                waiting_reason = {
-                    'reason': 'ImagePullBackOff',
-                    'message': self.error
-                }
+                waiting_reason = self.error.to_dict()
             else:
                 waiting_reason = {}
 
@@ -333,7 +359,7 @@ class BatchPod:
                     await container.run(self.output_directory)
                     last_ec = container.exit_code
                     log.info(f'ran container {container.id} with exit code {container.exit_code}')
-                    if last_ec != 0:
+                    if last_ec != 0:  # will be None if error occurred
                         break
 
             self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
