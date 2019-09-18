@@ -40,7 +40,7 @@ class Test(unittest.TestCase):
 
     def test_job(self):
         builder = self.client.create_batch()
-        j = builder.create_job('alpine', ['echo', 'test'])
+        j = builder.create_job('alpine:3.8', ['echo', 'test'])
         builder.submit()
         status = j.wait()
         self.assertTrue('attributes' not in status, (status, j.log()))
@@ -58,7 +58,7 @@ class Test(unittest.TestCase):
             'foo': 'bar'
         }
         builder = self.client.create_batch()
-        j = builder.create_job('alpine', ['true'], attributes=a)
+        j = builder.create_job('alpine:3.8', ['true'], attributes=a)
         builder.submit()
         status = j.status()
         assert(status['attributes'] == a)
@@ -71,9 +71,17 @@ class Test(unittest.TestCase):
         assert status['exit_code']['main'] is None, status
         assert status['state'] == 'Error', status
 
+    def test_bad_command(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('alpine:3.8', ['sleep 5'])
+        builder.submit()
+        status = j.wait()
+        assert status['exit_code']['main'] is None, status
+        assert status['state'] == 'Error', status        
+
     def test_unsubmitted_state(self):
         builder = self.client.create_batch()
-        j = builder.create_job('alpine', ['echo', 'test'])
+        j = builder.create_job('alpine:3.8', ['echo', 'test'])
 
         with self.assertRaises(ValueError):
             j.batch_id
@@ -92,16 +100,16 @@ class Test(unittest.TestCase):
 
         builder.submit()
         with self.assertRaises(ValueError):
-            builder.create_job('alpine', ['echo', 'test'])
+            builder.create_job('alpine:3.8', ['echo', 'test'])
 
     def test_list_batches(self):
         tag = secrets.token_urlsafe(64)
         b1 = self.client.create_batch(attributes={'tag': tag, 'name': 'b1'})
-        b1.create_job('alpine', ['sleep', '3600'])
+        b1.create_job('alpine:3.8', ['sleep', '3600'])
         b1 = b1.submit()
 
         b2 = self.client.create_batch(attributes={'tag': tag, 'name': 'b2'})
-        b2.create_job('alpine', ['echo', 'test'])
+        b2.create_job('alpine:3.8', ['echo', 'test'])
         b2 = b2.submit()
 
         def assert_batch_ids(expected, complete=None, success=None, attributes=None):
@@ -134,7 +142,7 @@ class Test(unittest.TestCase):
     def test_limit_offset(self):
         b1 = self.client.create_batch()
         for i in range(3):
-            b1.create_job('alpine', ['true'])
+            b1.create_job('alpine:3.8', ['true'])
         b1 = b1.submit()
         s = b1.status(limit=2, offset=1)
         filtered_jobs = {j['job_id'] for j in s['jobs']}
@@ -142,14 +150,14 @@ class Test(unittest.TestCase):
 
     def test_fail(self):
         b = self.client.create_batch()
-        j = b.create_job('alpine', ['false'])
+        j = b.create_job('alpine:3.8', ['false'])
         b.submit()
         status = j.wait()
         self.assertEqual(status['exit_code']['main'], 1)
 
     def test_deleted_job_log(self):
         b = self.client.create_batch()
-        j = b.create_job('alpine', ['echo', 'test'])
+        j = b.create_job('alpine:3.8', ['echo', 'test'])
         b = b.submit()
         j.wait()
         b.delete()
@@ -164,7 +172,7 @@ class Test(unittest.TestCase):
 
     def test_delete_batch(self):
         b = self.client.create_batch()
-        j = b.create_job('alpine', ['sleep', '30'])
+        j = b.create_job('alpine:3.8', ['sleep', '30'])
         b = b.submit()
         b.delete()
 
@@ -179,7 +187,7 @@ class Test(unittest.TestCase):
 
     def test_cancel_batch(self):
         b = self.client.create_batch()
-        j = b.create_job('alpine', ['sleep', '30'])
+        j = b.create_job('alpine:3.8', ['sleep', '30'])
         b = b.submit()
 
         status = j.status()
@@ -211,7 +219,7 @@ class Test(unittest.TestCase):
 
     def test_get_job(self):
         b = self.client.create_batch()
-        j = b.create_job('alpine', ['true'])
+        j = b.create_job('alpine:3.8', ['true'])
         b.submit()
 
         j2 = self.client.get_job(*j.id)
@@ -220,9 +228,9 @@ class Test(unittest.TestCase):
 
     def test_batch(self):
         b = self.client.create_batch()
-        j1 = b.create_job('alpine', ['false'])
-        j2 = b.create_job('alpine', ['sleep', '1'])
-        j3 = b.create_job('alpine', ['sleep', '30'])
+        j1 = b.create_job('alpine:3.8', ['false'])
+        j2 = b.create_job('alpine:3.8', ['sleep', '1'])
+        j3 = b.create_job('alpine:3.8', ['sleep', '30'])
         b = b.submit()
 
         j1.wait()
@@ -242,28 +250,28 @@ class Test(unittest.TestCase):
 
     def test_batch_status(self):
         b1 = self.client.create_batch()
-        b1.create_job('alpine', ['true'])
+        b1.create_job('alpine:3.8', ['true'])
         b1 = b1.submit()
         b1.wait()
         b1s = b1.status()
         assert b1s['complete'] and b1s['state'] == 'success', b1s
 
         b2 = self.client.create_batch()
-        b2.create_job('alpine', ['false'])
-        b2.create_job('alpine', ['true'])
+        b2.create_job('alpine:3.8', ['false'])
+        b2.create_job('alpine:3.8', ['true'])
         b2 = b2.submit()
         b2.wait()
         b2s = b2.status()
         assert b2s['complete'] and b2s['state'] == 'failure', b2s
 
         b3 = self.client.create_batch()
-        b3.create_job('alpine', ['sleep', '30'])
+        b3.create_job('alpine:3.8', ['sleep', '30'])
         b3 = b3.submit()
         b3s = b3.status()
         assert not b3s['complete'] and b3s['state'] == 'running', b3s
 
         b4 = self.client.create_batch()
-        b4.create_job('alpine', ['sleep', '30'])
+        b4.create_job('alpine:3.8', ['sleep', '30'])
         b4 = b4.submit()
         b4.cancel()
         b4.wait()
@@ -288,7 +296,7 @@ class Test(unittest.TestCase):
             server.start()
             b = self.client.create_batch()
             j = b.create_job(
-                'alpine',
+                'alpine:3.8',
                 ['echo', 'test'],
                 attributes={'foo': 'bar'},
                 callback=server.url_for('/test'))
@@ -308,7 +316,7 @@ class Test(unittest.TestCase):
 
     def test_log_after_failing_job(self):
         b = self.client.create_batch()
-        j = b.create_job('alpine', ['/bin/sh', '-c', 'echo test; exit 127'])
+        j = b.create_job('alpine:3.8', ['/bin/sh', '-c', 'echo test; exit 127'])
         b.submit()
         status = j.wait()
         self.assertTrue('attributes' not in status)
@@ -344,7 +352,7 @@ class Test(unittest.TestCase):
         bc = BatchClient(_token=token)
         try:
             b = bc.create_batch()
-            j = b.create_job('alpine', ['false'])
+            j = b.create_job('alpine:3.8', ['false'])
             b.submit()
             assert False, j
         except aiohttp.ClientResponseError as e:
