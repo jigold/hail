@@ -391,7 +391,7 @@ class Driver:
                 await self.changed.wait()
                 self.changed.clear()
 
-            log.info(f'populating ready queue')
+            log.info(f'populating ready queue: ready has {len(self.ready)} pods and ready_queue has length {self.ready_queue.qsize()}')
             while len(self.ready) < 1 and not self.ready_queue.empty():  # FIXME: replace with 50
                 pod = self.ready_queue.get_nowait()
                 if not pod.deleted:
