@@ -387,9 +387,11 @@ class Driver:
         should_wait = False
         while True:
             if should_wait:
+                log.info(f'waiting for change to occur')
                 await self.changed.wait()
                 self.changed.clear()
 
+            log.info(f'populating ready queue')
             while len(self.ready) < 1 and not self.ready_queue.empty():  # FIXME: replace with 50
                 pod = self.ready_queue.get_nowait()
                 if not pod.deleted:
@@ -399,6 +401,7 @@ class Driver:
                     pod.on_ready = False
                     log.info(f'skipping pod {pod.name} from ready; already deleted')
 
+            log.info(f'ready queue has {len(self.ready)} pods and {self.inst_pool.instances_by_free_cores!r}')
             should_wait = True
             if self.inst_pool.instances_by_free_cores and self.ready:
                 inst = self.inst_pool.instances_by_free_cores[-1]
