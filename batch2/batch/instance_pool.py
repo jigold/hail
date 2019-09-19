@@ -165,8 +165,6 @@ function retry {{
 retry docker run 
            -v /var/run/docker.sock:/var/run/docker.sock \
            -v /batch:/batch \
-           -v /etc/localtime:/etc/localtime:ro \
-           -v /etc/timezone:/etc/timezone:ro \
            -p 5000:5000 \
            -d --entrypoint "/bin/bash" \
            $BATCH_IMAGE \

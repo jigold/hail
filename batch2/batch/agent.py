@@ -195,13 +195,10 @@ class Container:
         elif self.status['State']['Status'] == 'exited' or self.error:  # FIXME: there's other docker states such as dead and oomed
             state['terminated'] = {
                 'exitCode': self.status['State']['ExitCode'],
+                'startedAt': min(self.status['State']['StartedAt'], self.status['State']['FinishedAt']),
                 'finishedAt': self.status['State']['FinishedAt'],
-                'message': self.status['State']['Error'],
-                'startedAt': self.status['State']['StartedAt']
+                'message': self.status['State']['Error']
             }
-            finished_at = self.status['State']['FinishedAt']
-            started_at = self.status['State']['StartedAt']
-            log.info(f'{self.id} startedAt {started_at} finishedAt {finished_at}')
         else:
             raise Exception(f'unknown docker state {self.status["State"]["Status"]}')
 
@@ -319,6 +316,7 @@ class BatchPod:
         self.phase = 'Pending'
         self.scratch = f'/batch/pods/{self.name}/{self.token}'
 
+        self.start_time = time.time()
         self._run_task = asyncio.ensure_future(self.run(cpu_sem))
 
     async def _create(self):
@@ -416,8 +414,8 @@ class BatchPod:
             'status': {
                 'containerStatuses': [c.to_dict() for _, c in self.containers.items()],
                 # 'hostIP': None,
-                'phase': self.phase
-                # 'startTime': None
+                'phase': self.phase,
+                'startTime': self.start_time
             }
         }
 
