@@ -119,6 +119,7 @@ class Container:
                 return False
 
         self._container = await docker.containers.get(self._container._id)
+        log.info(f'{self.id} {self.status}')
         return True
 
     async def run(self, log_directory):
