@@ -76,8 +76,9 @@ class Test(unittest.TestCase):
         j = builder.create_job('alpine:3.8', ['sleep 5'])
         builder.submit()
         status = j.wait()
-        assert status['exit_code']['main'] is None, status
-        assert status['state'] == 'Error', status        
+        assert status['exit_code']['setup'] == 0, status
+        assert status['exit_code']['main'] == 127, status
+        assert status['state'] == 'Failed', status
 
     def test_unsubmitted_state(self):
         builder = self.client.create_batch()
