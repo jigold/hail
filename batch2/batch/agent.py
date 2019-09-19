@@ -128,13 +128,12 @@ class Container:
         try:
             await self._container.start()
             log.info(f'started container {self.id}')
+            await self._container.wait()
         except DockerError as err:
             log.exception(f'caught error while starting container {self.id}')
-            self.error = RunContainerError(err.message)
-            await self.delete()
-            return
-
-        await self._container.wait()
+            # self.error = RunContainerError(err.message)
+            # await self.delete()
+            # return
 
         self._container = await docker.containers.get(self._container._id)
         self.exit_code = self._container['State']['ExitCode']
