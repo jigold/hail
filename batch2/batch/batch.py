@@ -189,7 +189,7 @@ class Job:
         err = await app['driver'].create_pod(spec=pod_template.to_dict(),
                                              output_directory=self.directory)
         if err is not None:
-            if err.status == 409:
+            if err.status == 409:  # FIXME: Error from driver is not 409 right now
                 log.info(f'pod already exists for job {self.id}')
                 return
             # traceback.print_tb(err.__traceback__)

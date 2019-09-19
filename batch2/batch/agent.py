@@ -5,6 +5,7 @@ import time
 import logging
 import asyncio
 import random
+import json
 import aiohttp
 import base64
 import uuid
@@ -132,23 +133,23 @@ class Container:
             await self._container.wait()
         except DockerError as err:
             log.exception(f'caught error while starting container {self.id}')
-            assert self._container['State']['ExitCode'] != 0
-            # self.error = RunContainerError(err.message)
+            # assert self._container['State']['ExitCode'] != 0  # Use this to test assertions causing stuck jobs
+            self.error = RunContainerError(err.message)
             # await self.delete()
             # return
 
         self._container = await docker.containers.get(self._container._id)
         log.info(f'{self.id} {self.status}')
         self.exit_code = self._container['State']['ExitCode']
-        log.info(f'type of exit code = {type(self.exit_code)}')
 
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
 
-        log_data = await self.log()
-        log.info(f'log for {self.id} {log_data}')
-        upload_log = self.pod.worker.gcs_client.write_gs_file(log_path, await self.log())
-        upload_status = self.pod.worker.gcs_client.write_gs_file(status_path, str(self._container._container))
+        log_data = await self.log() if self.error is None else self.error.message
+        status_data = json.dumps(self._container._container, indent=4)
+
+        upload_log = self.pod.worker.gcs_client.write_gs_file(log_path, log_data)
+        upload_status = self.pod.worker.gcs_client.write_gs_file(status_path, status_data)
         await asyncio.gather(upload_log, upload_status)
         log.info(f'uploaded all logs for container {self.id}')
 
@@ -185,22 +186,22 @@ class Container:
 
         log.info(self.status['State']['Error'])
         state = {}
-        if self.status['State']['Status'] == 'created' and \
-                self.status['State']['Error'] is None:
+        if self.status['State']['Status'] == 'created' and not self.error:
             state['waiting'] = {}
         elif self.status['State']['Status'] == 'running':
             state['running'] = {
                 'started_at': self.status['State']['StartedAt']
             }
-        elif (self.status['State']['Status'] == 'exited' or
-                (self.status['State']['Status'] == 'created' and
-                 self.status['State']['ExitCode'] is not None)):  # FIXME: there's other docker states such as dead and oomed
+        elif self.status['State']['Status'] == 'exited' or self.error:  # FIXME: there's other docker states such as dead and oomed
             state['terminated'] = {
                 'exitCode': self.status['State']['ExitCode'],
                 'finishedAt': self.status['State']['FinishedAt'],
                 'message': self.status['State']['Error'],
                 'startedAt': self.status['State']['StartedAt']
             }
+            finished_at = self.status['State']['FinishedAt']
+            started_at = self.status['State']['StartedAt']
+            log.info(f'{self.id} startedAt {started_at} finishedAt {finished_at}')
         else:
             raise Exception(f'unknown docker state {self.status["State"]["Status"]}')
 
@@ -316,9 +317,9 @@ class BatchPod:
 
         self.containers = {cspec['name']: Container(cspec, self) for cspec in self.spec['spec']['containers']}
         self.phase = 'Pending'
-        self._run_task = asyncio.ensure_future(self.run(cpu_sem))
-
         self.scratch = f'/batch/pods/{self.name}/{self.token}'
+
+        self._run_task = asyncio.ensure_future(self.run(cpu_sem))
 
     async def _create(self):
         log.info(f'creating pod {self.name}')
