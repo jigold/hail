@@ -13,7 +13,7 @@ from hailtop.config import get_deploy_config
 from .google_compute import GServices
 from .instance_pool import InstancePool
 from .utils import AsyncWorkerPool, parse_cpu
-from .globals import get_db
+from .globals import get_db, tasks
 
 
 log = logging.getLogger('driver')
@@ -366,22 +366,26 @@ class Driver:
         log.info(f'request to delete pod {name}')
         pod = self.pods.get(name)
         if pod is None:
-            return Exception(f'pod {name} does not exist')
+            return DriverException(409, f'pod {name} does not exist')
         await self.pool.call(pod.delete)
         del self.pods[name]
 
     async def read_pod_log(self, name, container):
+        assert container in tasks
+        
         log.info(f'request to read pod log for {name}, {container}')
         pod = self.pods.get(name)
         if pod is None:
-            return None, Exception(f'pod {name} does not exist')
+            return None, DriverException(409, f'pod {name} does not exist')
         return await pod.read_pod_log(container), None
 
     async def read_container_status(self, name, container):
+        assert container in tasks
+
         log.info(f'request to read status for {name}, {container}')
         pod = self.pods.get(name)
         if pod is None:
-            return None, Exception(f'pod {name} does not exist')
+            return None, DriverException(409, f'pod {name} does not exist')
         return await pod.read_container_status(container), None
 
     def list_pods(self):
