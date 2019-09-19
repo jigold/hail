@@ -458,7 +458,7 @@ class Job:
             state = status.state
             if state.terminated:
                 ec = state.terminated.exit_code
-                duration = (state.terminated.finished_at - state.terminated.started_at).total_seconds()
+                duration = max(0, (state.terminated.finished_at - state.terminated.started_at).total_seconds())
                 return ec, duration
             return None, None
 

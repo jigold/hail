@@ -10,6 +10,7 @@ import aiohttp
 import base64
 import uuid
 import shutil
+import dateutil.parser
 from aiohttp import web
 import concurrent
 import aiodocker
@@ -198,7 +199,7 @@ class Container:
         elif self.status['State']['Status'] == 'exited' or self.error:  # FIXME: there's other docker states such as dead and oomed
             state['terminated'] = {
                 'exitCode': self.status['State']['ExitCode'],
-                'startedAt': min(self.status['State']['StartedAt'], self.status['State']['FinishedAt']),
+                'startedAt': self.status['State']['StartedAt'],
                 'finishedAt': self.status['State']['FinishedAt'],
                 'message': self.status['State']['Error']
             }
