@@ -132,6 +132,7 @@ class Container:
             await self._container.wait()
         except DockerError as err:
             log.exception(f'caught error while starting container {self.id}')
+            assert self._container['State']['ExitCode'] != 0
             # self.error = RunContainerError(err.message)
             # await self.delete()
             # return
@@ -139,10 +140,12 @@ class Container:
         self._container = await docker.containers.get(self._container._id)
         log.info(f'{self.id} {self.status}')
         self.exit_code = self._container['State']['ExitCode']
+        log.info(f'type of exit code = {type(self.exit_code)}')
 
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
 
+        log.info(f'log for {self.id} {await self.log()}')
         upload_log = self.pod.worker.gcs_client.write_gs_file(log_path, await self.log())
         upload_status = self.pod.worker.gcs_client.write_gs_file(status_path, str(self._container._container))
         await asyncio.gather(upload_log, upload_status)
@@ -179,9 +182,10 @@ class Container:
                 'state': {'waiting': waiting_reason}
             }
 
+        log.info(self.status['State']['Error'])
         state = {}
         if self.status['State']['Status'] == 'created' and \
-                self.status['State']['ExitCode'] is None:
+                self.status['State']['Error'] is None:
             state['waiting'] = {}
         elif self.status['State']['Status'] == 'running':
             state['running'] = {
