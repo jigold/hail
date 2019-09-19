@@ -378,7 +378,7 @@ class Driver:
             return None, Exception(f'pod {name} does not exist')
         return await pod.read_container_status(container), None
 
-    async def list_pods(self):
+    def list_pods(self):
         log.info(f'request to list pods')
         return [pod.status() for _, pod in self.pods.items()]
 

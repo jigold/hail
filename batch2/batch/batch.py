@@ -1135,7 +1135,7 @@ async def refresh_pods():
     # while listing pods and unnecessarily restart them
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
 
-    pods = await app['driver'].list_pods()
+    pods = app['driver'].list_pods()
     log.info(f'batch had {len(pods)} pods')
 
     seen_pods = set()
