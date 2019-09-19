@@ -179,13 +179,16 @@ class Container:
             }
 
         state = {}
-        if self.status['State']['Status'] == 'created':
+        if self.status['State']['Status'] == 'created' and \
+                self.status['State']['ExitCode'] is None:
             state['waiting'] = {}
         elif self.status['State']['Status'] == 'running':
             state['running'] = {
                 'started_at': self.status['State']['StartedAt']
             }
-        elif self.status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead and oomed
+        elif (self.status['State']['Status'] == 'exited' or
+                (self.status['State']['Status'] == 'created' and
+                 self.status['State']['ExitCode'] is not None)):  # FIXME: there's other docker states such as dead and oomed
             state['terminated'] = {
                 'exitCode': self.status['State']['ExitCode'],
                 'finishedAt': self.status['State']['FinishedAt'],
