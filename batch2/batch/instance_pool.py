@@ -162,7 +162,7 @@ function retry {{
     done
 }}
 
-retry docker run 
+retry docker run \
            -v /var/run/docker.sock:/var/run/docker.sock \
            -v /batch:/batch \
            -p 5000:5000 \

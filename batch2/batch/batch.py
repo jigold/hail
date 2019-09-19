@@ -577,12 +577,12 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
     if 'memory' not in pod_spec.containers[0].resources.requests:
         pod_spec.containers[0].resources.requests['memory'] = '500M'
 
-    if not pod_spec.tolerations:
-        pod_spec.tolerations = []
-    pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
+    # if not pod_spec.tolerations:
+    #     pod_spec.tolerations = []
+    # pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
 
     # pod_spec.automount_service_account_token = False
-    pod_spec.service_account = "batch-output-pod"
+    # pod_spec.service_account = "batch-output-pod"
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
