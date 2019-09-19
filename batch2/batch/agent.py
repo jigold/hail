@@ -145,7 +145,8 @@ class Container:
         log_path = LogStore.container_log_path(log_directory, self.name)
         status_path = LogStore.container_status_path(log_directory, self.name)
 
-        log.info(f'log for {self.id} {await self.log()}')
+        log_data = await self.log()
+        log.info(f'log for {self.id} {log_data}')
         upload_log = self.pod.worker.gcs_client.write_gs_file(log_path, await self.log())
         upload_status = self.pod.worker.gcs_client.write_gs_file(status_path, str(self._container._container))
         await asyncio.gather(upload_log, upload_status)
