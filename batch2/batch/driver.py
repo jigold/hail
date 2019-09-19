@@ -21,6 +21,12 @@ log = logging.getLogger('driver')
 db = get_db()
 
 
+class DriverException(Exception):
+    def __init__(self, status, message):
+        self.status = status
+        self.message = message
+
+
 class Pod:
     @staticmethod
     def from_record(driver, record):
@@ -106,7 +112,7 @@ class Pod:
         log.info(f'unscheduling {self.name} cores {self.cores} from {self.instance}')
         self.instance.unschedule(self)
         self.instance = None
-        asyncio.ensure_future(db.pods.update_record(self.name, instance=None))
+        await db.pods.update_record(self.name, instance=None)
 
     async def schedule(self, inst):
         log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
@@ -122,7 +128,7 @@ class Pod:
 
         self.instance = inst
 
-        asyncio.ensure_future(db.pods.update_record(self.name, instance=inst.token))
+        await db.pods.update_record(self.name, instance=inst.token)
 
     async def _put_on_ready(self):
         if self._status:
@@ -346,12 +352,12 @@ class Driver:
         log.info(f'request to create pod {name}')
 
         if name in self.pods:
-            return Exception(f'pod {name} already exists')
+            return DriverException(409, f'pod {name} already exists')
 
         try:
             pod = await Pod.create_pod(self, name, spec, output_directory)
         except Exception as err:
-            return Exception(f'invalid pod spec given: {err}')
+            return DriverException(400, f'invalid pod spec given: {err}')  # FIXME: what error code should this be?
 
         self.pods[name] = pod
         asyncio.ensure_future(pod.put_on_ready())

@@ -60,7 +60,7 @@ class RunContainerError(Error):
 
 
 class Container:
-    def __init__(self, spec, pod):
+    def __init__(self, spec, pod, log_directory):
         self.pod = pod
         self._container = None
         self.name = spec['name']
@@ -69,6 +69,7 @@ class Container:
         self.exit_code = None
         self.id = pod.name + '-' + self.name
         self.error = None
+        self.log_directory = log_directory
 
     async def create(self, volumes):
         log.info(f'creating container {self.id}')
@@ -98,6 +99,13 @@ class Container:
         if volume_mounts:
             config['Binds'] = volume_mounts
 
+        async def handle_error(error):
+            log.exception(f'caught error while creating container {self.id}: {error.reason}')
+            self.error = error
+            log_path = LogStore.container_log_path(self.log_directory, self.name)
+            await self.pod.worker.gcs_client.write_gs_file(log_path, self.error.message)
+            log.info(f'uploaded log for container {self.id}')
+
         try:
             self._container = await docker.containers.create(config, name=self.id)
         except DockerError as err:
@@ -106,24 +114,21 @@ class Container:
                     await docker.pull(config['Image'])
                     self._container = await docker.containers.create(config, name=self.id)
                 except DockerError as err:
-                    log.exception(f'caught error while creating container {self.id}')
                     if err.status == 404:
-                        self.error = ImagePullBackOff(err.message)
-                        return False
+                        error = ImagePullBackOff(err.message)
                     else:
-                        log.exception(f'caught error while creating container {self.id}')
-                        self.error = Error(reason='Unknown', msg=err.message)
-                        return False
+                        error = Error(reason='Unknown', msg=err.message)
+                    await handle_error(error)
+                    return False
             else:
-                log.exception(f'caught error while creating container {self.id}')
-                self.error = Error(reason='Unknown', msg=err.message)
+                await handle_error(Error(reason='Unknown', msg=err.message))
                 return False
 
         self._container = await docker.containers.get(self._container._id)
         log.info(f'{self.id} {self.status}')
         return True
 
-    async def run(self, log_directory):
+    async def run(self):
         assert self.error is None
         log.info(f'running container {self.id}')
 
@@ -135,15 +140,13 @@ class Container:
             log.exception(f'caught error while starting container {self.id}')
             # assert self._container['State']['ExitCode'] != 0  # Use this to test assertions causing stuck jobs
             self.error = RunContainerError(err.message)
-            # await self.delete()
-            # return
 
         self._container = await docker.containers.get(self._container._id)
         log.info(f'{self.id} {self.status}')
         self.exit_code = self._container['State']['ExitCode']
 
-        log_path = LogStore.container_log_path(log_directory, self.name)
-        status_path = LogStore.container_status_path(log_directory, self.name)
+        log_path = LogStore.container_log_path(self.log_directory, self.name)
+        status_path = LogStore.container_status_path(self.log_directory, self.name)
 
         log_data = await self.log() if self.error is None else self.error.message
         status_data = json.dumps(self._container._container, indent=4)
@@ -312,7 +315,7 @@ class BatchPod:
         self.events = []
         self.volumes = {}
 
-        self.containers = {cspec['name']: Container(cspec, self) for cspec in self.spec['spec']['containers']}
+        self.containers = {cspec['name']: Container(cspec, self, self.output_directory) for cspec in self.spec['spec']['containers']}
         self.phase = 'Pending'
         self.scratch = f'/batch/pods/{self.name}/{self.token}'
 
@@ -375,7 +378,7 @@ class BatchPod:
                 log.info(f'waiting to run container ({self.name}, {container.name}) with {container.cores} cores')
                 async with semaphore(container.cores):
                     log.info(f'running container ({self.name}, {container.name}) with {container.cores} cores')
-                    await container.run(self.output_directory)
+                    await container.run()
                     last_ec = container.exit_code
                     log.info(f'ran container {container.id} with exit code {container.exit_code}')
                     if last_ec != 0:  # will be None if error occurred

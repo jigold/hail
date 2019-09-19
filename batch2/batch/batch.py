@@ -453,42 +453,23 @@ class Job:
         if self._state == 'Running' and (not self._cancelled or self.always_run):
             await self._create_pod()
 
-    async def mark_complete(self, pod, failed=False, failure_reason=None):  # pylint: disable=R0915
-        new_state = None
-        exit_codes = [None for _ in tasks]
-        durations = [None for _ in tasks]
-        container_logs = {t: None for t in tasks}
+    async def mark_complete(self, pod):  # pylint: disable=R0915
+        def process_container(status):
+            state = status.state
+            if state.terminated:
+                ec = state.terminated.exit_code
+                duration = (state.terminated.finished_at - state.terminated.started_at).total_seconds()
+                return ec, duration
+            return None, None
 
-        if failed:
-            if failure_reason is not None:
-                container_logs['setup'] = failure_reason
-                err = await app['log_store'].write_gs_file(LogStore.container_log_path(self.directory, 'setup'),
-                                                           failure_reason)  # FIXME
-                # err = await app['log_store'].write_gs_file(self.directory,
-                #                                            LogStore.log_file_name,
-                #                                            json.dumps(container_logs))
-                if err is not None:
-                    traceback.print_tb(err.__traceback__)
-                    log.info(f'job {self.id} will have a missing log due to {err}')
+        exit_codes, durations = zip(*[process_container(status) for status in pod.status.container_statuses])  # FIXME: use gear unzip
+        exit_codes = list(exit_codes)
+        durations = list(durations)
 
-            new_state = 'Error'
+        if pod.status.phase == 'Succeeded':
+            new_state = 'Success'
         else:
-            def process_container(status):
-                state = status.state
-                if state.terminated:
-                    ec = state.terminated.exit_code
-                    duration = (state.terminated.finished_at - state.terminated.started_at).total_seconds()
-                    return ec, duration
-                return None, None
-
-            exit_codes, durations = zip(*[process_container(status) for status in pod.status.container_statuses])  # FIXME: use gear unzip
-            exit_codes = list(exit_codes)
-            durations = list(durations)
-
-            if pod.status.phase == 'Succeeded':
-                new_state = 'Success'
-            else:
-                new_state = 'Failed'
+            new_state = 'Failed'
 
         assert new_state is not None
         n_updated = await db.jobs.update_record(*self.id,
@@ -576,13 +557,6 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
         pod_spec.containers[0].resources.requests['cpu'] = '100m'
     if 'memory' not in pod_spec.containers[0].resources.requests:
         pod_spec.containers[0].resources.requests['memory'] = '500M'
-
-    # if not pod_spec.tolerations:
-    #     pod_spec.tolerations = []
-    # pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
-
-    # pod_spec.automount_service_account_token = False
-    # pod_spec.service_account = "batch-output-pod"
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
@@ -1068,27 +1042,13 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
         return
 
     if pod and pod.status and pod.status.phase == 'Pending':
-        def image_pull_back_off_reason(container_status):
+        all_container_statuses = pod.status.container_statuses or []
+        for container_status in all_container_statuses:
             if (container_status.state and
                     container_status.state.waiting and
                     container_status.state.waiting.reason):
-                return (container_status.state.waiting.reason +
-                        ': ' +
-                        container_status.state.waiting.message)
-            return None
-
-        all_container_statuses = pod.status.container_statuses or []
-
-        image_pull_back_off_reasons = []
-        for container_status in all_container_statuses:
-            maybe_reason = image_pull_back_off_reason(container_status)
-            if maybe_reason:
-                image_pull_back_off_reasons.append(maybe_reason)
-        if image_pull_back_off_reasons:
-            await job.mark_complete(pod=pod,
-                                    failed=True,
-                                    failure_reason="\n".join(image_pull_back_off_reasons))
-            return
+                await job.mark_complete(pod)
+                return
 
     if not pod:
         log.info(f'job {job.id} no pod found, rescheduling')
