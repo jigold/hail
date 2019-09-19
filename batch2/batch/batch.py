@@ -479,7 +479,7 @@ class Job:
                     ec = state.terminated.exit_code
                     duration = (state.terminated.finished_at - state.terminated.started_at).total_seconds()
                     if duration < 0:
-                        log.info(f'got negative duration {duration} for job {self.id}, rounding to 0')
+                        log.info(f'got negative duration {duration} for job {self.id}, rounding to 0. started {state.terminated.started_at} finished {state.terminated.finished_at}')
                         duration = 0
                     return ec, duration
                 return None, None
