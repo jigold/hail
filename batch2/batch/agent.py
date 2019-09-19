@@ -194,6 +194,17 @@ class Container:
         else:
             raise Exception(f'unknown docker state {self.status["State"]["Status"]}')
 
+        x = {
+            'containerID': f'docker://{self.status["Id"]}',
+            'image': self.spec['image'],
+            'imageID': self.status['Image'],
+            'name': self.name,
+            'ready': False,
+            'restartCount': self.status['RestartCount'],
+            'state': state
+        }
+        log.info(f'status for {self.id}: {x}')
+
         return {
             'containerID': f'docker://{self.status["Id"]}',
             'image': self.spec['image'],
