@@ -10,7 +10,6 @@ import aiohttp
 import base64
 import uuid
 import shutil
-import dateutil.parser
 from aiohttp import web
 import concurrent
 import aiodocker
@@ -320,7 +319,6 @@ class BatchPod:
         self.phase = 'Pending'
         self.scratch = f'/batch/pods/{self.name}/{self.token}'
 
-        self.start_time = time.time()
         self._run_task = asyncio.ensure_future(self.run(cpu_sem))
 
     async def _create(self):
@@ -382,7 +380,7 @@ class BatchPod:
                     await container.run()
                     last_ec = container.exit_code
                     log.info(f'ran container {container.id} with exit code {container.exit_code}')
-                    if last_ec != 0:  # will be None if error occurred
+                    if last_ec != 0 or container.error:
                         break
 
             self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
@@ -418,8 +416,8 @@ class BatchPod:
             'status': {
                 'containerStatuses': [c.to_dict() for _, c in self.containers.items()],
                 # 'hostIP': None,
-                'phase': self.phase,
-                'startTime': self.start_time
+                'phase': self.phase
+                # 'startTime': None
             }
         }
 
