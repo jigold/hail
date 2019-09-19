@@ -26,6 +26,9 @@ class DriverException(Exception):
         self.status = status
         self.message = message
 
+    def __str__(self):
+        return f'{(self.status, self.message)}'
+
 
 class Pod:
     @staticmethod
@@ -372,7 +375,7 @@ class Driver:
 
     async def read_pod_log(self, name, container):
         assert container in tasks
-        
+
         log.info(f'request to read pod log for {name}, {container}')
         pod = self.pods.get(name)
         if pod is None:
