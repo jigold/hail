@@ -113,7 +113,7 @@ class Container:
 
         if volume_mounts:
             log.info(f'volume_mounts {volume_mounts}')
-            config['Binds'] = volume_mounts
+            config['HostConfig']['Binds'] = volume_mounts
 
         try:
             self._container = await docker.containers.create(config, name=self.id)
