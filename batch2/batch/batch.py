@@ -461,15 +461,16 @@ class Job:
     async def mark_complete(self, pod):  # pylint: disable=R0915
         def process_container(status):
             state = status.state
+            ec = None
+            duration = None
 
             if state.terminated:
                 ec = state.terminated.exit_code
-                duration = max(0, (state.terminated.finished_at - state.terminated.started_at).total_seconds())
+                if state.terminated.started_at and state.terminated.finished_at:
+                    duration = max(0, (state.terminated.finished_at - state.terminated.started_at).total_seconds())
                 message = state.terminated.message
             else:
                 assert state.waiting and state.waiting.message
-                ec = None
-                duration = None
                 message = state.waiting.message
 
             return ec, duration, message

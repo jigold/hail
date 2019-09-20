@@ -185,26 +185,18 @@ class Container:
 
         log.info(self.status['State']['Error'])
         state = {}
-        if self.status['State']['Status'] == 'created':
-            if self.error:
-                assert isinstance(self.error, RunContainerError)
-                state['terminated'] = {
-                    'exitCode': self.status['State']['ExitCode'],
-                    'startedAt': None,
-                    'finishedAt': None,
-                    'message': self.status['State']['Error']
-                }
-            else:
-                state['waiting'] = {}
+        if self.status['State']['Status'] == 'created' and not self.error:
+            state['waiting'] = {}
         elif self.status['State']['Status'] == 'running':
             state['running'] = {
                 'started_at': self.status['State']['StartedAt']
             }
-        elif self.status['State']['Status'] == 'exited':  # FIXME: there's other docker states such as dead and oomed
+        elif self.status['State']['Status'] == 'exited' or \
+                (self.error and isinstance(self.error, RunContainerError)):  # FIXME: there's other docker states such as dead and oomed
             state['terminated'] = {
                 'exitCode': self.status['State']['ExitCode'],
-                'startedAt': self.status['State']['StartedAt'],
-                'finishedAt': self.status['State']['FinishedAt'],
+                'startedAt': self.status['State']['StartedAt'],  # This is 0 if runContainerError, different from k8s
+                'finishedAt': self.status['State']['FinishedAt'], # This is 0 if runContainerError, different from k8s
                 'message': self.status['State']['Error']
             }
         else:
