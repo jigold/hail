@@ -68,7 +68,7 @@ class Test(unittest.TestCase):
         j = builder.create_job('dsafaaadsf', ['echo', 'test'])
         builder.submit()
         status = j.wait()
-        assert status['exit_code']['main'] is None, status
+        assert status['exit_code'] == {'setup': None, 'main': None, 'cleanup': None}, status
         assert status['state'] == 'Error', status
 
     def test_bad_command(self):
@@ -76,9 +76,8 @@ class Test(unittest.TestCase):
         j = builder.create_job('alpine:3.8', ['sleep 5'])
         builder.submit()
         status = j.wait()
-        assert status['exit_code']['setup'] == 0, status
-        assert status['exit_code']['main'] == 127, status
-        assert status['state'] == 'Failed', status
+        assert status['exit_code'] == {'setup': 0, 'main': 127, 'cleanup': None}, status
+        assert status['state'] == 'Error', status
 
     def test_unsubmitted_state(self):
         builder = self.client.create_batch()
