@@ -162,7 +162,7 @@ class JobsBuilder:
                    'callback', 'attributes', 'always_run',
                    'token', 'pod_spec', 'input_files',
                    'output_files', 'directory', 'exit_codes',
-                   'durations'}
+                   'durations', 'messages'}
 
     jobs_parents_fields = {'batch_id', 'job_id', 'parent_id'}
 
