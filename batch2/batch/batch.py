@@ -485,7 +485,7 @@ class Job:
 
         if pod.status.phase == 'Succeeded':
             new_state = 'Success'
-        elif pod.status.phase == 'Failed':
+        elif any(messages):
             new_state = 'Error'
         else:
             new_state = 'Failed'

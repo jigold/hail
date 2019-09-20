@@ -183,7 +183,7 @@ class Container:
                 'state': {'waiting': waiting_reason}
             }
 
-        log.info(self.status['State']['Error'])
+        log.info(f"{self.status['State']['Error']!r}")
         state = {}
         if self.status['State']['Status'] == 'created' and not self.error:
             state['waiting'] = {}
