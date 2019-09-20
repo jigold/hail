@@ -147,8 +147,10 @@ class Container:
 
         log_path = LogStore.container_log_path(self.log_directory, self.name)
         status_path = LogStore.container_status_path(self.log_directory, self.name)
+        log.info(f'writing log to {log_path}')
+        log.info(f'writing status to {status_path}')
 
-        log_data = await self.log() if self.error is None else self.error.message
+        log_data = await self.log()
         status_data = json.dumps(self._container._container, indent=4)
 
         upload_log = self.pod.worker.gcs_client.write_gs_file(log_path, log_data)
