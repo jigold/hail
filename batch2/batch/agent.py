@@ -49,6 +49,11 @@ class Error:
         }
 
 
+class UnknownVolume(Error):
+    def __init__(self, msg):
+        super(UnknownVolume, self).__init__('UnknownVolume', msg)
+
+
 class ImagePullBackOff(Error):
     def __init__(self, msg):
         super(ImagePullBackOff, self).__init__('ImagePullBackOff', msg)
@@ -74,6 +79,13 @@ class Container:
     async def create(self, volumes):
         log.info(f'creating container {self.id}')
 
+        async def handle_error(error):
+            log.exception(f'caught error while creating container {self.id}: {error.reason}')
+            self.error = error
+            # log_path = LogStore.container_log_path(self.log_directory, self.name)
+            # await self.pod.worker.gcs_client.write_gs_file(log_path, self.error.message)
+            # log.info(f'uploaded log for container {self.id}')
+
         config = {
             "AttachStdin": False,
             "AttachStdout": False,
@@ -90,21 +102,17 @@ class Container:
         for mount in self.spec['volume_mounts']:
             mount_name = mount['name']
             mount_path = mount['mount_path']
+            log.info(f'mount_name {mount_name} mount_path {mount_path}')
             if mount_name in volumes:
                 volume_path = volumes[mount_name].path
                 volume_mounts.append(f'{volume_path}:{mount_path}')
             else:
-                raise Exception(f'unknown volume {mount_name} specified in volume_mounts')
+                await handle_error(UnknownVolume(f'unknown volume {mount_name} specified in volume_mounts'))
+                return False
 
         if volume_mounts:
+            log.info(f'volume_mounts {volume_mounts}')
             config['Binds'] = volume_mounts
-
-        async def handle_error(error):
-            log.exception(f'caught error while creating container {self.id}: {error.reason}')
-            self.error = error
-            log_path = LogStore.container_log_path(self.log_directory, self.name)
-            await self.pod.worker.gcs_client.write_gs_file(log_path, self.error.message)
-            log.info(f'uploaded log for container {self.id}')
 
         try:
             self._container = await docker.containers.create(config, name=self.id)
