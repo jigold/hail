@@ -66,6 +66,7 @@ class RunContainerError(Error):
 
 class Container:
     def __init__(self, spec, pod, log_directory):
+        log.info(json.dumps(spec, indent=4))
         self.pod = pod
         self._container = None
         self.name = spec['name']
@@ -77,7 +78,7 @@ class Container:
         self.log_directory = log_directory
 
     async def create(self, volumes):
-        log.info(f'creating container {self.id}')
+        log.info(f'creating container {self.id} with volumes {volumes}')
 
         async def handle_error(error):
             log.exception(f'caught error while creating container {self.id}: {error.reason}')
