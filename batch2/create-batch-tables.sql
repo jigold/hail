@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `pod_spec` TEXT(65535),
   `exit_codes` TEXT(65535),
   `durations` TEXT(65535),
+  `messages` TEXT(65535),
   `input_files` TEXT(65535),
   `output_files` TEXT(65535),
   `instance` VARCHAR(100),

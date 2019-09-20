@@ -276,13 +276,15 @@ class Job:
             output_files = json.loads(record['output_files'])
             exit_codes = json.loads(record['exit_codes'])
             durations = json.loads(record['durations'])
+            messages = json.loads(record['messages'])
 
             return Job(batch_id=record['batch_id'], job_id=record['job_id'], attributes=attributes,
                        callback=record['callback'], userdata=userdata, user=record['user'],
-                       always_run=record['always_run'], exit_codes=exit_codes, durations=durations,
-                       state=record['state'], pvc_size=record['pvc_size'], cancelled=record['cancelled'],
-                       directory=record['directory'], token=record['token'], pod_spec=pod_spec,
-                       input_files=input_files, output_files=output_files)
+                       always_run=record['always_run'], exit_codes=exit_codes, messages=messages,
+                       durations=durations, state=record['state'], pvc_size=record['pvc_size'],
+                       cancelled=record['cancelled'], directory=record['directory'],
+                       token=record['token'], pod_spec=pod_spec, input_files=input_files,
+                       output_files=output_files)
 
         return None
 
@@ -320,6 +322,7 @@ class Job:
 
         exit_codes = [None for _ in tasks]
         durations = [None for _ in tasks]
+        messages = [None for _ in tasks]
         directory = app['log_store'].gs_job_output_directory(batch_id, job_id, token)
         pod_spec = v1.api_client.sanitize_for_serialization(pod_spec)
 
@@ -337,7 +340,8 @@ class Job:
             output_files=json.dumps(output_files),
             directory=directory,
             exit_codes=json.dumps(exit_codes),
-            durations=json.dumps(durations))
+            durations=json.dumps(durations),
+            messages=json.dumps(messages))
 
         for parent in parent_ids:
             jobs_builder.create_job_parent(
@@ -346,15 +350,15 @@ class Job:
                 parent_id=parent)
 
         job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
-                  userdata=userdata, user=user, always_run=always_run,
-                  exit_codes=exit_codes, durations=durations, state=state, pvc_size=pvc_size,
+                  userdata=userdata, user=user, always_run=always_run, exit_codes=exit_codes,
+                  messages=messages, durations=durations, state=state, pvc_size=pvc_size,
                   cancelled=cancelled, directory=directory, token=token,
                   pod_spec=pod_spec, input_files=input_files, output_files=output_files)
 
         return job
 
     def __init__(self, batch_id, job_id, attributes, callback, userdata, user, always_run,
-                 exit_codes, durations, state, pvc_size, cancelled, directory,
+                 exit_codes, messages, durations, state, pvc_size, cancelled, directory,
                  token, pod_spec, input_files, output_files):
         self.batch_id = batch_id
         self.job_id = job_id
@@ -366,6 +370,7 @@ class Job:
         self.userdata = userdata
         self.user = user
         self.exit_codes = exit_codes
+        self.messages = messages
         self.directory = directory
         self.durations = durations
         self.token = token
@@ -456,26 +461,37 @@ class Job:
     async def mark_complete(self, pod):  # pylint: disable=R0915
         def process_container(status):
             state = status.state
+
             if state.terminated:
                 ec = state.terminated.exit_code
                 duration = max(0, (state.terminated.finished_at - state.terminated.started_at).total_seconds())
-                return ec, duration
-            return None, None
+                message = state.terminated.message
+            else:
+                assert state.waiting and state.waiting.message
+                ec = None
+                duration = None
+                message = state.waiting.message
 
-        exit_codes, durations = zip(*[process_container(status) for status in pod.status.container_statuses])  # FIXME: use gear unzip
+            return ec, duration, message
+
+        exit_codes, durations, messages = zip(*[process_container(status)
+                                                for status in pod.status.container_statuses])  # FIXME: use gear unzip?
         exit_codes = list(exit_codes)
         durations = list(durations)
+        messages = list(messages)
 
         if pod.status.phase == 'Succeeded':
             new_state = 'Success'
+        elif pod.status.phase == 'Waiting':
+            new_state = 'Error'
         else:
             new_state = 'Failed'
 
-        assert new_state is not None
         n_updated = await db.jobs.update_record(*self.id,
                                                 compare_items={'state': self._state},
                                                 durations=json.dumps(durations),
                                                 exit_codes=json.dumps(exit_codes),
+                                                messages=json.dumps(messages),
                                                 state=new_state)
 
         if n_updated == 0:
@@ -521,9 +537,9 @@ class Job:
             'state': self._state
         }
         if self.is_complete():
-            result['exit_code'] = {
-                k: v for k, v in zip(tasks, self.exit_codes)}
-            result['duration'] = self.durations
+            result['exit_code'] = {k: v for k, v in zip(tasks, self.exit_codes)}
+            result['duration'] = {k: v for k, v in zip(tasks, self.durations)}
+            result['message'] = {k: v for k, v in zip(tasks, self.messages)}
 
         if self.attributes:
             result['attributes'] = self.attributes

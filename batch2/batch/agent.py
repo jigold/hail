@@ -173,11 +173,7 @@ class Container:
 
     def to_dict(self):
         if self._container is None:
-            if self.error is not None:
-                waiting_reason = self.error.to_dict()
-            else:
-                waiting_reason = {}
-
+            waiting_reason = self.error.to_dict() if self.error else {}
             return {
                 'image': self.spec['image'],
                 'imageID': 'unknown',
@@ -189,8 +185,8 @@ class Container:
 
         log.info(self.status['State']['Error'])
         state = {}
-        if self.status['State']['Status'] == 'created' and not self.error:
-            state['waiting'] = {}
+        if self.status['State']['Status'] == 'created':
+            state['waiting'] = self.error.to_dict() if self.error else {}
         elif self.status['State']['Status'] == 'running':
             state['running'] = {
                 'started_at': self.status['State']['StartedAt']
@@ -380,7 +376,7 @@ class BatchPod:
                     await container.run()
                     last_ec = container.exit_code
                     log.info(f'ran container {container.id} with exit code {container.exit_code}')
-                    if last_ec != 0 or container.error:
+                    if container.error or last_ec != 0:
                         break
 
             self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
