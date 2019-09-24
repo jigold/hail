@@ -48,6 +48,9 @@ class Error:
             'message': self.message
         }
 
+    def __str__(self):
+        return f'{self.reason}: {self.message}'
+
 
 class UnknownVolume(Error):
     def __init__(self, msg):
@@ -80,7 +83,7 @@ class Container:
         log.info(f'creating container {self.id}')
 
         async def handle_error(error):
-            log.exception(f'caught error while creating container {self.id}: {error.reason}')
+            log.exception(f'caught {error.reason} error while creating container {self.id}: {error.message}')
             self.error = error
             # FIXME: Should errors be written to log files?
             # log_path = LogStore.container_log_path(self.log_directory, self.name)
@@ -125,6 +128,7 @@ class Container:
         except DockerError as err:
             if err.status == 404:
                 try:
+                    log.info(f'pulling image {config["Image"]}')
                     await docker.pull(config['Image'])
                     self._container = await docker.containers.create(config, name=self.id)
                 except DockerError as err:
