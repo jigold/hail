@@ -35,6 +35,15 @@ def parse_cpu(cpu_string):
         return number
 
 
+image_regex = re.compile(r"(?:.+/)?([^:]+)(:(.+))?")
+
+
+def parse_image_tag(image_string):
+    match = image_regex.fullmatch(image_string)
+    if match:
+        return match.group(3)
+
+
 class CalledProcessError(Exception):
     def __init__(self, command, returncode):
         super().__init__()

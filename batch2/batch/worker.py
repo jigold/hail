@@ -21,7 +21,7 @@ uvloop.install()
 from hailtop.config import DeployConfig
 from gear import configure_logging
 
-from .utils import jsonify, abort, parse_cpu
+from .utils import jsonify, abort, parse_cpu, parse_image_tag
 from .semaphore import NullWeightedSemaphore, WeightedSemaphore
 from .log_store import LogStore
 from .google_storage import GCS
@@ -33,8 +33,8 @@ uvloop.install()
 
 docker = aiodocker.Docker()
 
-MAX_IDLE_TIME_WITH_PODS = 60 * 2000  # seconds
-MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1000  # seconds
+MAX_IDLE_TIME_WITH_PODS = 60 * 5  # seconds
+MAX_IDLE_TIME_WITHOUT_PODS = 60 * 5  # seconds
 
 
 class Error:
@@ -78,6 +78,11 @@ class Container:
         self.id = pod.name + '-' + self.name
         self.error = None
         self.log_directory = log_directory
+
+        tag = parse_image_tag(self.spec['image'])
+        if not tag:
+            log.info(f'adding latest tag to image {self.spec["image"]} for container {self.id}')
+            self.spec['image'] += ':latest'
 
     async def create(self, volumes):
         log.info(f'creating container {self.id}')
@@ -124,10 +129,10 @@ class Container:
         if volume_mounts:
             config['HostConfig']['Binds'] = volume_mounts
 
-        image = config["Image"]
         n_tries = 1
         error = None
-        while n_tries <= 12:
+        image = config['Image']
+        while n_tries <= 3:
             try:
                 self._container = await docker.containers.create(config, name=self.id)
                 self._container = await docker.containers.get(self._container._id)
@@ -137,7 +142,7 @@ class Container:
                 if create_error.status == 404:
                     try:
                         log.info(f'pulling image {image} for container {self.id}')
-                        await docker.pull(config['Image'])
+                        await docker.pull(image)
                     except DockerError as pull_error:
                         log.info(f'caught error pulling image {image} for container {self.id}: {pull_error.status} {pull_error.message}')
                         error = ImagePullBackOff(msg=pull_error.message)
@@ -640,10 +645,10 @@ cores = int(os.environ['CORES'])
 namespace = os.environ['NAMESPACE']
 inst_token = os.environ['INST_TOKEN']
 ip_address = os.environ['INTERNAL_IP']
-image = os.environ['BATCH_IMAGE']
+batch_image = os.environ['BATCH_IMAGE']
 
 deploy_config = DeployConfig('gce', namespace, {})
-worker = Worker(image, cores, deploy_config, inst_token, ip_address)
+worker = Worker(batch_image, cores, deploy_config, inst_token, ip_address)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())
