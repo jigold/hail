@@ -96,7 +96,7 @@ class Instance:
 
     async def activate(self, ip_address):
         async with self.lock:
-            log.info(f'activating instance {self.name}')
+            log.info(f'activating instance {self.name} after {time.time() - self.time_created} seconds since creation')
             if self.active:
                 return
             if self.deleted:
