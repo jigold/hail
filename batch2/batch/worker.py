@@ -82,12 +82,12 @@ class Container:
     async def create(self, volumes):
         log.info(f'creating container {self.id}')
 
-        async def handle_error(error):
-            log.exception(f'caught {error.reason} error while creating container {self.id}: {error.message}')
-            self.error = error
-            log_path = LogStore.container_log_path(self.log_directory, self.name)
-            await self.pod.worker.gcs_client.write_gs_file(log_path, self.error.message)
-            log.info(f'uploaded log for container {self.id} to {log_path}')
+        # async def handle_error(error):
+        #     log.exception(f'caught {error.reason} error while creating container {self.id}: {error.message}')
+        #     self.error = error
+        #     log_path = LogStore.container_log_path(self.log_directory, self.name)
+        #     await self.pod.worker.gcs_client.write_gs_file(log_path, self.error.message)
+        #     log.info(f'uploaded log for container {self.id} to {log_path}')
 
         config = {
             "AttachStdin": False,
@@ -116,33 +116,62 @@ class Container:
                 errs.append(f'unknown volume {mount_name} specified in volume_mounts')
 
         if errs:
-            await handle_error(UnknownVolume('\n'.join(errs)))
+            self.error = UnknownVolume('\n'.join(errs))
+            log.info(f'caught {self.error.reason} error while creating container {self.id}: {self.error.message}')
+            # await handle_error(UnknownVolume('\n'.join(errs)))
             return False
 
         if volume_mounts:
             config['HostConfig']['Binds'] = volume_mounts
 
-        try:
-            self._container = await docker.containers.create(config, name=self.id)
-        except DockerError as err:
-            if err.status == 404:
-                try:
-                    log.info(f'pulling image {config["Image"]} for container {self.id}')
-                    await docker.pull(config['Image'])
-                    self._container = await docker.containers.create(config, name=self.id)
-                except DockerError as err:
-                    if err.status == 404:
-                        error = ImagePullBackOff(err.message)
-                    else:
-                        error = Error(reason='Unknown', msg=err.message)
-                    await handle_error(error)
-                    return False
-            else:
-                await handle_error(Error(reason='Unknown', msg=err.message))
-                return False
+        image = config["Image"]
+        n_tries = 1
+        error = None
+        while n_tries <= 12:
+            try:
+                self._container = await docker.containers.create(config, name=self.id)
+                self._container = await docker.containers.get(self._container._id)
+                return True
+            except DockerError as create_error:
+                log.info(f'Attempt {n_tries}: caught error while creating container {self.id}: {create_error.message}')
+                if create_error.status == 404:
+                    try:
+                        log.info(f'pulling image {image} for container {self.id}')
+                        await docker.pull(config['Image'])
+                    except DockerError as pull_error:
+                        log.info(f'caught error pulling image {image} for container {self.id}: {pull_error.status} {pull_error.message}')
+                        error = ImagePullBackOff(msg=pull_error.message)
+                else:
+                    error = Error(reason='Unknown', msg=create_error.message)
 
-        self._container = await docker.containers.get(self._container._id)
-        return True
+            await asyncio.sleep(1)
+            n_tries += 1
+
+        # await handle_error(error)
+        self.error = error
+        return False
+
+        # try:
+        #     self._container = await docker.containers.create(config, name=self.id)
+        # except DockerError as create_error:
+        #     if create_error.status == 404:
+        #         try:
+        #             log.info(f'pulling image {config["Image"]} for container {self.id}')
+        #             await docker.pull(config['Image'])
+        #             self._container = await docker.containers.create(config, name=self.id)
+        #         except DockerError as create_error:
+        #             if create_error.status == 404:
+        #                 error = ImagePullBackOff(create_error.message)
+        #             else:
+        #                 error = Error(reason='Unknown', msg=create_error.message)
+        #             await handle_error(error)
+        #             return False
+        #     else:
+        #         await handle_error(Error(reason='Unknown', msg=create_error.message))
+        #         return False
+
+        # self._container = await docker.containers.get(self._container._id)
+        # return True
 
     async def run(self):
         assert self.error is None
