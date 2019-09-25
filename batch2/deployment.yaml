@@ -50,7 +50,7 @@ spec:
          - name: WORKER_TYPE
            value: "standard"
          - name: WORKER_CORES
-           value: "1"
+           value: "8"
          - name: WORKER_DISK_SIZE_GB
            value: "40"
          - name: POOL_SIZE
