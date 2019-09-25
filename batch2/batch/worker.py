@@ -33,8 +33,8 @@ uvloop.install()
 
 docker = aiodocker.Docker()
 
-MAX_IDLE_TIME_WITH_PODS = 60 * 2  # seconds
-MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1  # seconds
+MAX_IDLE_TIME_WITH_PODS = 60 * 2000  # seconds
+MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1000  # seconds
 
 
 class Error:
@@ -127,7 +127,7 @@ class Container:
         except DockerError as err:
             if err.status == 404:
                 try:
-                    log.info(f'pulling image {config["Image"]}')
+                    log.info(f'pulling image {config["Image"]} for container {self.id}')
                     await docker.pull(config['Image'])
                     self._container = await docker.containers.create(config, name=self.id)
                 except DockerError as err:
@@ -618,6 +618,7 @@ worker = Worker(image, cores, deploy_config, inst_token, ip_address)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())
+loop.run_until_complete(docker.close())
 loop.run_until_complete(loop.shutdown_asyncgens())
 loop.close()
 log.info(f'closed')
