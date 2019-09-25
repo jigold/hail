@@ -199,7 +199,7 @@ class BatchBackend(Backend):
         remote_tmpdir = f'gs://{bucket}/pipeline/{subdir_name}'
         local_tmpdir = f'/io/pipeline/{subdir_name}'
 
-        default_image = 'ubuntu'
+        default_image = 'ubuntu:latest'
 
         attributes = pipeline.attributes
         if pipeline.name is not None:
