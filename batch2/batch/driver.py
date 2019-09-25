@@ -160,7 +160,7 @@ class Pod:
                     async with session.post(f'http://{inst.ip_address}:5000/api/v1alpha/pods/create', json=config) as resp:
                         inst.mark_as_healthy()
                         if resp.status == 200:
-                            log.info(f'successfully created {self.name} on inst {inst.name}')
+                            log.info(f'created {self.name} on inst {inst.name}')
                             return None
                         else:
                             log.info(f'failed to create {self.name} on inst {inst.name} due to {resp}')
@@ -174,7 +174,6 @@ class Pod:
 
     async def delete(self):
         async with self.lock:
-            log.info(f'deleting {self.name} from instance {self.instance}')
             self.deleted = True
 
             if self.on_ready:
@@ -187,9 +186,9 @@ class Pod:
                         async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
                             self.instance.mark_as_healthy()
                             if resp.status == 200:
-                                log.info(f'successfully deleted {self.name}')
+                                log.info(f'deleted {self.name} from instance {self.instance}')
                             else:
-                                log.info(f'failed to delete due to {resp}')
+                                log.info(f'failed to delete {self.name} from instance {self.instance} due to {resp}')
                                 return
                 except asyncio.CancelledError:  # pylint: disable=try-except-raise
                     raise

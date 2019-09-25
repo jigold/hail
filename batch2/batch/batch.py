@@ -1157,7 +1157,6 @@ async def driver_event_loop():
         try:
             object = await app['driver'].complete_queue.get()
             pod = v1.api_client._ApiClient__deserialize(object, kube.client.V1Pod)
-            log.info(f'received complete status for pod {pod.metadata.name}')
             await pod_changed(pod)
         except Exception as exc:
             log.exception(f'driver event loop failed due to exception: {exc}')
