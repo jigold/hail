@@ -191,7 +191,6 @@ class Container:
             self.error = RunContainerError(err.message)
 
         self._container = await docker.containers.get(self._container._id)
-        log.info(f'{self.id} {self.status}')
         self.exit_code = self._container['State']['ExitCode']
 
         log_path = LogStore.container_log_path(self.log_directory, self.name)

@@ -152,8 +152,6 @@ class Pod:
                 log.info(f'pod already deleted {self.name}')
                 return
 
-            log.info(f'creating {self.name} on instance {inst}')
-
             try:
                 config = await self.config()  # FIXME: handle missing secrets!
 
