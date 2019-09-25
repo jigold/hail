@@ -85,10 +85,9 @@ class Container:
         async def handle_error(error):
             log.exception(f'caught {error.reason} error while creating container {self.id}: {error.message}')
             self.error = error
-            # FIXME: Should errors be written to log files?
-            # log_path = LogStore.container_log_path(self.log_directory, self.name)
-            # await self.pod.worker.gcs_client.write_gs_file(log_path, self.error.message)
-            # log.info(f'uploaded log for container {self.id}')
+            log_path = LogStore.container_log_path(self.log_directory, self.name)
+            await self.pod.worker.gcs_client.write_gs_file(log_path, self.error.message)
+            log.info(f'uploaded log for container {self.id} to {log_path}')
 
         config = {
             "AttachStdin": False,
@@ -186,6 +185,8 @@ class Container:
             return self._container._container
 
     async def log(self):
+        # if self.error:
+        #     return str(self.error)
         logs = await self._container.log(stderr=True, stdout=True)
         return "".join(logs)
 
