@@ -33,8 +33,8 @@ uvloop.install()
 
 docker = aiodocker.Docker()
 
-MAX_IDLE_TIME_WITH_PODS = 60 * 5  # seconds
-MAX_IDLE_TIME_WITHOUT_PODS = 60 * 5  # seconds
+MAX_IDLE_TIME_WITH_PODS = 60 * 2  # seconds
+MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1  # seconds
 
 
 class Error:
