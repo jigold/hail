@@ -42,8 +42,8 @@ push-benchmark-image: build-benchmark-image
 	docker tag $(BENCHMARK_DOCKER_TAG) $(BENCHMARK_LATEST)
 	docker push $(BENCHMARK_LATEST)
 
-BENCHMARK_ITERS ?= 5
-BENCHMARK_REPLICATES ?= 3
+BENCHMARK_ITERS ?= 1
+BENCHMARK_REPLICATES ?= 1
 .PHONY: benchmark
 benchmark: push-benchmark-image install
 	$(HAIL_PYTHON3) scripts/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_VERSION)-$(SHORT_REVISION) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
