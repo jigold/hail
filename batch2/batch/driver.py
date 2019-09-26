@@ -138,6 +138,11 @@ class Pod:
             asyncio.ensure_future(self.put_on_ready())
             return
 
+        if not inst.healthy:
+            log.info(f'not scheduling {self.name} on {inst.name}; instance not healthy')
+            asyncio.ensure_future(self.put_on_ready())
+            return
+
         log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
 
         # assert inst.active and not self.instance
