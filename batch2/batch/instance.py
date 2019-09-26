@@ -122,6 +122,7 @@ class Instance:
     async def deactivate(self):
         async with self.lock:
             log.info(f'deactivating instance {self.name}')
+            start = time.time()
             if self.pending:
                 self.pending = False
                 self.inst_pool.n_pending_instances -= 1
@@ -141,12 +142,15 @@ class Instance:
                 self.inst_pool.n_active_instances -= 1
                 self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
-            await asyncio.gather(*[p.put_on_ready() for p in pod_list])
+            for pod in pod_list:
+                asyncio.ensure_future(pod.put_on_ready())
+            # await asyncio.gather(*[p.put_on_ready() for p in pod_list])
 
-            assert not self.pods, (str(",".join(self.pods)), self in self.inst_pool.instances_by_free_cores)
+            assert not self.pods
 
             self.active = False
 
+            log.info(f'took {time.time() - start} seconds to deactivate {self.name}')
             log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
     def update_timestamp(self):
