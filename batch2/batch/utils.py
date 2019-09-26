@@ -32,7 +32,7 @@ def parse_cpu(cpu_string):
         number = float(match.group(1))
         if match.group(2) == 'm':
             number /= 1000
-        return number
+        return round(number, 3)
 
 
 image_regex = re.compile(r"(?:.+/)?([^:]+)(:(.+))?")
