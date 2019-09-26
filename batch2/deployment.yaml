@@ -52,11 +52,11 @@ spec:
          - name: WORKER_CORES
            value: "1"
          - name: WORKER_DISK_SIZE_GB
-           value: "40"
-         - name: POOL_SIZE
            value: "10"
+         - name: POOL_SIZE
+           value: "3"
          - name: MAX_INSTANCES
-           value: "12"
+           value: "5"
 {% endif %}
         ports:
          - containerPort: 5000
