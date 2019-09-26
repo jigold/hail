@@ -14,8 +14,6 @@ from .google_compute import GServices
 from .instance_pool import InstancePool
 from .utils import AsyncWorkerPool, parse_cpu
 from .globals import get_db, tasks
-from .batch_configuration import BATCH_NAMESPACE
-
 
 log = logging.getLogger('driver')
 
@@ -127,21 +125,21 @@ class Pod:
 
         if self.deleted:
             log.info(f'not scheduling {self.name} on {inst.name}; pod already deleted')
-            return
+            return False
 
         if self._status:
             log.info(f'not scheduling {self.name} on {inst.name}; pod already complete')
-            return
+            return False
 
         if not inst.active:
             log.info(f'not scheduling {self.name} on {inst.name}; instance not active')
             asyncio.ensure_future(self.put_on_ready())
-            return
+            return False
 
         if not inst.healthy:
             log.info(f'not scheduling {self.name} on {inst.name}; instance not healthy')
             asyncio.ensure_future(self.put_on_ready())
-            return
+            return False
 
         log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
 
@@ -155,8 +153,9 @@ class Pod:
 
         self.instance = inst
 
-        await db.pods.update_record(self.name, instance=inst.token)
-        await self.create(inst)
+        # FIXME: is there a way to eliminate this blocking the scheduler?
+        await db.pods.update_record(self.name, instance=inst.token)  # I don't think I can make this ensure_future
+        return True
 
     async def _put_on_ready(self):
         if self._status:
@@ -174,7 +173,7 @@ class Pod:
         async with self.lock:
             await self._put_on_ready()
 
-    async def create(self, inst):
+    async def create(self):
         async with self.lock:
             if self.deleted:
                 log.info(f'pod already deleted {self.name}')
@@ -185,19 +184,19 @@ class Pod:
 
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.post(f'http://{inst.ip_address}:5000/api/v1alpha/pods/create', json=config) as resp:
-                        inst.mark_as_healthy()
+                    async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/create', json=config) as resp:
+                        self.instance.mark_as_healthy()
                         if resp.status == 200:
-                            log.info(f'created {self.name} on inst {inst.name}')
+                            log.info(f'created {self.name} on inst {self.instance.name}')
                             return None
                         else:
-                            log.info(f'failed to create {self.name} on inst {inst.name} due to {resp}')
+                            log.info(f'failed to create {self.name} on inst {self.instance.name} due to {resp}')
                             return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as err:  # pylint: disable=broad-except
-                log.info(f'failed to execute {self.name} on {inst} due to err {err}, rescheduling')
-                inst.mark_as_unhealthy()
+                log.info(f'failed to execute {self.name} on {self.instance} due to err {err}, rescheduling')
+                self.instance.mark_as_unhealthy()
                 await self._put_on_ready()  # IS this even necessary -- unschedule put back on queue? But if it goes back to running, never unscheduled. So, this is correct.
 
     async def delete(self):
@@ -225,7 +224,7 @@ class Pod:
                     self.instance.mark_as_unhealthy()
 
             await self.unschedule()
-            await db.pods.delete_record(self.name)
+            asyncio.ensure_future(db.pods.delete_record(self.name))
 
     async def read_pod_log(self, container):
         assert container in tasks
@@ -425,7 +424,9 @@ class Driver:
                     assert pod.cores <= inst.free_cores
                     self.ready.remove(pod)
                     should_wait = False
-                    await self.pool.call(pod.schedule, inst)
+                    scheduled = await pod.schedule(inst)  # This cannot go in the pool!
+                    if scheduled:
+                        await self.pool.call(pod.create, inst)
                     # scheduled = await pod.schedule(inst)
                     # if scheduled:
                     #     await self.pool.call(pod.create, inst)
