@@ -106,6 +106,10 @@ class Pod:
             'output_directory': self.output_directory
         }
 
+    async def mark_complete(self, status):
+        self._status = status
+        asyncio.ensure_future(db.pods.update_record(self.name, status=json.dumps(status)))
+
     async def unschedule(self):
         if not self.instance:
             return
@@ -116,19 +120,38 @@ class Pod:
         await db.pods.update_record(self.name, instance=None)
 
     async def schedule(self, inst):
-        log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
-
-        assert inst.active and not self.instance
-        assert self.on_ready and not self._status and not self.deleted
+        assert self.on_ready and not self.instance
 
         self.on_ready = False
         self.driver.ready_cores -= self.cores
+
+        if self.deleted:
+            log.info(f'not scheduling {self.name} on {inst.name}; pod already deleted')
+            return
+
+        if self._status:
+            log.info(f'not scheduling {self.name} on {inst.name}; pod already complete')
+            return
+
+        if not inst.active:
+            log.info(f'not scheduling {self.name} on {inst.name}; instance not active')
+            asyncio.ensure_future(self.put_on_ready())
+            return
+
+        log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
+
+        # assert inst.active and not self.instance
+        # assert self.on_ready and not self._status and not self.deleted
+
+        # self.on_ready = False
+        # self.driver.ready_cores -= self.cores
 
         inst.schedule(self)
 
         self.instance = inst
 
         await db.pods.update_record(self.name, instance=inst.token)
+        await self.create(inst)
 
     async def _put_on_ready(self):
         if self._status:
@@ -328,9 +351,7 @@ class Driver:
         else:
             log.info(f'pod_complete from pod {pod_name}')
 
-        pod._status = status
-
-        await db.pods.update_record(pod_name, status=json.dumps(status))
+        await pod.mark_complete(status)
         await self.complete_queue.put(status)
         return web.Response()
 
@@ -399,11 +420,15 @@ class Driver:
                     assert pod.cores <= inst.free_cores
                     self.ready.remove(pod)
                     should_wait = False
-                    if not pod.deleted:
-                        await pod.schedule(inst)  # This assumes inst is active; is it possible a deactivate happens before schedule is called?
-                        await self.pool.call(pod.create, inst)
-                    else:
-                        log.info(f'not scheduling pod {pod.name}; already deleted')
+                    await self.pool.call(pod.schedule, inst)
+                    # scheduled = await pod.schedule(inst)
+                    # if scheduled:
+                    #     await self.pool.call(pod.create, inst)
+                    # if not pod.deleted:
+                    #     await pod.schedule(inst)
+                    #     await self.pool.call(pod.create, inst)
+                    # else:
+                    #     log.info(f'not scheduling pod {pod.name}; already deleted')
 
     async def initialize(self):
         await self.inst_pool.initialize()
