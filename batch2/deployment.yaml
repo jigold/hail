@@ -54,9 +54,9 @@ spec:
          - name: WORKER_DISK_SIZE_GB
            value: "40"
          - name: POOL_SIZE
-           value: "10"
+           value: "50"
          - name: MAX_INSTANCES
-           value: "15"
+           value: "55"
 {% endif %}
         ports:
          - containerPort: 5000

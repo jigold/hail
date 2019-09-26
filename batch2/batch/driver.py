@@ -400,7 +400,7 @@ class Driver:
                     self.ready.remove(pod)
                     should_wait = False
                     if not pod.deleted:
-                        await pod.schedule(inst)
+                        await pod.schedule(inst)  # This assumes inst is active; is it possible a deactivate happens before schedule is called?
                         await self.pool.call(pod.create, inst)
                     else:
                         log.info(f'not scheduling pod {pod.name}; already deleted')

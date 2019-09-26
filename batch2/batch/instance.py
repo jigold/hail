@@ -144,7 +144,6 @@ class Instance:
 
             for pod in pod_list:
                 asyncio.ensure_future(pod.put_on_ready())
-            # await asyncio.gather(*[p.put_on_ready() for p in pod_list])
 
             assert not self.pods
 
