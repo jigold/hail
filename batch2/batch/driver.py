@@ -426,7 +426,7 @@ class Driver:
                     should_wait = False
                     scheduled = await pod.schedule(inst)  # This cannot go in the pool!
                     if scheduled:
-                        await self.pool.call(pod.create, inst)
+                        await self.pool.call(pod.create)
                     # scheduled = await pod.schedule(inst)
                     # if scheduled:
                     #     await self.pool.call(pod.create, inst)
