@@ -167,37 +167,54 @@ class Pod:
         async with self.lock:
             await self._put_on_ready()
 
+    async def _request(self, f):
+        try:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                async with f(session) as resp:
+                    if self.instance:
+                        self.instance.mark_as_healthy()
+                    return resp, None
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
+        except Exception as err:  # pylint: disable=broad-except
+            if self.instance:
+                self.instance.mark_as_unhealthy()
+            return None, err
+
+    async def _post(self, url, json=None):
+        return await self._request(lambda session: session.post(url, json=json))
+
+    async def _get(self, url):
+        return await self._request(lambda session: session.get(url))
+
     async def create(self):
         async with self.lock:
             if self.deleted:
                 log.info(f'pod already deleted {self.name}')
                 return
 
+            config = await self.config()
+
             if not self.instance:
                 log.info(f'instance was deactivated before {self.name} could be created; rescheduling')
-                await self._put_on_ready()
+                asyncio.ensure_future(self._put_on_ready())
                 return
 
-            try:
-                config = await self.config()
-
-                async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/create', json=config) as resp:
-                        self.instance.mark_as_healthy()
-                        if resp.status == 200:
-                            log.info(f'created {self.name} on inst {self.instance.name}')
-                            return None
-                        else:
-                            log.info(f'failed to create {self.name} on inst {self.instance.name} due to {resp}')
-                            return
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception as err:  # pylint: disable=broad-except
-                log.info(f'failed to execute {self.name} on {self.instance} due to err {err}, rescheduling')
-                if self.instance:
-                    self.instance.mark_as_unhealthy()
-                await self._put_on_ready()  # IS this even necessary -- unschedule put back on queue? But if it goes back to running, never unscheduled. So, this is correct.
+            inst = self.instance
+            url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/create'
+            resp, err = await self._post(url, config)
+            if resp:
+                if resp.status == 200:
+                    log.info(f'created {self.name} on inst {inst}')
+                    return None
+                else:
+                    log.info(f'failed to create {self.name} on inst {inst} due to {resp}')
+                    return
+            else:
+                assert err
+                log.info(f'failed to create {self.name} on inst {inst} due to {err}, putting back on ready queue')
+                asyncio.ensure_future(self._put_on_ready())
 
     async def delete(self):
         async with self.lock:
@@ -206,23 +223,18 @@ class Pod:
             if self.on_ready:
                 self.driver.ready_cores -= self.cores
 
-            if self.instance:
-                try:
-                    async with aiohttp.ClientSession(
-                            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                        async with session.post(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/delete') as resp:
-                            self.instance.mark_as_healthy()
-                            if resp.status == 200:
-                                log.info(f'deleted {self.name} from instance {self.instance}')
-                            else:
-                                log.info(f'failed to delete {self.name} from instance {self.instance} due to {resp}')
-                                return
-                except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                    raise
-                except Exception as err:  # pylint: disable=broad-except
-                    log.info(f'failed to delete {self.name} on {self.instance} due to err {err}, ignoring')
-                    if self.instance:
-                        self.instance.mark_as_unhealthy()
+            inst = self.instance
+            if inst:
+                url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/delete'
+                resp, err = await self._post(url)
+                if resp:
+                    if resp.status == 200:
+                        log.info(f'deleted {self.name} from inst {inst}')
+                    else:
+                        log.info(f'failed to delete {self.name} from inst {inst} due to {resp}')
+                else:
+                    assert err
+                    log.info(f'failed to delete {self.name} on inst {inst} due to err {err}, ignoring')
 
             await self.unschedule()
             asyncio.ensure_future(db.pods.delete_record(self.name))
@@ -234,18 +246,14 @@ class Pod:
         if self.instance is None:
             return None, None
 
-        try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                async with session.get(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/log') as resp:
-                    self.instance.mark_as_healthy()
-                    return resp.json(), None
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
-            raise
-        except Exception as err:  # pylint: disable=broad-except
-            log.info(f'failed to read pod log {self.name}, {container} on {self.instance} due to err {err}, ignoring')
-            if self.instance:
-                self.instance.mark_as_unhealthy()
+        inst = self.instance
+        url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/log'
+        resp, err = self._get(url)
+        if resp:
+            return resp.json(), None
+        else:
+            assert err
+            log.info(f'failed to read pod log {self.name}, {container} on {inst} due to err {err}, ignoring')
             return None, err
 
     async def read_container_status(self, container):
@@ -255,18 +263,14 @@ class Pod:
         if self.instance is None:
             return None, None
 
-        try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                async with session.get(f'http://{self.instance.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/status') as resp:
-                    self.instance.mark_as_healthy()
-                    return resp.json(), None
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
-            raise
-        except Exception as err:  # pylint: disable=broad-except
-            log.info(f'failed to read container status {self.name}, {container} on {self.instance} due to err {err}, ignoring')
-            if self.instance:
-                self.instance.mark_as_unhealthy()
+        inst = self.instance
+        url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/status'
+        resp, err = self._get(url)
+        if resp:
+            return resp.json(), None
+        else:
+            assert err
+            log.info(f'failed to read pod status {self.name}, {container} on {inst} due to err {err}, ignoring')
             return None, err
 
     def status(self):
