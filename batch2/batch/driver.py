@@ -241,7 +241,7 @@ class Pod:
 
     async def read_pod_log(self, container):
         assert container in tasks
-        log.info(f'reading pod log for {self.name}, {container} from instance {self.instance}')
+        log.info(f'reading container log for {self.name}, {container} from instance {self.instance}')
 
         if self.instance is None:
             return None, None
@@ -253,7 +253,7 @@ class Pod:
             return resp.json(), None
         else:
             assert err
-            log.info(f'failed to read pod log {self.name}, {container} on {inst} due to err {err}, ignoring')
+            log.info(f'failed to read container log {self.name}, {container} on {inst} due to err {err}, ignoring')
             return None, err
 
     async def read_container_status(self, container):
@@ -270,7 +270,7 @@ class Pod:
             return resp.json(), None
         else:
             assert err
-            log.info(f'failed to read pod status {self.name}, {container} on {inst} due to err {err}, ignoring')
+            log.info(f'failed to read container status {self.name}, {container} on {inst} due to err {err}, ignoring')
             return None, err
 
     def status(self):

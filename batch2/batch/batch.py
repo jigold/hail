@@ -215,6 +215,7 @@ class Job:
 
         async def _read_log_from_worker(task_name):
             pod_log, err = await app['driver'].read_pod_log(self._pod_name, container=task_name)
+            log.info(f'pod log {pod_log} err {err}')
             if err is not None:
                 # traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read log for {self.id}, {task_name} '
@@ -243,6 +244,7 @@ class Job:
 
         async def _read_status_from_worker(task_name):
             status, err = await app['driver'].read_container_status(self._pod_name, container=task_name)
+            log.info(f'status {status} err {err}')
             if err is not None:
                 # traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read container status for {self.id} '
