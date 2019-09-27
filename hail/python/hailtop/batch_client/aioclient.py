@@ -9,8 +9,7 @@ from hailtop.auth import async_get_userinfo, service_auth_headers
 
 from .globals import complete_states
 
-job_array_size = 50
-max_job_submit_attempts = 3
+job_array_size = 1000
 
 
 def filter_params(complete, success, attributes):
