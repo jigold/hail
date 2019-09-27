@@ -239,7 +239,6 @@ class Job:
                 # traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read container status for {self.id} '
                          f'due to {err}')
-                return None
             return task_name, status
 
         async def _read_status_from_worker(task_name):

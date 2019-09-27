@@ -143,18 +143,12 @@ class Pod:
 
         log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
 
-        # assert inst.active and not self.instance
-        # assert self.on_ready and not self._status and not self.deleted
-
-        # self.on_ready = False
-        # self.driver.ready_cores -= self.cores
-
         inst.schedule(self)
 
         self.instance = inst
 
         # FIXME: is there a way to eliminate this blocking the scheduler?
-        await db.pods.update_record(self.name, instance=inst.token)  # I don't think I can make this ensure_future
+        await db.pods.update_record(self.name, instance=inst.token)
         return True
 
     async def _put_on_ready(self):
@@ -179,6 +173,11 @@ class Pod:
                 log.info(f'pod already deleted {self.name}')
                 return
 
+            if not self.instance:
+                log.info(f'instance was deactivated before {self.name} could be created; rescheduling')
+                await self._put_on_ready()
+                return
+
             try:
                 config = await self.config()  # FIXME: handle missing secrets!
 
@@ -196,7 +195,8 @@ class Pod:
                 raise
             except Exception as err:  # pylint: disable=broad-except
                 log.info(f'failed to execute {self.name} on {self.instance} due to err {err}, rescheduling')
-                self.instance.mark_as_unhealthy()
+                if self.instance:
+                    self.instance.mark_as_unhealthy()
                 await self._put_on_ready()  # IS this even necessary -- unschedule put back on queue? But if it goes back to running, never unscheduled. So, this is correct.
 
     async def delete(self):
@@ -221,7 +221,8 @@ class Pod:
                     raise
                 except Exception as err:  # pylint: disable=broad-except
                     log.info(f'failed to delete {self.name} on {self.instance} due to err {err}, ignoring')
-                    self.instance.mark_as_unhealthy()
+                    if self.instance:
+                        self.instance.mark_as_unhealthy()
 
             await self.unschedule()
             asyncio.ensure_future(db.pods.delete_record(self.name))
@@ -243,7 +244,8 @@ class Pod:
             raise
         except Exception as err:  # pylint: disable=broad-except
             log.info(f'failed to read pod log {self.name}, {container} on {self.instance} due to err {err}, ignoring')
-            self.instance.mark_as_unhealthy()
+            if self.instance:
+                self.instance.mark_as_unhealthy()
             return None, err
 
     async def read_container_status(self, container):
@@ -251,7 +253,7 @@ class Pod:
         log.info(f'reading container status for {self.name}, {container} from instance {self.instance}')
 
         if self.instance is None:
-            return None
+            return None, None
 
         try:
             async with aiohttp.ClientSession(
@@ -263,7 +265,8 @@ class Pod:
             raise
         except Exception as err:  # pylint: disable=broad-except
             log.info(f'failed to read container status {self.name}, {container} on {self.instance} due to err {err}, ignoring')
-            self.instance.mark_as_unhealthy()
+            if self.instance:
+                self.instance.mark_as_unhealthy()
             return None, err
 
     def status(self):
