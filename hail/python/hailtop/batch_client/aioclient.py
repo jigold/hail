@@ -398,17 +398,20 @@ class BatchBuilder:
 
             docs = []
             n = 0
+            futures = []
             for jdoc in self._job_docs:
                 n += 1
                 docs.append(jdoc)
                 if n == job_array_size:
-                    await self._submit_job_with_retry(batch.id, docs)
+                    # await self.pool.call(self._submit_job_with_retry, batch.id, docs)
+                    futures.append(self._submit_job_with_retry(batch.id, docs))
                     n = 0
                     docs = []
 
             if docs:
-                await self._submit_job_with_retry(batch.id, docs)
+                futures.append(self._submit_job_with_retry(batch.id, docs))
 
+            await asyncio.gather(*futures)
             await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
         except Exception as err:  # pylint: disable=W0703
             if batch:

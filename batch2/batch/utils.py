@@ -72,22 +72,22 @@ async def check_shell_output(script):
     return outerr
 
 
-class AsyncWorkerPool:
-    def __init__(self, parallelism):
-        self.queue = asyncio.Queue(maxsize=100)
-
-        for _ in range(parallelism):
-            asyncio.ensure_future(self._worker())
-
-    async def _worker(self):
-        while True:
-            try:
-                f, args, kwargs = await self.queue.get()
-                await f(*args, **kwargs)
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:  # pylint: disable=broad-except
-                log.exception(f'worker pool caught exception')
-
-    async def call(self, f, *args, **kwargs):
-        await self.queue.put((f, args, kwargs))
+# class AsyncWorkerPool:
+#     def __init__(self, parallelism):
+#         self.queue = asyncio.Queue(maxsize=100)
+#
+#         for _ in range(parallelism):
+#             asyncio.ensure_future(self._worker())
+#
+#     async def _worker(self):
+#         while True:
+#             try:
+#                 f, args, kwargs = await self.queue.get()
+#                 await f(*args, **kwargs)
+#             except asyncio.CancelledError:  # pylint: disable=try-except-raise
+#                 raise
+#             except Exception:  # pylint: disable=broad-except
+#                 log.exception(f'worker pool caught exception')
+#
+#     async def call(self, f, *args, **kwargs):
+#         await self.queue.put((f, args, kwargs))
