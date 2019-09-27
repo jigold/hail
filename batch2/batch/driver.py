@@ -179,7 +179,7 @@ class Pod:
                 return
 
             try:
-                config = await self.config()  # FIXME: handle missing secrets!
+                config = await self.config()
 
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
