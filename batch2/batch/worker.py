@@ -156,39 +156,28 @@ class Container:
         self.error = error
         return False
 
-        # try:
-        #     self._container = await docker.containers.create(config, name=self.id)
-        # except DockerError as create_error:
-        #     if create_error.status == 404:
-        #         try:
-        #             log.info(f'pulling image {config["Image"]} for container {self.id}')
-        #             await docker.pull(config['Image'])
-        #             self._container = await docker.containers.create(config, name=self.id)
-        #         except DockerError as create_error:
-        #             if create_error.status == 404:
-        #                 error = ImagePullBackOff(create_error.message)
-        #             else:
-        #                 error = Error(reason='Unknown', msg=create_error.message)
-        #             await handle_error(error)
-        #             return False
-        #     else:
-        #         await handle_error(Error(reason='Unknown', msg=create_error.message))
-        #         return False
-
-        # self._container = await docker.containers.get(self._container._id)
-        # return True
-
     async def run(self):
         assert self.error is None
         log.info(f'running container {self.id}')
 
-        try:
-            await self._container.start()
-            await self._container.wait()
-        except DockerError as err:
-            log.exception(f'caught error while starting container {self.id}')
-            # assert self._container['State']['ExitCode'] != 0  # Use this to test assertions causing stuck jobs
-            self.error = RunContainerError(err.message)
+        n_tries = 1
+        error = None
+
+        while n_tries <= 5:
+            try:
+                await self._container.start()
+                await self._container.wait()
+                error = None
+                break
+            except DockerError as err:
+                log.exception(f'caught error while starting container {self.id}')
+                error = RunContainerError(err.message)
+
+            await asyncio.sleep(1)
+            n_tries += 1
+
+        if error:
+            self.error = error
 
         self._container = await docker.containers.get(self._container._id)
         self.exit_code = self._container['State']['ExitCode']
