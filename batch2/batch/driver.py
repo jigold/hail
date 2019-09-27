@@ -120,6 +120,7 @@ class Pod:
     async def schedule(self, inst):
         assert self.on_ready and not self.instance
 
+        log.info(f'subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} schedule')
         self.on_ready = False
         self.driver.ready_cores -= self.cores
 
@@ -190,11 +191,11 @@ class Pod:
 
     async def create(self):
         async with self.lock:
+            config = await self.config()
+
             if self.deleted:
                 log.info(f'pod already deleted {self.name}')
                 return
-
-            config = await self.config()
 
             if not self.instance:
                 log.info(f'instance was deactivated before {self.name} could be created; rescheduling')
@@ -218,9 +219,12 @@ class Pod:
 
     async def delete(self):
         async with self.lock:
+            assert not self.deleted
             self.deleted = True
 
             if self.on_ready:
+                log.info(f'subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} delete')
+                self.on_ready = False
                 self.driver.ready_cores -= self.cores
 
             inst = self.instance
