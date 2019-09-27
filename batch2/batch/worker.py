@@ -170,7 +170,7 @@ class Container:
                 error = None
                 break
             except DockerError as err:
-                log.exception(f'caught error while starting container {self.id}')
+                log.info(f'Attempt {n_tries}: caught error while starting container {self.id}: {err.message}, retrying')
                 error = RunContainerError(err.message)
 
             await asyncio.sleep(1)
