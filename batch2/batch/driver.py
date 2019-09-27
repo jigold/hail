@@ -118,11 +118,12 @@ class Pod:
         await db.pods.update_record(self.name, instance=None)
 
     async def schedule(self, inst):
-        assert self.on_ready and not self.instance
+        assert not self.instance
 
-        log.info(f'subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} schedule')
-        self.on_ready = False
-        self.driver.ready_cores -= self.cores
+        if self.on_ready:
+            log.info(f'subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} schedule')
+            self.on_ready = False
+            self.driver.ready_cores -= self.cores
 
         if self.deleted:
             log.info(f'not scheduling {self.name} on {inst.name}; pod already deleted')
@@ -153,8 +154,14 @@ class Pod:
         return True
 
     async def _put_on_ready(self):
+        assert not self.on_ready
+
         if self._status:
-            log.info(f'{self.name} already complete, ignoring')
+            log.info(f'{self.name} already complete, ignoring put on ready')
+            return
+
+        if self.deleted:
+            log.info(f'{self.name} already deleted, ignoring put on ready')
             return
 
         await self.unschedule()
@@ -423,7 +430,7 @@ class Driver:
                 if not pod.deleted:
                     self.ready.add(pod)
                 else:
-                    pod.on_ready = False
+                    # pod.on_ready = False
                     log.info(f'skipping pod {pod.name} from ready; already deleted')
 
             should_wait = True
