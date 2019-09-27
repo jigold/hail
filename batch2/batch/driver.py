@@ -168,6 +168,7 @@ class Pod:
 
         await self.driver.ready_queue.put(self)
         self.on_ready = True
+        log.info(f'{self.name} adding {self.cores} cores from ready_cores {self.driver.ready_cores} put on ready')
         self.driver.ready_cores += self.cores
         self.driver.changed.set()
 
@@ -197,6 +198,8 @@ class Pod:
         return await self._request(lambda session: session.get(url))
 
     async def create(self):
+        assert not self.on_ready
+
         async with self.lock:
             config = await self.config()
 
@@ -230,7 +233,7 @@ class Pod:
             self.deleted = True
 
             if self.on_ready:
-                log.info(f'subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} delete')
+                log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} delete')
                 self.on_ready = False
                 self.driver.ready_cores -= self.cores
 
