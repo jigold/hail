@@ -392,14 +392,14 @@ class Driver:
         pod = self.pods.get(name)
         if pod is None:
             return None, DriverException(409, f'pod {name} does not exist')
-        return await pod.read_pod_log(container), None
+        return await pod.read_pod_log(container)
 
     async def read_container_status(self, name, container):
         assert container in tasks
         pod = self.pods.get(name)
         if pod is None:
             return None, DriverException(409, f'pod {name} does not exist')
-        return await pod.read_container_status(container), None
+        return await pod.read_container_status(container)
 
     def list_pods(self):
         return [pod.status() for _, pod in self.pods.items()]
