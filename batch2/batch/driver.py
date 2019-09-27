@@ -121,7 +121,7 @@ class Pod:
         assert not self.instance
 
         if self.on_ready:
-            log.info(f'subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} schedule')
+            log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} schedule')
             self.on_ready = False
             self.driver.ready_cores -= self.cores
 
