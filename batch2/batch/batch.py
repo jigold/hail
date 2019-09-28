@@ -82,6 +82,8 @@ routes = web.RouteTableDef()
 db = get_db()
 deploy_config = get_deploy_config()
 
+job_locks = {}
+
 
 def abort(code, reason=None):
     if code == 400:
@@ -129,6 +131,11 @@ class Job:
             volume_mounts=[kube.client.V1VolumeMount(
                 mount_path='/batch-gsa-key',
                 name='batch-gsa-key')])
+
+    def _get_lock(self):
+        if self.id not in job_locks:
+            job_locks[self.id] = asyncio.Lock()
+        return job_locks[self.id]
 
     async def _create_pod(self):
         assert self.userdata is not None
@@ -185,21 +192,23 @@ class Job:
                         }),
             spec=pod_spec)
 
-        err = await app['driver'].create_pod(spec=pod_template.to_dict(),
-                                             output_directory=self.directory)
-        if err is not None:
-            if err.status == 409:  # FIXME: Error from driver is not 409 right now
-                log.info(f'pod already exists for job {self.id}')
-                return
-            # traceback.print_tb(err.__traceback__)
-            log.info(f'pod creation failed for job {self.id} '
-                     f'with the following error: {err}')
+        async with self._get_lock():
+            err = await app['driver'].create_pod(spec=pod_template.to_dict(),
+                                                 output_directory=self.directory)
+            if err is not None:
+                if err.status == 409:
+                    log.info(f'pod already exists for job {self.id}')
+                    return
+                # traceback.print_tb(err.__traceback__)
+                log.info(f'pod creation failed for job {self.id} '
+                         f'with the following error: {err}')
 
     async def _delete_pod(self):
-        err = await app['driver'].delete_pod(name=self._pod_name)
-        if err is not None:
-            # traceback.print_tb(err.__traceback__)
-            log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
+        async with self._get_lock():
+            err = await app['driver'].delete_pod(name=self._pod_name)
+            if err is not None:
+                # traceback.print_tb(err.__traceback__)
+                log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
 
     async def _read_logs(self):
         if self._state in ('Pending', 'Cancelled'):
@@ -592,6 +601,7 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
         always_run=always_run,
         pvc_size=pvc_size,
         state=state)
+
     return job
 
 
@@ -1126,8 +1136,6 @@ async def pod_changed(pod):
 async def refresh_pods():
     log.info(f'refreshing pods')
 
-    # if we do this after we get pods, we will pick up jobs created
-    # while listing pods and unnecessarily restart them
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
 
     pods = app['driver'].list_pods()
