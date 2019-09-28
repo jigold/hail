@@ -120,38 +120,39 @@ class Pod:
     async def schedule(self, inst):
         assert not self.instance
 
-        if self.on_ready:
-            log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} schedule')
-            self.on_ready = False
-            self.driver.ready_cores -= self.cores
+        async with self.lock:
+            if self.on_ready:
+                log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} schedule')
+                self.on_ready = False
+                self.driver.ready_cores -= self.cores
 
-        if self.deleted:
-            log.info(f'not scheduling {self.name} on {inst.name}; pod already deleted')
-            return False
+            if self.deleted:
+                log.info(f'not scheduling {self.name} on {inst.name}; pod already deleted')
+                return False
 
-        if self._status:
-            log.info(f'not scheduling {self.name} on {inst.name}; pod already complete')
-            return False
+            if self._status:
+                log.info(f'not scheduling {self.name} on {inst.name}; pod already complete')
+                return False
 
-        if not inst.active:
-            log.info(f'not scheduling {self.name} on {inst.name}; instance not active')
-            asyncio.ensure_future(self.put_on_ready())
-            return False
+            if not inst.active:
+                log.info(f'not scheduling {self.name} on {inst.name}; instance not active')
+                asyncio.ensure_future(self._put_on_ready())
+                return False
 
-        if not inst.healthy:
-            log.info(f'not scheduling {self.name} on {inst.name}; instance not healthy')
-            asyncio.ensure_future(self.put_on_ready())
-            return False
+            if not inst.healthy:
+                log.info(f'not scheduling {self.name} on {inst.name}; instance not healthy')
+                asyncio.ensure_future(self._put_on_ready())
+                return False
 
-        log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
+            log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
 
-        inst.schedule(self)
+            inst.schedule(self)
 
-        self.instance = inst
+            self.instance = inst
 
-        # FIXME: is there a way to eliminate this blocking the scheduler?
-        await db.pods.update_record(self.name, instance=inst.token)
-        return True
+            # FIXME: is there a way to eliminate this blocking the scheduler?
+            await db.pods.update_record(self.name, instance=inst.token)
+            return True
 
     async def _put_on_ready(self):
         assert not self.on_ready
@@ -398,8 +399,8 @@ class Driver:
         pod = self.pods.get(name)
         if pod is None:
             return DriverException(409, f'pod {name} does not exist')
-        await self.pool.call(pod.delete)
         del self.pods[name]
+        await self.pool.call(pod.delete)
 
     async def read_pod_log(self, name, container):
         assert container in tasks
