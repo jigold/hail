@@ -383,14 +383,14 @@ class BatchPod:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     async with session.post(self.worker.deploy_config.url('batch2', '/api/v1alpha/instances/pod_complete'), json=body) as resp:
+                        self.last_updated = time.time()
                         if resp.status == 200:
-                            self.last_updated = time.time()
                             log.info(f'sent pod complete for {self.name}')
-                            return
                         elif resp.status == 404:
-                            self.last_updated = time.time()
                             log.info(f'sent pod complete for {self.name}, but driver did not recognize pod, ignoring')
-                            return
+                        else:
+                            log.info(f'unknown response for {self.name}, {resp!r}')
+                        return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:  # pylint: disable=broad-except
