@@ -118,13 +118,11 @@ class Pod:
         await db.pods.update_record(self.name, instance=None)
 
     async def schedule(self, inst):
-        log.info(f'waiting for schedule for {self.name}')
         async with self.lock:
-            log.info(f'schedule has lock for {self.name}')
             assert not self.instance
 
             if self.on_ready:
-                log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} schedule')
+                # log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} schedule')
                 self.on_ready = False
                 self.driver.ready_cores -= self.cores
 
@@ -172,7 +170,7 @@ class Pod:
 
         await self.driver.ready_queue.put(self)
         self.on_ready = True
-        log.info(f'{self.name} adding {self.cores} cores from ready_cores {self.driver.ready_cores} put on ready')
+        # log.info(f'{self.name} adding {self.cores} cores from ready_cores {self.driver.ready_cores} put on ready')
         self.driver.ready_cores += self.cores
         self.driver.changed.set()
 
@@ -198,9 +196,7 @@ class Pod:
         return await self._request(lambda session: session.get(url))
 
     async def create(self):
-        log.info(f'waiting for create for {self.name}')
         async with self.lock:
-            log.info(f'create has lock for {self.name}')
             assert not self.on_ready
 
             config = await self.config()
@@ -230,14 +226,12 @@ class Pod:
                 asyncio.ensure_future(self.put_on_ready())
 
     async def delete(self):
-        log.info(f'waiting for delete for {self.name}')
         async with self.lock:
-            log.info(f'delete has lock for {self.name}')
             assert not self.deleted
             self.deleted = True
 
             if self.on_ready:
-                log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} delete')
+                # log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} delete')
                 self.on_ready = False
                 self.driver.ready_cores -= self.cores
 
