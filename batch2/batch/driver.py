@@ -399,8 +399,8 @@ class Driver:
         pod = self.pods.get(name)
         if pod is None:
             return DriverException(409, f'pod {name} does not exist')
-        del self.pods[name]
         await self.pool.call(pod.delete)
+        del self.pods[name]
 
     async def read_pod_log(self, name, container):
         assert container in tasks

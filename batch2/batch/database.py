@@ -7,7 +7,7 @@ from asyncinit import asyncinit
 
 log = logging.getLogger('batch.database')
 
-MAX_RETRIES = 2
+MAX_RETRIES = 12
 
 
 def run_synchronous(coro):
