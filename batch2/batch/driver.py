@@ -157,26 +157,24 @@ class Pod:
             return True
 
     async def put_on_ready(self):
-        log.info(f'waiting for put_on_ready for {self.name}')
-        async with self.lock:
-            log.info(f'put_on_ready has lock for {self.name}')
-            assert not self.on_ready
+        # async with self.lock:
+        assert not self.on_ready
 
-            if self._status:
-                log.info(f'{self.name} already complete, ignoring put on ready')
-                return
+        if self._status:
+            log.info(f'{self.name} already complete, ignoring put on ready')
+            return
 
-            if self.deleted:
-                log.info(f'{self.name} already deleted, ignoring put on ready')
-                return
+        if self.deleted:
+            log.info(f'{self.name} already deleted, ignoring put on ready')
+            return
 
-            await self.unschedule()
+        await self.unschedule()
 
-            await self.driver.ready_queue.put(self)
-            self.on_ready = True
-            log.info(f'{self.name} adding {self.cores} cores from ready_cores {self.driver.ready_cores} put on ready')
-            self.driver.ready_cores += self.cores
-            self.driver.changed.set()
+        await self.driver.ready_queue.put(self)
+        self.on_ready = True
+        log.info(f'{self.name} adding {self.cores} cores from ready_cores {self.driver.ready_cores} put on ready')
+        self.driver.ready_cores += self.cores
+        self.driver.changed.set()
 
     async def _request(self, f):
         try:
