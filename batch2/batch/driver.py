@@ -434,10 +434,7 @@ class Driver:
 
             while len(self.ready) < 50 and not self.ready_queue.empty():
                 pod = self.ready_queue.get_nowait()
-                if not pod.deleted:
-                    self.ready.add(pod)
-                else:
-                    log.info(f'skipping pod {pod.name} from ready; already deleted')
+                self.ready.add(pod)
 
             should_wait = True
             if self.inst_pool.instances_by_free_cores and self.ready:
