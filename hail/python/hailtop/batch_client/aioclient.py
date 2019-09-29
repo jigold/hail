@@ -411,7 +411,7 @@ class BatchBuilder:
                 futures.append(self._submit_job_with_retry(batch.id, docs))
 
             await asyncio.gather(*futures)
-            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
+            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')  # FIXME: this needs a retry!
         except Exception as err:  # pylint: disable=W0703
             if batch:
                 await batch.cancel()
