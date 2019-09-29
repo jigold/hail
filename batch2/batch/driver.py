@@ -369,10 +369,10 @@ class Driver:
         pod_name = status['metadata']['name']
         pod = self.pods.get(pod_name)
         if pod is None:
-            log.warning(f'pod_complete from unknown pod {pod_name}')
+            log.warning(f'pod_complete from unknown pod {pod_name}, instance {inst_token}')
             return web.HTTPNotFound()
         else:
-            log.info(f'pod_complete from pod {pod_name}')
+            log.info(f'pod_complete from pod {pod_name}, instance {inst_token}')
 
         await pod.mark_complete(status)
         await self.complete_queue.put(status)
