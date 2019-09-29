@@ -118,9 +118,9 @@ class Pod:
         await db.pods.update_record(self.name, instance=None)
 
     async def schedule(self, inst):
-        assert not self.instance
-
         async with self.lock:
+            assert not self.instance
+
             if self.on_ready:
                 log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} schedule')
                 self.on_ready = False
@@ -136,12 +136,12 @@ class Pod:
 
             if not inst.active:
                 log.info(f'not scheduling {self.name} on {inst.name}; instance not active')
-                asyncio.ensure_future(self._put_on_ready())
+                asyncio.ensure_future(self.put_on_ready())
                 return False
 
             if not inst.healthy:
                 log.info(f'not scheduling {self.name} on {inst.name}; instance not healthy')
-                asyncio.ensure_future(self._put_on_ready())
+                asyncio.ensure_future(self.put_on_ready())
                 return False
 
             log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
@@ -199,9 +199,9 @@ class Pod:
         return await self._request(lambda session: session.get(url))
 
     async def create(self):
-        assert not self.on_ready
-
         async with self.lock:
+            assert not self.on_ready
+
             config = await self.config()
 
             if self.deleted:
@@ -210,7 +210,7 @@ class Pod:
 
             if not self.instance:
                 log.info(f'instance was deactivated before {self.name} could be created; rescheduling')
-                asyncio.ensure_future(self._put_on_ready())
+                asyncio.ensure_future(self.put_on_ready())
                 return
 
             inst = self.instance
@@ -226,7 +226,7 @@ class Pod:
             else:
                 assert err
                 log.info(f'failed to create {self.name} on inst {inst} due to {err}, putting back on ready queue')
-                asyncio.ensure_future(self._put_on_ready())
+                asyncio.ensure_future(self.put_on_ready())
 
     async def delete(self):
         async with self.lock:
