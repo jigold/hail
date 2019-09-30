@@ -367,17 +367,23 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _submit_job_with_retry(self, batch_id, docs):
+    async def _request_with_retry(self, f, *args, **kwargs):
         i = 0
         while True:
             try:
-                return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
+                return await f(*args, **kwargs)
             except Exception:  # pylint: disable=W0703
                 j = random.randrange(math.floor(1.1 ** i))
                 await asyncio.sleep(0.100 * j)
                 # max 44.5s
                 if i < 64:
                     i += 1
+
+    async def _submit_job_with_retry(self, batch_id, docs):
+        return await self._request_with_retry(
+            self._client._post,
+            f'/api/v1alpha/batches/{batch_id}/jobs/create',
+            json={'jobs': docs})
 
     async def submit(self):
         if self._submitted:
@@ -402,7 +408,6 @@ class BatchBuilder:
                 n += 1
                 docs.append(jdoc)
                 if n == job_array_size:
-                    # await self.pool.call(self._submit_job_with_retry, batch.id, docs)
                     futures.append(self._submit_job_with_retry(batch.id, docs))
                     n = 0
                     docs = []
@@ -411,7 +416,11 @@ class BatchBuilder:
                 futures.append(self._submit_job_with_retry(batch.id, docs))
 
             await asyncio.gather(*futures)
-            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')  # FIXME: this needs a retry!
+
+            await self._request_with_retry(
+                self._client._patch,
+                f'/api/v1alpha/batches/{batch.id}/close')
+
         except Exception as err:  # pylint: disable=W0703
             if batch:
                 await batch.cancel()
