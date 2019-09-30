@@ -767,7 +767,7 @@ class Batch:
     async def _close_jobs(self):
         for j in await self.get_jobs():
             if j._state == 'Running':
-                await j._create_pod()
+                asyncio.ensure_future(j._create_pod())
 
     async def close(self):
         await db.batch.update_record(self.id, closed=True)
