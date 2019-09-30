@@ -1176,14 +1176,14 @@ async def driver_event_loop():
             log.exception(f'driver event loop failed due to exception: {exc}')
 
 
-async def polling_event_loop():
-    await asyncio.sleep(1)
-    while True:
-        try:
-            await refresh_pods()
-        except Exception as exc:
-            log.exception(f'polling event loop failed due to exception: {exc}')
-        await asyncio.sleep(60 * 10)
+# async def polling_event_loop():
+#     await asyncio.sleep(1)
+#     while True:
+#         try:
+#             await refresh_pods()
+#         except Exception as exc:
+#             log.exception(f'polling event loop failed due to exception: {exc}')
+#         await asyncio.sleep(60 * 10)
 
 
 async def db_cleanup_event_loop():
@@ -1239,9 +1239,10 @@ async def on_startup(app):
     app['log_store'] = LogStore(pool, INSTANCE_ID, bucket_name)
 
     await driver.initialize()
+    await refresh_pods()
 
     asyncio.ensure_future(driver.run())
-    asyncio.ensure_future(polling_event_loop())  # we need a polling event loop in case a delete happens before a create job
+    # asyncio.ensure_future(polling_event_loop())  # we need a polling event loop in case a delete happens before a create job
     asyncio.ensure_future(driver_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
 
