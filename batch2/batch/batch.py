@@ -82,8 +82,6 @@ routes = web.RouteTableDef()
 db = get_db()
 deploy_config = get_deploy_config()
 
-job_locks = {}
-
 
 def abort(code, reason=None):
     if code == 400:
@@ -132,13 +130,7 @@ class Job:
                 mount_path='/batch-gsa-key',
                 name='batch-gsa-key')])
 
-    # def _get_lock(self):
-    #     if self.id not in job_locks:
-    #         job_locks[self.id] = asyncio.Lock()
-    #     return job_locks[self.id]
-
     async def _create_pod(self):
-        # async with self._get_lock():
         assert self.userdata is not None
         assert self._state in states
         assert self._state == 'Running'
@@ -204,7 +196,6 @@ class Job:
                      f'with the following error: {err}')
 
     async def _delete_pod(self):
-        # async with self._get_lock():
         err = await app['driver'].delete_pod(name=self._pod_name)  # FIXME: what happens if this occurs before create; then we have pods running that shouldn't be
         if err is not None:
             # traceback.print_tb(err.__traceback__)
