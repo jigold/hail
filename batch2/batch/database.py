@@ -41,8 +41,8 @@ class Database:
                                                password=self.password,
                                                charset=self.charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
-                                               autocommit=True)
-
+                                               autocommit=True,
+                                               maxsize=100)
 
 def make_where_statement(items):
     template = []
@@ -80,6 +80,7 @@ async def _retry(cursor, f):
             assert len(x) == 2, x
             code = x[0]
             if code not in (1213, 2003):
+                log.info(f'{err!r}')
                 raise err
             log.info(f'ignoring error {err}; retrying query after {n_attempts} attempts')
             await asyncio.sleep(0.5)

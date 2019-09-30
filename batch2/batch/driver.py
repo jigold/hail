@@ -387,7 +387,7 @@ class Driver:
         try:
             pod = await Pod.create_pod(self, name, spec, output_directory)
         except Exception as err:
-            return DriverException(400, f'invalid pod spec given: {err}')  # FIXME: what error code should this be?
+            return DriverException(400, f'unknown error creating pod: {err}')  # FIXME: what error code should this be?
 
         self.pods[name] = pod
         asyncio.ensure_future(pod.put_on_ready())
