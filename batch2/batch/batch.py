@@ -706,7 +706,7 @@ class Batch:
         return batches
 
     @staticmethod
-    async def create_batch(attributes, callback, userdata):
+    async def create_batch(attributes, callback, userdata, n_jobs):
         user = userdata['username']
 
         id = await db.batch.new_record(
@@ -716,7 +716,8 @@ class Batch:
             user=user,
             deleted=False,
             cancelled=False,
-            closed=False)
+            closed=False,
+            n_jobs=n_jobs)
 
         batch = Batch(id=id, attributes=attributes, callback=callback,
                       userdata=userdata, user=user, state='running',
@@ -911,7 +912,8 @@ async def create_batch(request, userdata):
     batch = await Batch.create_batch(
         attributes=parameters.get('attributes'),
         callback=parameters.get('callback'),
-        userdata=userdata)
+        userdata=userdata,
+        n_jobs=parameters.get('n_jobs'))
     if batch is None:
         abort(400, f'creation of batch in db failed')
 

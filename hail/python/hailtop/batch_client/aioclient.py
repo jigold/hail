@@ -401,7 +401,7 @@ class BatchBuilder:
             raise ValueError("cannot submit an already submitted batch")
         self._submitted = True
 
-        batch_doc = {}
+        batch_doc = {'n_jobs': len(self._job_docs)}
         if self.attributes:
             batch_doc['attributes'] = self.attributes
         if self.callback:
