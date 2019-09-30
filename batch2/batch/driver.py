@@ -151,6 +151,11 @@ class Pod:
             await db.pods.update_record(self.name, instance=inst.token)
             return True
 
+    def _delete(self):
+        assert not self.deleted
+        self.deleted = True
+        self.remove_from_ready()
+
     async def put_on_ready(self):
         # async with self.lock:
         assert not self.on_ready
@@ -227,12 +232,9 @@ class Pod:
                 asyncio.ensure_future(self.put_on_ready())
 
     async def delete(self):
+        assert self.deleted
+
         async with self.lock:
-            assert not self.deleted
-            self.deleted = True
-
-            self.remove_from_ready()
-
             inst = self.instance
             if inst:
                 url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/delete'
@@ -394,6 +396,7 @@ class Driver:
         pod = self.pods.get(name)
         if pod is None:
             return DriverException(409, f'pod {name} does not exist')
+        pod._delete()
         await self.pool.call(pod.delete)
         del self.pods[name]  # this must be after delete finishes successfully in case pod marks complete before delete call
 
