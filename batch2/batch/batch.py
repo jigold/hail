@@ -858,20 +858,27 @@ async def create_jobs(request, userdata):
     start = time.time()
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
+
+    start1 = time.time()
     batch = await Batch.from_db(batch_id, user)
+    log.info(f'took {round(time.time() - start1, 3)} seconds to get batch from db')
+
     if not batch:
         abort(404)
     if batch.closed:
         abort(400, f'batch {batch_id} is already closed')
 
+    start2 = time.time()
     jobs_parameters = await request.json()
+    log.info(f'took {round(time.time() - start2, 3)} seconds to get data from server')
 
+    start3 = time.time()
     validator = cerberus.Validator(schemas.job_array_schema)
     if not validator.validate(jobs_parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
-    log.info(f"took {round(time.time() - start, 3)} seconds to receive data and validate spec")
+    log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
 
-    start2 = time.time()
+    start4 = time.time()
     jobs_builder = JobsBuilder(db)
     try:
         for job_params in jobs_parameters['jobs']:
@@ -884,8 +891,9 @@ async def create_jobs(request, userdata):
     finally:
         await jobs_builder.close()
 
-    log.info(f'took {round(time.time() - start2, 3)} seconds to commit jobs to db')
+    log.info(f'took {round(time.time() - start4, 3)} seconds to commit jobs to db')
 
+    log.info(f'took {round(time.time() - start, 3)} seconds to create jobs')
     return jsonify({})
 
 
