@@ -132,83 +132,83 @@ class Job:
                 mount_path='/batch-gsa-key',
                 name='batch-gsa-key')])
 
-    def _get_lock(self):
-        if self.id not in job_locks:
-            job_locks[self.id] = asyncio.Lock()
-        return job_locks[self.id]
+    # def _get_lock(self):
+    #     if self.id not in job_locks:
+    #         job_locks[self.id] = asyncio.Lock()
+    #     return job_locks[self.id]
 
     async def _create_pod(self):
-        async with self._get_lock():
-            assert self.userdata is not None
-            assert self._state in states
-            assert self._state == 'Running'
+        # async with self._get_lock():
+        assert self.userdata is not None
+        assert self._state in states
+        assert self._state == 'Running'
 
-            input_container = Job._copy_container('setup', self.input_files)
-            output_container = Job._copy_container('cleanup', self.output_files)
+        input_container = Job._copy_container('setup', self.input_files)
+        output_container = Job._copy_container('cleanup', self.output_files)
 
-            volumes = [
-                kube.client.V1Volume(
-                    secret=kube.client.V1SecretVolumeSource(
-                        secret_name=self.userdata['gsa_key_secret_name']),
-                    name='gsa-key'),
-                kube.client.V1Volume(
-                    secret=kube.client.V1SecretVolumeSource(
-                        secret_name='batch-gsa-key'),
-                    name='batch-gsa-key')]
+        volumes = [
+            kube.client.V1Volume(
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name=self.userdata['gsa_key_secret_name']),
+                name='gsa-key'),
+            kube.client.V1Volume(
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name='batch-gsa-key'),
+                name='batch-gsa-key')]
 
-            volume_mounts = [
-                kube.client.V1VolumeMount(
-                    mount_path='/gsa-key',
-                    name='gsa-key')]  # FIXME: this shouldn't be mounted to every container
+        volume_mounts = [
+            kube.client.V1VolumeMount(
+                mount_path='/gsa-key',
+                name='gsa-key')]  # FIXME: this shouldn't be mounted to every container
 
-            if self._pvc_name is not None:
-                volumes.append(kube.client.V1Volume(
-                    empty_dir=kube.client.V1EmptyDirVolumeSource(
-                        size_limit=self._pvc_size),
-                    name=self._pvc_name))
-                volume_mounts.append(kube.client.V1VolumeMount(
-                    mount_path='/io',
-                    name=self._pvc_name))
+        if self._pvc_name is not None:
+            volumes.append(kube.client.V1Volume(
+                empty_dir=kube.client.V1EmptyDirVolumeSource(
+                    size_limit=self._pvc_size),
+                name=self._pvc_name))
+            volume_mounts.append(kube.client.V1VolumeMount(
+                mount_path='/io',
+                name=self._pvc_name))
 
-            pod_spec = v1.api_client._ApiClient__deserialize(self._pod_spec, kube.client.V1PodSpec)
-            pod_spec.containers = [input_container, pod_spec.containers[0], output_container]
+        pod_spec = v1.api_client._ApiClient__deserialize(self._pod_spec, kube.client.V1PodSpec)
+        pod_spec.containers = [input_container, pod_spec.containers[0], output_container]
 
-            if pod_spec.volumes is None:
-                pod_spec.volumes = []
-            pod_spec.volumes.extend(volumes)
+        if pod_spec.volumes is None:
+            pod_spec.volumes = []
+        pod_spec.volumes.extend(volumes)
 
-            for container in pod_spec.containers:
-                if container.volume_mounts is None:
-                    container.volume_mounts = []
-                container.volume_mounts.extend(volume_mounts)
+        for container in pod_spec.containers:
+            if container.volume_mounts is None:
+                container.volume_mounts = []
+            container.volume_mounts.extend(volume_mounts)
 
-            pod_template = kube.client.V1Pod(
-                metadata=kube.client.V1ObjectMeta(
-                    name=self._pod_name,
-                    labels={'app': 'batch-job',
-                            'hail.is/batch-instance': INSTANCE_ID,
-                            'batch_id': str(self.batch_id),
-                            'job_id': str(self.job_id),
-                            'user': self.user
-                            }),
-                spec=pod_spec)
+        pod_template = kube.client.V1Pod(
+            metadata=kube.client.V1ObjectMeta(
+                name=self._pod_name,
+                labels={'app': 'batch-job',
+                        'hail.is/batch-instance': INSTANCE_ID,
+                        'batch_id': str(self.batch_id),
+                        'job_id': str(self.job_id),
+                        'user': self.user
+                        }),
+            spec=pod_spec)
 
-            err = await app['driver'].create_pod(spec=pod_template.to_dict(),
-                                                 output_directory=self.directory)
-            if err is not None:
-                if err.status == 409:
-                    log.info(f'pod already exists for job {self.id}')
-                    return
-                # traceback.print_tb(err.__traceback__)
-                log.info(f'pod creation failed for job {self.id} '
-                         f'with the following error: {err}')
+        err = await app['driver'].create_pod(spec=pod_template.to_dict(),
+                                             output_directory=self.directory)
+        if err is not None:
+            if err.status == 409:
+                log.info(f'pod already exists for job {self.id}')
+                return
+            # traceback.print_tb(err.__traceback__)
+            log.info(f'pod creation failed for job {self.id} '
+                     f'with the following error: {err}')
 
     async def _delete_pod(self):
-        async with self._get_lock():
-            err = await app['driver'].delete_pod(name=self._pod_name)
-            if err is not None:
-                # traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
+        # async with self._get_lock():
+        err = await app['driver'].delete_pod(name=self._pod_name)
+        if err is not None:
+            # traceback.print_tb(err.__traceback__)
+            log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
 
     async def _read_logs(self):
         if self._state in ('Pending', 'Cancelled'):
