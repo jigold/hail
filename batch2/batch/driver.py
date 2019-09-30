@@ -121,10 +121,7 @@ class Pod:
         async with self.lock:
             assert not self.instance
 
-            if self.on_ready:
-                # log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} schedule')
-                self.on_ready = False
-                self.driver.ready_cores -= self.cores
+            self.remove_from_ready()
 
             if self.deleted:
                 log.info(f'not scheduling {self.name} on {inst.name}; pod already deleted')
@@ -173,6 +170,11 @@ class Pod:
         # log.info(f'{self.name} adding {self.cores} cores from ready_cores {self.driver.ready_cores} put on ready')
         self.driver.ready_cores += self.cores
         self.driver.changed.set()
+
+    def remove_from_ready(self):
+        if self.on_ready:
+            self.on_ready = False
+            self.driver.ready_cores -= self.cores
 
     async def _request(self, f):
         try:
@@ -230,10 +232,12 @@ class Pod:
             assert not self.deleted
             self.deleted = True
 
-            if self.on_ready:
-                # log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} delete')
-                self.on_ready = False
-                self.driver.ready_cores -= self.cores
+            self.remove_from_ready()
+
+            # if self.on_ready:
+            #     # log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} delete')
+            #     self.on_ready = False
+            #     self.driver.ready_cores -= self.cores
 
             inst = self.instance
             if inst:
@@ -428,7 +432,11 @@ class Driver:
 
             while len(self.ready) < 50 and not self.ready_queue.empty():
                 pod = self.ready_queue.get_nowait()
-                self.ready.add(pod)
+                if not pod.deleted:
+                    self.ready.add(pod)
+                else:
+                    log.info(f'skipping pod {pod} from ready queue, already deleted')
+                    pod.remove_from_ready()
 
             should_wait = True
             if self.inst_pool.instances_by_free_cores and self.ready:
