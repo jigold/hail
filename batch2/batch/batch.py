@@ -196,7 +196,7 @@ class Job:
                      f'with the following error: {err}')
 
     async def _delete_pod(self):
-        err = await app['driver'].delete_pod(name=self._pod_name)  # FIXME: what happens if this occurs before create; then we have pods running that shouldn't be
+        err = await app['driver'].delete_pod(name=self._pod_name)
         if err is not None:
             # traceback.print_tb(err.__traceback__)
             log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
@@ -752,7 +752,7 @@ class Batch:
         self.cancelled = True
         self.closed = True
         for j in await self.get_jobs():
-            await j.cancel()
+            asyncio.ensure_future(j.cancel())
         log.info(f'batch {self.id} cancelled')
 
     async def _close_jobs(self):
@@ -1161,6 +1161,16 @@ async def driver_event_loop():
             log.exception(f'driver event loop failed due to exception: {exc}')
 
 
+async def polling_event_loop():
+    await asyncio.sleep(1)
+    while True:
+        try:
+            await refresh_pods()
+        except Exception as exc:
+            log.exception(f'polling event loop failed due to exception: {exc}')
+        await asyncio.sleep(60 * 10)
+
+
 async def db_cleanup_event_loop():
     await asyncio.sleep(1)
     while True:
@@ -1214,9 +1224,9 @@ async def on_startup(app):
     app['log_store'] = LogStore(pool, INSTANCE_ID, bucket_name)
 
     await driver.initialize()
-    await refresh_pods()
 
     asyncio.ensure_future(driver.run())
+    asyncio.ensure_future(polling_event_loop())  # we need a polling event loop in case a delete happens before a create job
     asyncio.ensure_future(driver_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
 
