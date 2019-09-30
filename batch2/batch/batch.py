@@ -205,7 +205,7 @@ class Job:
 
     async def _delete_pod(self):
         # async with self._get_lock():
-        err = await app['driver'].delete_pod(name=self._pod_name)
+        err = await app['driver'].delete_pod(name=self._pod_name)  # FIXME: what happens if this occurs before create; then we have pods running that shouldn't be
         if err is not None:
             # traceback.print_tb(err.__traceback__)
             log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
