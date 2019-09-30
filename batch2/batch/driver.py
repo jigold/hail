@@ -167,7 +167,6 @@ class Pod:
 
         await self.driver.ready_queue.put(self)
         self.on_ready = True
-        # log.info(f'{self.name} adding {self.cores} cores from ready_cores {self.driver.ready_cores} put on ready')
         self.driver.ready_cores += self.cores
         self.driver.changed.set()
 
@@ -233,11 +232,6 @@ class Pod:
             self.deleted = True
 
             self.remove_from_ready()
-
-            # if self.on_ready:
-            #     # log.info(f'{self.name} subtracting {self.cores} cores from ready_cores {self.driver.ready_cores} delete')
-            #     self.on_ready = False
-            #     self.driver.ready_cores -= self.cores
 
             inst = self.instance
             if inst:

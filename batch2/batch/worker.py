@@ -87,13 +87,6 @@ class Container:
     async def create(self, volumes):
         log.info(f'creating container {self.id}')
 
-        # async def handle_error(error):
-        #     log.exception(f'caught {error.reason} error while creating container {self.id}: {error.message}')
-        #     self.error = error
-        #     log_path = LogStore.container_log_path(self.log_directory, self.name)
-        #     await self.pod.worker.gcs_client.write_gs_file(log_path, self.error.message)
-        #     log.info(f'uploaded log for container {self.id} to {log_path}')
-
         config = {
             "AttachStdin": False,
             "AttachStdout": False,
@@ -123,7 +116,6 @@ class Container:
         if errs:
             self.error = UnknownVolume('\n'.join(errs))
             log.info(f'caught {self.error.reason} error while creating container {self.id}: {self.error.message}')
-            # await handle_error(UnknownVolume('\n'.join(errs)))
             return False
 
         if volume_mounts:
@@ -152,7 +144,6 @@ class Container:
             await asyncio.sleep(1)
             n_tries += 1
 
-        # await handle_error(error)
         self.error = error
         return False
 
@@ -207,8 +198,6 @@ class Container:
             return self._container._container
 
     async def log(self):
-        # if self.error:
-        #     return str(self.error)
         logs = await self._container.log(stderr=True, stdout=True)
         return "".join(logs)
 
@@ -402,7 +391,6 @@ class BatchPod:
         create_task = None
         try:
             create_task = asyncio.ensure_future(self._create())
-            # created = await asyncio.shield(create_task)
             created = await create_task
             if not created:
                 log.info(f'unable to create all containers for {self.name}')
