@@ -869,21 +869,22 @@ async def create_jobs(request, userdata):
     validator = cerberus.Validator(schemas.job_array_schema)
     if not validator.validate(jobs_parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
+    log.info(f"took {round(time.time() - start, 3)} seconds to receive data and validate spec")
 
+    start2 = time.time()
     jobs_builder = JobsBuilder(db)
     try:
         for job_params in jobs_parameters['jobs']:
             create_job(jobs_builder, batch.id, userdata, job_params)
 
-        start2 = time.time()
         success = await jobs_builder.commit()
         if not success:
             abort(400, f'insertion of jobs in db failed')
-        log.info(f'took {round(time.time() - start2, 3)} seconds to commit jobs to db')
-
-        log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id} in {round(time.time() - start, 3)} seconds")
+        # log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id} in {round(time.time() - start, 3)} seconds")
     finally:
         await jobs_builder.close()
+
+    log.info(f'took {round(time.time() - start2, 3)} seconds to commit jobs to db')
 
     return jsonify({})
 
