@@ -12,7 +12,7 @@ from .globals import complete_states
 job_array_size = 100
 
 
-request_sem = asyncio.Semaphore(1)
+request_sem = asyncio.Semaphore(10)
 
 
 def filter_params(complete, success, attributes):

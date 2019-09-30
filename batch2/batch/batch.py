@@ -6,6 +6,7 @@ import threading
 import traceback
 import json
 import uuid
+import time
 from shlex import quote as shq
 
 import aiohttp_jinja2
@@ -854,6 +855,7 @@ async def get_batches_list(request, userdata):
 @prom_async_time(REQUEST_TIME_POST_CREATE_JOBS)
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
+    start = time.time()
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     batch = await Batch.from_db(batch_id, user)
@@ -873,11 +875,13 @@ async def create_jobs(request, userdata):
         for job_params in jobs_parameters['jobs']:
             create_job(jobs_builder, batch.id, userdata, job_params)
 
+        start2 = time.time()
         success = await jobs_builder.commit()
         if not success:
             abort(400, f'insertion of jobs in db failed')
+        log.info(f'took {round(time.time() - start2, 3)} seconds to commit jobs to db')
 
-        log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id}")
+        log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id} in {round(time.time() - start, 3)} seconds")
     finally:
         await jobs_builder.close()
 
@@ -894,6 +898,7 @@ async def create_batch(request, userdata):
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
+    start = time.time()
     batch = await Batch.create_batch(
         attributes=parameters.get('attributes'),
         callback=parameters.get('callback'),
@@ -901,6 +906,7 @@ async def create_batch(request, userdata):
     if batch is None:
         abort(400, f'creation of batch in db failed')
 
+    log.info(f'took {round(time.time() - start, 3)} seconds to initialize batch {batch.id} in db')
     return jsonify(await batch.to_dict(include_jobs=False))
 
 
