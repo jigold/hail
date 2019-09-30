@@ -379,8 +379,8 @@ class BatchBuilder:
             try:
                 async with request_sem:
                     return await f(*args, **kwargs)
-            except Exception:  # pylint: disable=W0703
-                print(f'request_with_retry failed, attempt {i}')
+            except Exception as exc:  # pylint: disable=W0703
+                print(f'request_with_retry failed, attempt {i} exception {exc}')
                 j = random.randrange(math.floor(1.1 ** i))
                 await asyncio.sleep(0.100 * j)
                 # max 44.5s
