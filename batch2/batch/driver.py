@@ -108,6 +108,11 @@ class Pod:
         self._status = status
         asyncio.ensure_future(db.pods.update_record(self.name, status=json.dumps(status)))
 
+    def mark_deleted(self):
+        assert not self.deleted
+        self.deleted = True
+        self.remove_from_ready()
+
     async def unschedule(self):
         if not self.instance:
             return
@@ -150,11 +155,6 @@ class Pod:
             # FIXME: is there a way to eliminate this blocking the scheduler?
             await db.pods.update_record(self.name, instance=inst.token)
             return True
-
-    def _delete(self):
-        assert not self.deleted
-        self.deleted = True
-        self.remove_from_ready()
 
     async def put_on_ready(self):
         # async with self.lock:
@@ -396,7 +396,7 @@ class Driver:
         pod = self.pods.get(name)
         if pod is None:
             return DriverException(409, f'pod {name} does not exist')
-        pod._delete()
+        pod.mark_deleted()
         await self.pool.call(pod.delete)
         del self.pods[name]  # this must be after delete finishes successfully in case pod marks complete before delete call
 
