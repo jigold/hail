@@ -9,7 +9,10 @@ from hailtop.auth import async_get_userinfo, service_auth_headers
 
 from .globals import complete_states
 
-job_array_size = 1000
+job_array_size = 100
+
+
+request_sem = asyncio.Semaphore(1)
 
 
 def filter_params(complete, success, attributes):
@@ -371,7 +374,8 @@ class BatchBuilder:
         i = 0
         while True:
             try:
-                return await f(*args, **kwargs)
+                async with request_sem:
+                    return await f(*args, **kwargs)
             except Exception:  # pylint: disable=W0703
                 j = random.randrange(math.floor(1.1 ** i))
                 await asyncio.sleep(0.100 * j)
