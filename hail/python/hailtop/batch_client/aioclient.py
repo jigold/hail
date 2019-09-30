@@ -3,6 +3,8 @@ import random
 import asyncio
 import aiohttp
 from asyncinit import asyncinit
+import logging
+import time
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
@@ -11,6 +13,7 @@ from .globals import complete_states
 
 job_array_size = 1000
 
+log = logging.getLogger('aioclient')
 
 request_sem = asyncio.Semaphore(10)
 
@@ -377,6 +380,7 @@ class BatchBuilder:
                 async with request_sem:
                     return await f(*args, **kwargs)
             except Exception:  # pylint: disable=W0703
+                log.exception(f'request_with_retry failed, attempt {i}')
                 j = random.randrange(math.floor(1.1 ** i))
                 await asyncio.sleep(0.100 * j)
                 # max 44.5s
@@ -384,10 +388,13 @@ class BatchBuilder:
                     i += 1
 
     async def _submit_job_with_retry(self, batch_id, docs):
-        return await self._request_with_retry(
+        start = time.time()
+        response = await self._request_with_retry(
             self._client._post,
             f'/api/v1alpha/batches/{batch_id}/jobs/create',
             json={'jobs': docs})
+        log.info(f'took {round(time.time() - start, 3)} seconds to submit jobs in batch of {job_array_size}')
+        return response
 
     async def submit(self):
         if self._submitted:
@@ -402,8 +409,17 @@ class BatchBuilder:
 
         batch = None
         try:
-            b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
+            start = time.time()
+            b = await self._request_with_retry(
+                self._client._post,
+                '/api/v1alpha/batches/create',
+                json=batch_doc
+            )
+            log.info(f'took {round(time.time() - start, 3)} seconds to create batch')
+            # b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
             batch = Batch(self._client, b['id'], b.get('attributes'))
+
+            start = time.time()
 
             docs = []
             n = 0
@@ -420,10 +436,13 @@ class BatchBuilder:
                 futures.append(self._submit_job_with_retry(batch.id, docs))
 
             await asyncio.gather(*futures)
+            log.info(f'took {round(time.time() - start, 3)} seconds to create all jobs')
 
+            start = time.time()
             await self._request_with_retry(
                 self._client._patch,
                 f'/api/v1alpha/batches/{batch.id}/close')
+            log.info(f'took {round(time.time() - start, 3)} seconds to close batch')
 
         except Exception as err:  # pylint: disable=W0703
             if batch:

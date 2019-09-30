@@ -892,13 +892,13 @@ async def create_jobs(request, userdata):
 @prom_async_time(REQUEST_TIME_POST_CREATE_BATCH)
 @rest_authenticated_users_only
 async def create_batch(request, userdata):
+    start = time.time()
     parameters = await request.json()
 
     validator = cerberus.Validator(schemas.batch_schema)
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    start = time.time()
     batch = await Batch.create_batch(
         attributes=parameters.get('attributes'),
         callback=parameters.get('callback'),
