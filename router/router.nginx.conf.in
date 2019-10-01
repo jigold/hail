@@ -66,9 +66,10 @@ server {
 
 server {
     server_name batch2.*;
-    client_max_body_size 10000m;
+#    client_max_body_size 10000m;
 
     location / {
+        client_max_body_size 10000m;    
         proxy_pass http://batch2/;
     }
 
