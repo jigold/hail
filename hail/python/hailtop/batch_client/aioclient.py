@@ -378,7 +378,10 @@ class BatchBuilder:
         while True:
             try:
                 async with request_sem:
-                    return await f(*args, **kwargs)
+                    start = time.time()
+                    result = await f(*args, **kwargs)
+                    print(f'took {round(time.time() - start, 3)} seconds to submit a request {f.__name__}')
+                    return result
             except Exception as exc:  # pylint: disable=W0703
                 print(f'request_with_retry failed, attempt {i} exception {exc}')
                 j = random.randrange(math.floor(1.1 ** i))
@@ -388,12 +391,11 @@ class BatchBuilder:
                     i += 1
 
     async def _submit_job_with_retry(self, batch_id, docs):
-        start = time.time()
+
         response = await self._request_with_retry(
             self._client._post,
             f'/api/v1alpha/batches/{batch_id}/jobs/create',
             json={'jobs': docs})
-        print(f'took {round(time.time() - start, 3)} seconds to submit jobs in batch of {job_array_size}')
         return response
 
     async def submit(self):
