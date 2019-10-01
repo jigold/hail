@@ -15,7 +15,7 @@ job_array_size = 1000
 
 log = logging.getLogger('aioclient')
 
-request_sem = asyncio.Semaphore(1)
+request_sem = asyncio.Semaphore(10)
 
 
 def filter_params(complete, success, attributes):
