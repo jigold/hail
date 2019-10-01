@@ -84,6 +84,9 @@ async def _retry(cursor, f):
                 raise err
             log.info(f'ignoring error {err}; retrying query after {n_attempts} attempts')
             await asyncio.sleep(0.5)
+        except Exception as err:
+            log.info(f'unknown exception {err!r}')
+            raise err
     raise saved_err
 
 
