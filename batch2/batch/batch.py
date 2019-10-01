@@ -7,6 +7,7 @@ import traceback
 import json
 import uuid
 import time
+import cProfile
 from shlex import quote as shq
 
 import aiohttp_jinja2
@@ -1222,6 +1223,13 @@ async def db_cleanup_event_loop():
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
+async def profile_loop():
+    await asyncio.sleep(1)
+    while True:
+        app['profile'].print_stats()
+        await asyncio.sleep(15)
+
+
 @routes.post('/api/v1alpha/instances/activate')
 # @rest_authenticated_users_only
 async def activate_worker(request):
@@ -1250,6 +1258,10 @@ app.router.add_get("/metrics", server_stats)
 
 
 async def on_startup(app):
+    profile = cProfile.Profile()
+    profile.enable()
+    app['profile'] = profile
+
     pool = concurrent.futures.ThreadPoolExecutor()
     k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, v1)
 
@@ -1269,6 +1281,7 @@ async def on_startup(app):
     # asyncio.ensure_future(polling_event_loop())  # we need a polling event loop in case a delete happens before a create job
     asyncio.ensure_future(driver_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
+    asyncio.ensure_future(profile_loop())
 
 
 app.on_startup.append(on_startup)
