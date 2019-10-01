@@ -759,22 +759,29 @@ class Batch:
         self.closed = closed
 
     async def get_jobs(self, limit=None, offset=None):
-        return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id, limit, offset)]
+        start = time.time()
+        jobs = await db.jobs.get_records_by_batch(self.id, limit, offset)
+        log.info(f'took {round(time.time() - start, 3)} seconds to get all jobs from db for batch {self.id}')
+        return [Job.from_record(record) for record in jobs]
+
+    async def _cancel_jobs(self):
+        await asyncio.gather(*[j.cancel() for j in await self.get_jobs()])
+        # for j in await self.get_jobs():
+        #     asyncio.ensure_future(j.cancel())
 
     async def cancel(self):
         await db.batch.update_record(self.id, cancelled=True, closed=True)
         self.cancelled = True
         self.closed = True
-        for j in await self.get_jobs():
-            asyncio.ensure_future(j.cancel())
+        asyncio.ensure_future(self._cancel_jobs())
         log.info(f'batch {self.id} cancelled')
 
     async def _close_jobs(self):
-        jobs = await self.get_jobs()
-        async for j in DeblockedIterator(jobs):
-            log.info(f'{type(j)}')
-            if j._state == 'Running':
-                asyncio.ensure_future(j._create_pod())
+        await asyncio.gather(*[j._create_pod() for j in await self.get_jobs()
+                               if j._state == 'Running'])
+        # for j in await self.get_jobs():
+        #     if j._state == 'Running':
+        #         asyncio.ensure_future(j._create_pod())
 
     async def close(self):
         await db.batch.update_record(self.id, closed=True)
@@ -790,9 +797,10 @@ class Batch:
         log.info(f'batch {self.id} marked for deletion')
 
     async def delete(self):
-        for j in await self.get_jobs():
+        # for j in await self.get_jobs():
             # Job deleted from database when batch is deleted with delete cascade
-            await j._delete_gs_files()
+            # await j._delete_gs_files()
+        await asyncio.gather(*[j._delete_gs_files() for j in await self.get_jobs()])
         await db.batch.delete_record(self.id)
         log.info(f'batch {self.id} deleted')
 
