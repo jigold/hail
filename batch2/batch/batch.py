@@ -117,6 +117,17 @@ class JobStateWriteFailure(Exception):
     pass
 
 
+class DeblockedIterator:
+    def __init__(self, it):
+        self.it = it
+
+    def __aiter__(self):
+        return self
+
+    def __anext__(self):
+        return blocking_to_async(app['blocking_pool'], self.it.__next__)
+
+
 class Job:
     @staticmethod
     def _copy_container(name, files):
@@ -759,7 +770,9 @@ class Batch:
         log.info(f'batch {self.id} cancelled')
 
     async def _close_jobs(self):
-        for j in await self.get_jobs():
+        jobs = await self.get_jobs()
+        async for j in DeblockedIterator(jobs):
+            log.info(f'{type(j)}')
             if j._state == 'Running':
                 asyncio.ensure_future(j._create_pod())
 

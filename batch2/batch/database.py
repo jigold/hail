@@ -42,7 +42,8 @@ class Database:
                                                charset=self.charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
                                                autocommit=True,
-                                               maxsize=100)
+                                               maxsize=100,
+                                               connect_timeout=100)
 
 def make_where_statement(items):
     template = []
