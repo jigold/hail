@@ -15,6 +15,29 @@ def run_synchronous(coro):
     return loop.run_until_complete(coro)
 
 
+async def _retry(f, *args, **kwargs):
+    n_attempts = 0
+    saved_err = None
+    while n_attempts < MAX_RETRIES:
+        n_attempts += 1
+        try:
+            return await f(*args, **kwargs)
+        except pymysql.err.OperationalError as err:
+            saved_err = err
+            x = err.args
+            assert len(x) == 2, x
+            code = x[0]
+            if code not in (1213, 2003):
+                log.info(f'{err!r}')
+                raise err
+            log.info(f'ignoring error {err}; retrying query after {n_attempts} attempts')
+            await asyncio.sleep(0.5)
+        except Exception as err:
+            log.info(f'unknown exception {err!r}')
+            raise err
+    raise saved_err
+
+
 @asyncinit
 class Database:
     @classmethod
@@ -45,6 +68,10 @@ class Database:
                                                maxsize=100,
                                                connect_timeout=100)
 
+    def acquire(self):
+        return _retry(self._pool.acquire)
+
+
 def make_where_statement(items):
     template = []
     values = []
@@ -67,44 +94,20 @@ def make_where_statement(items):
     return template, values
 
 
-async def _retry(cursor, f):
-    n_attempts = 0
-    saved_err = None
-    while n_attempts < MAX_RETRIES:
-        n_attempts += 1
-        try:
-            result = await f(cursor)
-            return result
-        except pymysql.err.OperationalError as err:
-            saved_err = err
-            x = err.args
-            assert len(x) == 2, x
-            code = x[0]
-            if code not in (1213, 2003):
-                log.info(f'{err!r}')
-                raise err
-            log.info(f'ignoring error {err}; retrying query after {n_attempts} attempts')
-            await asyncio.sleep(0.5)
-        except Exception as err:
-            log.info(f'unknown exception {err!r}')
-            raise err
-    raise saved_err
-
-
 async def execute_with_retry(cursor, sql, items=None):
-    await _retry(cursor, lambda c: c.execute(sql, items))
+    await _retry(lambda c: c.execute(sql, items), cursor)
 
 
 async def executemany_with_retry(cursor, sql, items):
-    await _retry(cursor, lambda c: c.executemany(sql, items))
+    await _retry(lambda c: c.executemany(sql, items), cursor)
 
 
 async def fetchall_with_retry(cursor):
-    return await _retry(cursor, lambda c: c.fetchall())
+    return await _retry(lambda c: c.fetchall(), cursor)
 
 
 async def fetchone_with_retry(cursor):
-    return await _retry(cursor, lambda c: c.fetchone())
+    return await _retry(lambda c: c.fetchone(), cursor)
 
 
 class Table:  # pylint: disable=R0903
@@ -212,6 +215,7 @@ class JobsBuilder:
         assert self._is_open
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
+                execute_with_retry(cursor, 'SET foreign_key_checks=0;')
                 if len(self._jobs) > 0:
                     await executemany_with_retry(cursor, self._jobs_sql, self._jobs)
                     n_jobs_inserted = cursor.rowcount
@@ -225,6 +229,8 @@ class JobsBuilder:
                     if n_jobs_parents_inserted != len(self._jobs_parents):
                         log.info(f'inserted {n_jobs_parents_inserted} jobs parents, but expected {len(self._jobs_parents)}')
                         return False
+
+                cursor.execute('SET foreign_key_checks=1;')
                 return True
 
 

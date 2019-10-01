@@ -197,7 +197,6 @@ class Job:
                         }),
             spec=pod_spec)
 
-        log.info(f'creating pod for {self.id}')
         err = await app['driver'].create_pod(spec=pod_template.to_dict(),
                                              output_directory=self.directory)
         if err is not None:

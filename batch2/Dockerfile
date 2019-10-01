@@ -8,5 +8,7 @@ RUN pip3 install --no-cache-dir /batch && \
   rm -rf /batch
 
 EXPOSE 5000
+RUN echo "import batch.__main__" > run.py
 
-CMD ["python3", "-m", "batch"]
+# CMD ["python3", "-m", "cProfile", "run.py"]
+# CMD ["python3", "-m", "batch"]
