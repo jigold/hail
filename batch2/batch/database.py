@@ -215,7 +215,7 @@ class JobsBuilder:
         assert self._is_open
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                execute_with_retry(cursor, 'SET foreign_key_checks=0;')
+                # execute_with_retry(cursor, 'SET foreign_key_checks=0;')
                 if len(self._jobs) > 0:
                     await executemany_with_retry(cursor, self._jobs_sql, self._jobs)
                     n_jobs_inserted = cursor.rowcount
@@ -230,7 +230,7 @@ class JobsBuilder:
                         log.info(f'inserted {n_jobs_parents_inserted} jobs parents, but expected {len(self._jobs_parents)}')
                         return False
 
-                cursor.execute('SET foreign_key_checks=1;')
+                # cursor.execute('SET foreign_key_checks=1;')
                 return True
 
 

@@ -19,7 +19,7 @@ CREATE INDEX `batch_user` ON `batch` (`user`);
 CREATE INDEX `batch_deleted` ON `batch` (`deleted`);
 
 CREATE TABLE IF NOT EXISTS `jobs` (
-  `idx` BIGINT NOT NULL AUTO_INCREMENT,
+#  `idx` BIGINT NOT NULL AUTO_INCREMENT,
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `state` VARCHAR(40) NOT NULL,
@@ -36,14 +36,14 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `messages` TEXT(65535),
   `input_files` TEXT(65535),
   `output_files` TEXT(65535),
-  `instance` VARCHAR(100),
-  PRIMARY KEY (`idx`),
-#  PRIMARY KEY (`batch_id`, `job_id`),
+#  `instance` VARCHAR(100),
+#  PRIMARY KEY (`idx`),
+  PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX `jobs_key` ON `jobs` (`batch_id`, `job_id`);
+#CREATE INDEX `jobs_key` ON `jobs` (`batch_id`, `job_id`);
 CREATE INDEX `jobs_state` ON `jobs` (`state`);
-CREATE INDEX `jobs_instance` ON `jobs` (`instance`);
+#CREATE INDEX `jobs_instance` ON `jobs` (`instance`);
 
 CREATE TABLE IF NOT EXISTS `jobs-parents` (
   `batch_id` BIGINT NOT NULL,

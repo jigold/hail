@@ -395,7 +395,8 @@ class BatchBuilder:
         response = await self._request_with_retry(
             self._client._post,
             f'/api/v1alpha/batches/{batch_id}/jobs/create',
-            json={'jobs': docs})
+            json={'jobs': docs},
+            compress=True)
         return response
 
     async def submit(self):

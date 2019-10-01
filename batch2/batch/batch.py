@@ -895,11 +895,11 @@ async def create_jobs(request, userdata):
     jobs_parameters = await request.json()
     log.info(f'took {round(time.time() - start2, 3)} seconds to get data from server')
 
-    start3 = time.time()
-    validator = await blocking_to_async(app['blocking_pool'], cerberus.Validator, schemas.job_array_schema)
-    if not validator.validate(jobs_parameters):
-        abort(400, 'invalid request: {}'.format(validator.errors))
-    log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
+    # start3 = time.time()
+    # validator = await blocking_to_async(app['blocking_pool'], cerberus.Validator, schemas.job_array_schema)
+    # if not validator.validate(jobs_parameters):
+    #     abort(400, 'invalid request: {}'.format(validator.errors))
+    # log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
 
     start4 = time.time()
     jobs_builder = JobsBuilder(db)
