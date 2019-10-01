@@ -5,6 +5,8 @@ import aiohttp
 from asyncinit import asyncinit
 import logging
 import time
+import gzip
+import json
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
@@ -493,9 +495,11 @@ class BatchClient:
             self.url + path, params=params, headers=self._headers)
         return await response.json()
 
-    async def _post(self, path, json=None, **kwargs):
+    async def _post(self, path, _json=None, **kwargs):
+        print(len((json.dumps(_json)).encode('utf-8')))
+        print(len(gzip.compress((json.dumps(_json)).encode('utf-8'))))
         response = await self._session.post(
-            self.url + path, json=json, headers=self._headers, **kwargs)
+            self.url + path, json=_json, headers=self._headers, **kwargs)
         return await response.json()
 
     async def _patch(self, path):
