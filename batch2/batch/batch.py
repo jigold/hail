@@ -896,7 +896,7 @@ async def create_jobs(request, userdata):
     log.info(f'took {round(time.time() - start2, 3)} seconds to get data from server')
 
     start3 = time.time()
-    validator = cerberus.Validator(schemas.job_array_schema)
+    validator = await blocking_to_async(app['blocking_pool'], cerberus.Validator, schemas.job_array_schema)
     if not validator.validate(jobs_parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
     log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
