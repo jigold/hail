@@ -19,7 +19,7 @@ CREATE INDEX `batch_user` ON `batch` (`user`);
 CREATE INDEX `batch_deleted` ON `batch` (`deleted`);
 
 CREATE TABLE IF NOT EXISTS `jobs` (
-  `idx` BIGINT NOT NULL AUTOINCREMENT,
+  `idx` BIGINT NOT NULL AUTO_INCREMENT,
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `state` VARCHAR(40) NOT NULL,
