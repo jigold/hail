@@ -2,6 +2,9 @@ import pymysql.cursors
 import json
 import time
 import statistics
+import asyncio
+import aiomysql
+import sys
 
 config_file = '/batch-user-secret/sql-config.json'
 
@@ -20,13 +23,6 @@ batch_field_names = {'attributes', 'callback', 'userdata', 'user', 'deleted',
 with open(config_file, 'r') as f:
     config = json.loads(f.read().strip())
 
-connection = pymysql.connect(host=config['host'],
-                             user=config['user'],
-                             password=config['password'],
-                             db=config['db'],
-                             charset='utf8',
-                             cursorclass=pymysql.cursors.DictCursor,
-                             autocommit=True)
 
 # pymysql.cursors.DictCursor.max_stmt_length *= 5
 # print(pymysql.cursors.DictCursor.max_stmt_length)
@@ -39,29 +35,24 @@ def new_record_template(table_name, *field_names):
     return sql
 
 
-def insert_batch(**data):
-    start = time.time()
-    with connection.cursor() as cursor:
-        sql = new_record_template('batch', *data)
-        cursor.execute(sql, data)
-        id = cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
-        return id, time.time() - start
+async def insert_batch(pool, **data):
+    async with pool.acquire() as conn:
+        start = time.time()
+        with conn.cursor() as cursor:
+            sql = new_record_template('batch', *data)
+            cursor.execute(sql, data)
+            id = cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
+            return id, time.time() - start
 
 
-def insert_job(**data):
-    start = time.time()
-    with connection.cursor() as cursor:
-        sql = new_record_template('jobs', *data)
-        cursor.execute(sql, data)
-        return time.time() - start
-
-
-def insert_jobs(data):
-    start = time.time()
-    with connection.cursor() as cursor:
-        sql = new_record_template('jobs', *(data[0]))
-        cursor.executemany(sql, data)
-        return time.time() - start
+async def insert_jobs(pool, sem, data):
+    async with sem:
+        async with pool.acquire() as conn:
+            start = time.time()
+            with conn.cursor() as cursor:
+                sql = new_record_template('jobs', *(data[0]))
+                cursor.executemany(sql, data)
+                return time.time() - start
 
 
 def job_spec(image, env=None, command=None, args=None, ports=None,
@@ -118,14 +109,27 @@ def job_spec(image, env=None, command=None, args=None, ports=None,
     return spec
 
 
-def test():
-    sem = asyncio.Semaphore()
+async def test():
+    pool = await aiomysql.create_pool(
+        host=config['host'],
+        port=config['port'],
+        db=config['db'],
+        user=config['user'],
+        password=config['password'],
+        charset='utf8',
+        cursorclass=aiomysql.cursors.DictCursor,
+        autocommit=True,
+        maxsize=100,
+        connect_timeout=100)
+
+    sem = asyncio.Semaphore(2)
+
     try:
         insert_batch_timings = []
         insert_jobs_timings = {}
         batch_n = 10
 
-        for jobs_n in (1, 10, 100, 1000, 10000, 100000):
+        for jobs_n in (1000, 10000, 100000):
             print(jobs_n)
             insert_jobs_timings[jobs_n] = []
 
@@ -136,7 +140,7 @@ def test():
                         'cancelled': False,
                         'closed': False,
                         'n_jobs': 5}
-                batch_id, timing = insert_batch(**data)
+                batch_id, timing = await insert_batch(**data)
                 insert_batch_timings.append(timing)
 
                 jobs_data = []
@@ -158,8 +162,11 @@ def test():
                             'exit_codes': json.dumps([None, None, None])}
                     jobs_data.append(data)
 
-                timing = insert_jobs(jobs_data)
-                insert_jobs_timings[jobs_n].append(timing)
+                jobs_data = [jobs_data[i:i + 1000] for i in range(0, len(jobs_data), 1000)]
+
+                start = time.time()
+                await asyncio.gather(*[insert_jobs(pool, sem, jd) for jd in jobs_data])
+                insert_jobs_timings[jobs_n].append(time.time() - start)
 
         print(f'insert batch: n={len(insert_batch_timings)} mean={statistics.mean(insert_batch_timings)} variance={statistics.variance(insert_batch_timings)}')
 
@@ -167,4 +174,7 @@ def test():
             print(f'insert jobs: n={jobs_n} mean={statistics.mean(timings)} variance={statistics.variance(timings)}')
 
     finally:
-        connection.close()
+        pool.close()
+
+asyncio.run(test())
+sys.exit(1)
