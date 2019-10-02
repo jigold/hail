@@ -8,8 +8,6 @@ import sys
 
 config_file = '/batch-user-secret/sql-config.json'
 
-batch_id = 1
-
 
 userdata = {'username': 'jigold',
             'service-account': 'foo@gmail.com',
@@ -40,7 +38,7 @@ async def insert_batch(pool, **data):
         start = time.time()
         with conn.cursor() as cursor:
             sql = new_record_template('batch', *data)
-            cursor.execute(sql, data)
+            await cursor.execute(sql, data)
             id = cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
             return id, time.time() - start
 
@@ -51,7 +49,7 @@ async def insert_jobs(pool, sem, data):
             start = time.time()
             with conn.cursor() as cursor:
                 sql = new_record_template('jobs', *(data[0]))
-                cursor.executemany(sql, data)
+                await cursor.executemany(sql, data)
                 return time.time() - start
 
 
