@@ -28,6 +28,9 @@ connection = pymysql.connect(host=config['host'],
                              cursorclass=pymysql.cursors.DictCursor,
                              autocommit=True)
 
+pymysql.cursors.DictCursor.max_stmt_length *= 5
+print(pymysql.cursors.DictCursor.max_stmt_length)
+
 
 def new_record_template(table_name, *field_names):
     names = ", ".join([f'`{name.replace("`", "``")}`' for name in field_names])
