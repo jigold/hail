@@ -36,7 +36,7 @@ def new_record_template(table_name, *field_names):
 async def insert_batch(pool, **data):
     async with pool.acquire() as conn:
         start = time.time()
-        with conn.cursor() as cursor:
+        async with conn.cursor() as cursor:
             sql = new_record_template('batch', *data)
             await cursor.execute(sql, data)
             id = cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
@@ -47,7 +47,7 @@ async def insert_jobs(pool, sem, data):
     async with sem:
         async with pool.acquire() as conn:
             start = time.time()
-            with conn.cursor() as cursor:
+            async with conn.cursor() as cursor:
                 sql = new_record_template('jobs', *(data[0]))
                 await cursor.executemany(sql, data)
                 return time.time() - start
