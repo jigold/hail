@@ -56,7 +56,7 @@ def insert_job(**data):
 def insert_jobs(data):
     start = time.time()
     with connection.cursor() as cursor:
-        sql = new_record_template('jobs', *data[0])
+        sql = new_record_template('jobs', *(data[0]))
         cursor.executemany(sql, data)
         return time.time() - start
 
@@ -152,7 +152,7 @@ try:
                         'output_files': json.dumps(['gs://fdsfadfefadf/afdsasfewa/wip/a.txt']),
                         'exit_codes': json.dumps([None, None, None])}
                 jobs_data.append(data)
-        
+
             timing = insert_jobs(data)
             insert_jobs_timings[jobs_n].append(timing)
 
