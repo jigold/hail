@@ -240,6 +240,13 @@ steps:
    dependsOn:
      - service_base_image
  - kind: buildImage
+   name: db_benchmark_image
+   dockerFile: batch2/Dockerfile.benchmark
+   contextPath: .
+   publishAs: db-benchmark-image
+   dependsOn:
+     - service_base_image     
+ - kind: buildImage
    name: test_batch_image
    dockerFile: batch/Dockerfile.test
    contextPath: .
@@ -761,7 +768,17 @@ steps:
     - batch2_image
     - batch2_database
     - deploy_auth
-    - create_batch2_tables
+    - create_batch2_tables_2
+ - kind: deploy
+   name: deploy_db_benchmark
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/deployment.benchmark.yaml
+   dependsOn:
+    - default_ns
+    - db_benchmark_image
+    - batch2_database
+    - create_batch2_tables_2
  - kind: deploy
    name: deploy_image_fetcher
    namespace:
