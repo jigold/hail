@@ -176,11 +176,6 @@ async def test():
     finally:
         pool.close()
 
-print()
-print()
-print()
-
 loop = asyncio.get_event_loop()
 loop.run_until_complete(test())
 loop.close()
-time.sleep(60)
