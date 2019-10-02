@@ -58,6 +58,15 @@ steps:
    publishAs: service-base
    dependsOn:
     - base_image
+ - kind: buildImage
+   name: db_benchmark_image
+   dockerFile: batch2/benchmark/Dockerfile
+   contextPath: .
+   publishAs: db-benchmark-image
+   dependsOn:
+     - service_base_image
+   scopes:
+    - dev
  - kind: runImage
    name: check_gear
    image:
@@ -610,12 +619,25 @@ steps:
      valueFrom: default_ns.name
    dependsOn:
     - default_ns
+ - kind: createDatabase
+   name: batch2_database
+   databaseName: batch2
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns    
  - kind: buildImage
    name: create_batch_tables_image
    dockerFile: batch/Dockerfile.create-tables
    contextPath: batch
    dependsOn:
     - base_image
+ - kind: buildImage
+   name: batch2_tables_image
+   dockerFile: batch2/Dockerfile.table
+   contextPath: batch2
+   dependsOn:
+    - base_image    
  - kind: deploy
    name: create_batch_tables
    namespace:
@@ -646,6 +668,52 @@ steps:
      - batch_database
      - create_batch_tables
  - kind: deploy
+   name: delete_batch2_tables
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/delete-batch-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: delete-batch2-tables
+      for: completed
+      timeout: 120
+   scopes:
+     - dev
+   dependsOn:
+     - default_ns
+     - batch2_tables_image
+     - batch2_database
+ - kind: deploy
+   name: create_batch2_tables
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/create-batch-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-batch2-tables
+      for: completed
+      timeout: 120
+   dependsOn:
+     - default_ns
+     - batch2_tables_image
+     - batch2_database
+     - delete_batch2_tables
+ - kind: deploy
+   name: create_batch2_tables_2
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/create-batch-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-batch2-tables
+      for: completed
+      timeout: 120
+   dependsOn:
+     - default_ns
+     - batch2_tables_image
+     - batch2_database
+     - create_batch2_tables     
+ - kind: deploy
    name: deploy_batch
    namespace:
      valueFrom: default_ns.name
@@ -663,6 +731,23 @@ steps:
     - batch_database
     - deploy_auth
     - create_batch_tables
+ - kind: deploy
+   name: deploy_db_benchmark
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/benchmark/benchmark-pod.yaml
+   wait:
+    - kind: Pod
+      name: db-benchmark
+      for: completed
+      timeout: 300
+   dependsOn:
+    - default_ns
+    - db_benchmark_image
+    - batch2_database
+    - create_batch2_tables
+   scopes:
+    - dev   
  - kind: deploy
    name: deploy_batch_pods
    namespace:
