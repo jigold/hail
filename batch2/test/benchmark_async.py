@@ -174,5 +174,7 @@ async def test():
     finally:
         pool.close()
 
-asyncio.run(test())
+loop = asyncio.get_event_loop()
+loop.run_until_complete(test())
+loop.close()
 sys.exit(1)
