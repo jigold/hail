@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `output_files` TEXT(65535),
 #  `instance` VARCHAR(100),
   PRIMARY KEY (`idx`),
-  PRIMARY KEY (`batch_id`, `job_id`),
+#  PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_key` ON `jobs` (`batch_id`, `job_id`);
