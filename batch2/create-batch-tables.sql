@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `deleted` BOOLEAN NOT NULL default false,
   `cancelled` BOOLEAN NOT NULL default false,
   `closed` BOOLEAN NOT NULL default false,
-  `n_jobs` INT NOT NULL default 0,
+  `n_jobs` INT NOT NULL,
   `n_completed` INT NOT NULL default 0,
   `n_succeeded` INT NOT NULL default 0,
   `n_failed` INT NOT NULL default 0,
