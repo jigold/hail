@@ -163,7 +163,9 @@ async def test():
                 jobs_data = [jobs_data[i:i + 1000] for i in range(0, len(jobs_data), 1000)]
 
                 start = time.time()
-                await asyncio.gather(*[insert_jobs(pool, sem, jd) for jd in jobs_data])
+                timings = await asyncio.gather(*[insert_jobs(pool, sem, jd) for jd in jobs_data])
+                for timing in timings:
+                    print(timing)
                 insert_jobs_timings[jobs_n].append(time.time() - start)
 
         print(f'insert batch: n={len(insert_batch_timings)} mean={statistics.mean(insert_batch_timings)} variance={statistics.variance(insert_batch_timings)}')
@@ -177,4 +179,4 @@ async def test():
 loop = asyncio.get_event_loop()
 loop.run_until_complete(test())
 loop.close()
-sys.exit(1)
+time.sleep(60)
