@@ -38,3 +38,4 @@ spec:
         operator: "Equal"
         value: "true"
         effect: "NoSchedule"
+      restartPolicy: Never
