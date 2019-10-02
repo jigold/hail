@@ -773,7 +773,12 @@ steps:
    name: deploy_db_benchmark
    namespace:
      valueFrom: default_ns.name
-   config: batch2/deployment.benchmark.yaml
+   config: batch2/benchmark-pod.yaml
+   wait:
+    - kind: Pod
+      name: db-benchmark
+      for: completed
+      timeout: 360
    dependsOn:
     - default_ns
     - db_benchmark_image

@@ -14,9 +14,6 @@ spec:
       labels:
         app: db-benchmark
     spec:
-{% if deploy %}
-      priorityClassName: production
-{% endif %}
       containers:
       - name: db-benchmark
         image: {{ db_benchmark_image.image }}

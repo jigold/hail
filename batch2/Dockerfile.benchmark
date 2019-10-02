@@ -2,5 +2,3 @@ FROM {{ service_base_image.image }}
 
 COPY batch2/test/benchmark.py /
 COPY batch2/test/benchmark_async.py /
-
-CMD ["python3", "/benchmark_async.py"]
