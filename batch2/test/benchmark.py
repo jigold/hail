@@ -25,17 +25,17 @@ connection = pymysql.connect(host=config['host'],
                              autocommit=True)
 
 
-def new_record_template(self, *field_names):
+def new_record_template(table_name, *field_names):
     names = ", ".join([f'`{name.replace("`", "``")}`' for name in field_names])
     values = ", ".join([f"%({name})s" for name in field_names])
-    sql = f"INSERT INTO `{self.name}` ({names}) VALUES ({values})"
+    sql = f"INSERT INTO `{table_name}` ({names}) VALUES ({values})"
     return sql
 
 
 def insert_batch(**data):
     start = time.time()
     with connection.cursor() as cursor:
-        sql = new_record_template(*data)
+        sql = new_record_template('batch', *data)
         cursor.execute(sql, data)
         id = cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
         return id, time.time() - start
@@ -56,6 +56,6 @@ try:
         _, timing = insert_batch()
         timings.add(timing)
     print(f'insert batch: n={n} mean={statistics.mean(timings)} variance={statistics.variance(timings)}')
-    
+
 finally:
     connection.close()
