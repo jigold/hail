@@ -112,7 +112,7 @@ try:
     batch_n = 100
     jobs_n = 100
     for i in range(batch_n):
-        data = {'userdata': userdata,
+        data = {'userdata': json.dumps(userdata),
                 'user': 'jigold',
                 'deleted': False,
                 'cancelled': False,
