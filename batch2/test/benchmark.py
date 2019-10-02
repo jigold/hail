@@ -120,7 +120,7 @@ try:
     insert_jobs_timings = {}
     batch_n = 10
 
-    for jobs_n in (1, 10, 100, 1000, 10000):
+    for jobs_n in (1, 10, 100, 1000, 10000, 100000):
         print(jobs_n)
         insert_jobs_timings[jobs_n] = []
 
