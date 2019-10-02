@@ -138,7 +138,7 @@ async def test():
                         'cancelled': False,
                         'closed': False,
                         'n_jobs': 5}
-                batch_id, timing = await insert_batch(**data)
+                batch_id, timing = await insert_batch(pool, **data)
                 insert_batch_timings.append(timing)
 
                 jobs_data = []
