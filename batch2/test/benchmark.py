@@ -153,7 +153,7 @@ try:
                         'exit_codes': json.dumps([None, None, None])}
                 jobs_data.append(data)
 
-            timing = insert_jobs(data)
+            timing = insert_jobs(jobs_data)
             insert_jobs_timings[jobs_n].append(timing)
 
     print(f'insert batch: n={len(insert_batch_timings)} mean={statistics.mean(insert_batch_timings)} variance={statistics.variance(insert_batch_timings)}')
