@@ -54,7 +54,7 @@ try:
                 'closed': False,
                 'n_jobs': 5}
         _, timing = insert_batch()
-        timings.add(timing)
+        timings.append(timing)
     print(f'insert batch: n={n} mean={statistics.mean(timings)} variance={statistics.variance(timings)}')
 
 finally:
