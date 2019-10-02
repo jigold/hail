@@ -53,6 +53,14 @@ def insert_job(**data):
         return time.time() - start
 
 
+def insert_jobs(data):
+    start = time.time()
+    with connection.cursor() as cursor:
+        sql = new_record_template('jobs', *data[0])
+        cursor.executemany(sql, data)
+        return time.time() - start
+
+
 def job_spec(image, env=None, command=None, args=None, ports=None,
              resources=None, volumes=None, tolerations=None,
              security_context=None, service_account_name=None):
@@ -106,42 +114,52 @@ def job_spec(image, env=None, command=None, args=None, ports=None,
 
     return spec
 
+
 try:
     insert_batch_timings = []
-    insert_jobs_timings = []
-    batch_n = 100
-    jobs_n = 100
-    for i in range(batch_n):
-        data = {'userdata': json.dumps(userdata),
-                'user': 'jigold',
-                'deleted': False,
-                'cancelled': False,
-                'closed': False,
-                'n_jobs': 5}
-        batch_id, timing = insert_batch(**data)
-        insert_batch_timings.append(timing)
+    insert_jobs_timings = {}
+    batch_n = 10
 
-        for job_id in range(jobs_n):
-            spec = job_spec('alpine', command=['sleep', '40'])
-            data = {'batch_id': batch_id,
-                    'job_id': job_id,
-                    'state': 'Running',
-                    'pvc_size': '100M',
-                    'callback': 'http://foo.com/callback',
-                    'attributes': json.dumps({'job': f'{job_id}',
-                                              'app': 'batch'}),
-                    'always_run': False,
-                    'token': 'dfsafdsasd',
-                    'directory': f'gs://fdsaofsaoureqr/fadsfafdsfdasfd/{batch_id}/{job_id}/',
-                    'pod_spec': json.dumps(spec),
-                    'input_files': json.dumps(['foo.txt', 'gs://ffadsfe/fadsfad/foo.txt']),
-                    'output_files': json.dumps(['gs://fdsfadfefadf/afdsasfewa/wip/a.txt']),
-                    'exit_codes': json.dumps([None, None, None])}
-            timing = insert_job(**data)
-            insert_jobs_timings.append(timing)
+    for jobs_n in (1, 10, 100, 1000, 10000):
+        print(jobs_n)
+        insert_jobs_timings[jobs_n] = []
 
-    print(f'insert batch: n={batch_n} mean={statistics.mean(insert_batch_timings)} variance={statistics.variance(insert_batch_timings)}')
-    print(f'insert jobs: n={batch_n * jobs_n} mean={statistics.mean(insert_jobs_timings)} variance={statistics.variance(insert_jobs_timings)}')
+        for i in range(batch_n):
+            data = {'userdata': json.dumps(userdata),
+                    'user': 'jigold',
+                    'deleted': False,
+                    'cancelled': False,
+                    'closed': False,
+                    'n_jobs': 5}
+            batch_id, timing = insert_batch(**data)
+            insert_batch_timings.append(timing)
+
+            jobs_data = []
+            for job_id in range(jobs_n):
+                spec = job_spec('alpine', command=['sleep', '40'])
+                data = {'batch_id': batch_id,
+                        'job_id': job_id,
+                        'state': 'Running',
+                        'pvc_size': '100M',
+                        'callback': 'http://foo.com/callback',
+                        'attributes': json.dumps({'job': f'{job_id}',
+                                                  'app': 'batch'}),
+                        'always_run': False,
+                        'token': 'dfsafdsasd',
+                        'directory': f'gs://fdsaofsaoureqr/fadsfafdsfdasfd/{batch_id}/{job_id}/',
+                        'pod_spec': json.dumps(spec),
+                        'input_files': json.dumps(['foo.txt', 'gs://ffadsfe/fadsfad/foo.txt']),
+                        'output_files': json.dumps(['gs://fdsfadfefadf/afdsasfewa/wip/a.txt']),
+                        'exit_codes': json.dumps([None, None, None])}
+                jobs_data.append(data)
+        
+            timing = insert_jobs(data)
+            insert_jobs_timings[jobs_n].append(timing)
+
+    print(f'insert batch: n={len(insert_batch_timings)} mean={statistics.mean(insert_batch_timings)} variance={statistics.variance(insert_batch_timings)}')
+
+    for jobs_n, timings in insert_jobs_timings.items():
+        print(f'insert jobs: n={jobs_n} mean={statistics.mean(timings)} variance={statistics.variance(timings)}')
 
 finally:
     connection.close()
