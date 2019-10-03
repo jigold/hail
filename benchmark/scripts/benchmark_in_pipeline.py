@@ -14,7 +14,7 @@ if __name__ == '__main__':
     N_ITERS = int(sys.argv[5])
 
     p = pl.Pipeline(name='benchmark',
-                    backend=pl.BatchBackend(_service='batch2'),
+                    backend=pl.BatchBackend(),
                     default_image=BENCHMARK_IMAGE,
                     default_storage='10G',
                     default_memory='7G',
