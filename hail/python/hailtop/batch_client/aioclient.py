@@ -13,11 +13,11 @@ from hailtop.auth import async_get_userinfo, service_auth_headers
 
 from .globals import complete_states
 
-job_array_size = 10000
+job_array_size = 1000
 
 log = logging.getLogger('aioclient')
 
-request_sem = asyncio.Semaphore(10)
+request_sem = asyncio.Semaphore(2)
 
 
 def filter_params(complete, success, attributes):
