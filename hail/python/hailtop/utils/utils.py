@@ -1,7 +1,4 @@
 import asyncio
-import logging
-
-log = logging.getLogger('utils')
 
 
 def unzip(l):
