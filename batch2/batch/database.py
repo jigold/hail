@@ -68,9 +68,6 @@ class Database:
                                                maxsize=100,
                                                connect_timeout=100)
 
-    def acquire(self):
-        return _retry(self._pool.acquire)
-
 
 def make_where_statement(items):
     template = []
