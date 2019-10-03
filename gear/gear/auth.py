@@ -50,8 +50,8 @@ def _authenticated_users_only(rest, redirect):
                     async with session.get(deploy_config.url('auth', '/api/v1alpha/userinfo'),
                                            headers=headers) as resp:
                         userdata = await resp.json()
-            except Exception:  # pylint: disable=broad-except
-                log.exception('getting userinfo')
+            except Exception as err:  # pylint: disable=broad-except
+                log.exception('getting userinfo: {err}')
                 unauth()
             return await fun(request, userdata, *args, **kwargs)
         return wrapped
