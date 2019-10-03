@@ -1262,7 +1262,9 @@ async def on_startup(app):
     await refresh_pods()  # this is really slow for large N
 
     asyncio.ensure_future(driver.run())
-    # asyncio.ensure_future(polling_event_loop())  # we need a polling event loop in case a delete happens before a create job, but this is too slow
+    # we need a polling event loop in case a delete happens before a create job, but this is too slow
+    # we also need a polling loop in case pod creation fails
+    # asyncio.ensure_future(polling_event_loop())
     asyncio.ensure_future(driver_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
     # asyncio.ensure_future(profile_loop())

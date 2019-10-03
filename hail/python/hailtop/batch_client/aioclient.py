@@ -395,8 +395,7 @@ class BatchBuilder:
         response = await self._request_with_retry(
             self._client._post,
             f'/api/v1alpha/batches/{batch_id}/jobs/create',
-            json={'jobs': docs},
-            compress=True)
+            json={'jobs': docs})
         return response
 
     async def submit(self):
@@ -482,14 +481,14 @@ class BatchClient:
             h.update(service_auth_headers(deploy_config, _service))
         self._headers = h
 
-    async def _get(self, path, params=None, **kwargs):
+    async def _get(self, path, params=None):
         response = await self._session.get(
             self.url + path, params=params, headers=self._headers)
         return await response.json()
 
-    async def _post(self, path, json=None, **kwargs):
+    async def _post(self, path, json=None):
         response = await self._session.post(
-            self.url + path, json=json, headers=self._headers, **kwargs)
+            self.url + path, json=json, headers=self._headers)
         return await response.json()
 
     async def _patch(self, path):
