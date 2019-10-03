@@ -755,8 +755,6 @@ class Batch:
 
     async def _cancel_jobs(self):
         await asyncio.gather(*[j.cancel() for j in await self.get_jobs()])
-        # for j in await self.get_jobs():
-        #     asyncio.ensure_future(j.cancel())
 
     async def cancel(self):
         await db.batch.update_record(self.id, cancelled=True, closed=True)
@@ -768,9 +766,6 @@ class Batch:
     async def _close_jobs(self):
         await asyncio.gather(*[j._create_pod() for j in await self.get_jobs()
                                if j._state == 'Running'])
-        # for j in await self.get_jobs():
-        #     if j._state == 'Running':
-        #         asyncio.ensure_future(j._create_pod())
 
     async def close(self):
         await db.batch.update_record(self.id, closed=True)
@@ -787,10 +782,6 @@ class Batch:
         log.info(f'batch {self.id} marked for deletion')
 
     async def delete(self):
-        # for j in await self.get_jobs():
-            # Job deleted from database when batch is deleted with delete cascade
-            # await j._delete_gs_files()
-
         # Job deleted from database when batch is deleted with delete cascade
         await asyncio.gather(*[j._delete_gs_files() for j in await self.get_jobs()])
         await db.batch.delete_record(self.id)
