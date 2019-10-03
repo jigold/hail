@@ -16,8 +16,6 @@ job_array_size = 1000
 
 log = logging.getLogger('aioclient')
 
-request_sem = asyncio.Semaphore(2)
-
 
 def filter_params(complete, success, attributes):
     params = None
@@ -378,7 +376,6 @@ class BatchBuilder:
         i = 0
         while True:
             try:
-                async with request_sem:
                     start = time.time()
                     result = await f(*args, **kwargs)
                     print(f'took {round(time.time() - start, 3)} seconds to submit a request {f.__name__}')
@@ -392,12 +389,11 @@ class BatchBuilder:
                     i += 1
 
     async def _submit_job_with_retry(self, batch_id, docs):
-        # response = await self._request_with_retry(
-        #     self._client._post,
-        #     f'/api/v1alpha/batches/{batch_id}/jobs/create',
-        #     json={'jobs': docs})
-        return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create',
-                                        json={'jobs': docs})
+        return await self._request_with_retry(
+            self._client._post,
+            f'/api/v1alpha/batches/{batch_id}/jobs/create',
+            json={'jobs': docs})
+
 
     async def submit(self):
         if self._submitted:
@@ -412,12 +408,12 @@ class BatchBuilder:
 
         batch = None
         try:
-            # b = await self._request_with_retry(
-            #     self._client._post,
-            #     '/api/v1alpha/batches/create',
-            #     json=batch_doc
-            # )
-            b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
+            b = await self._request_with_retry(
+                self._client._post,
+                '/api/v1alpha/batches/create',
+                json=batch_doc
+            )
+            # b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
 
             batch = Batch(self._client, b['id'], b.get('attributes'))
 
@@ -439,10 +435,10 @@ class BatchBuilder:
 
             # await asyncio.gather(*futures)
 
-            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
-            # await self._request_with_retry(
-            #     self._client._patch,
-            #     f'/api/v1alpha/batches/{batch.id}/close')
+            # await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
+            await self._request_with_retry(
+                self._client._patch,
+                f'/api/v1alpha/batches/{batch.id}/close')
 
         except Exception as err:  # pylint: disable=W0703
             if batch:
