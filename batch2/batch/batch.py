@@ -193,14 +193,14 @@ class Job:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.id}')
                 return
-            # traceback.print_tb(err.__traceback__)
+            traceback.print_tb(err.__traceback__)
             log.info(f'pod creation failed for job {self.id} '
                      f'with the following error: {err}')
 
     async def _delete_pod(self):
         err = await app['driver'].delete_pod(name=self._pod_name)
         if err is not None:
-            # traceback.print_tb(err.__traceback__)
+            traceback.print_tb(err.__traceback__)
             log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
 
     async def _read_logs(self):
@@ -210,7 +210,7 @@ class Job:
         async def _read_log_from_gcs(task_name):
             pod_log, err = await app['log_store'].read_gs_file(LogStore.container_log_path(self.directory, task_name))
             if err is not None:
-                # traceback.print_tb(err.__traceback__)
+                traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read log for {self.id}, {task_name} '
                          f'due to {err}')
             return task_name, pod_log
@@ -218,7 +218,7 @@ class Job:
         async def _read_log_from_worker(task_name):
             pod_log, err = await app['driver'].read_pod_log(self._pod_name, container=task_name)
             if err is not None:
-                # traceback.print_tb(err.__traceback__)
+                traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read log for {self.id}, {task_name} '
                          f'due to {err}; will still try to load other containers')
             return task_name, pod_log
@@ -238,7 +238,7 @@ class Job:
         async def _read_status_from_gcs(task_name):
             status, err = await app['log_store'].read_gs_file(LogStore.container_status_path(self.directory, task_name))
             if err is not None:
-                # traceback.print_tb(err.__traceback__)
+                traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read container status for {self.id} '
                          f'due to {err}')
             return task_name, status
@@ -247,7 +247,7 @@ class Job:
             status, err = await app['driver'].read_container_status(self._pod_name, container=task_name)
             log.info(f'status {status} err {err}')
             if err is not None:
-                # traceback.print_tb(err.__traceback__)
+                traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read container status for {self.id} '
                          f'due to {err}; will still try to load other containers')
             return task_name, status
@@ -264,7 +264,7 @@ class Job:
         errs = await app['log_store'].delete_gs_files(self.directory)
         for file, err in errs:
             if err is not None:
-                # traceback.print_tb(err.__traceback__)
+                traceback.print_tb(err.__traceback__)
                 log.info(f'could not delete {self.directory}/{file} for job {self.id} due to {err}')
 
     @staticmethod
@@ -1274,7 +1274,7 @@ async def on_startup(app):
     # asyncio.ensure_future(polling_event_loop())  # we need a polling event loop in case a delete happens before a create job, but this is too slow
     asyncio.ensure_future(driver_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
-    asyncio.ensure_future(profile_loop())
+    # asyncio.ensure_future(profile_loop())
 
 
 app.on_startup.append(on_startup)
