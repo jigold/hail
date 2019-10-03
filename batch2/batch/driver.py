@@ -157,7 +157,7 @@ class Pod:
             return True
 
     async def put_on_ready(self):
-        # async with self.lock:
+        # FIXME: does this need a lock?
         assert not self.on_ready
 
         if self._status:
@@ -384,11 +384,10 @@ class Driver:
         if name in self.pods:
             return DriverException(409, f'pod {name} already exists')
 
-        pod = await Pod.create_pod(self, name, spec, output_directory)
-        # try:
-        #     pod = await Pod.create_pod(self, name, spec, output_directory)
-        # except Exception as err:
-        #     return DriverException(400, f'unknown error creating pod: {err}')  # FIXME: what error code should this be?
+        try:
+            pod = await Pod.create_pod(self, name, spec, output_directory)
+        except Exception as err:
+            return DriverException(400, f'unknown error creating pod: {err}')  # FIXME: what error code should this be?
 
         self.pods[name] = pod
         asyncio.ensure_future(pod.put_on_ready())

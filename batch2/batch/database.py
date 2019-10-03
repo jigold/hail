@@ -218,7 +218,6 @@ class JobsBuilder:
                     if n_jobs_parents_inserted != len(self._jobs_parents):
                         log.info(f'inserted {n_jobs_parents_inserted} jobs parents, but expected {len(self._jobs_parents)}')
                         return False
-
                 return True
 
 
