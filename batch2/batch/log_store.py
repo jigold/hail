@@ -52,15 +52,3 @@ class LogStore:
         files.extend([LogStore.container_status_path(directory, container) for container in tasks])
         errors = await asyncio.gather(*[self.delete_gs_file(file) for file in files])
         return list(zip(files, errors))
-
-        # for file in files:
-        #     err = await self.delete_gs_file(file)
-        #     errors.append((file, err))
-        # return errors
-
-
-        # try:
-        #     await check_shell(f'gsutil rm -r {directory}')
-        #     return None
-        # except CalledProcessError as err:
-        #     return err
