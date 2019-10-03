@@ -149,16 +149,12 @@ class Table:  # pylint: disable=R0903
                 sql = f"SELECT {select_fields} FROM `{self.name}` WHERE {where_template}"
                 await execute_with_retry(cursor, sql, tuple(where_values))
                 return await fetchall_with_retry(cursor)
-                # await cursor.execute(sql, tuple(where_values))
-                # return await cursor.fetchall()
 
     async def get_all_records(self):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await execute_with_retry(cursor, f"SELECT * FROM `{self.name}`")
                 return await fetchall_with_retry(cursor)
-                # await cursor.execute(f"SELECT * FROM `{self.name}`")
-                # return await cursor.fetchall()
 
     async def has_record(self, where_items):
         async with self._db.pool.acquire() as conn:
@@ -167,8 +163,6 @@ class Table:  # pylint: disable=R0903
                 sql = f"SELECT COUNT(1) FROM `{self.name}` WHERE {where_template}"
                 await execute_with_retry(cursor, sql, where_values)
                 result = await fetchone_with_retry(cursor)
-                # await cursor.execute(sql, where_values)
-                # result = await cursor.fetchone()
                 return result['COUNT(1)'] >= 1
 
     async def delete_record(self, where_items):
@@ -177,7 +171,6 @@ class Table:  # pylint: disable=R0903
                 where_template, where_values = make_where_statement(where_items)
                 sql = f"DELETE FROM `{self.name}` WHERE {where_template}"
                 await execute_with_retry(cursor, sql, tuple(where_values))
-                # await cursor.execute(sql, tuple(where_values))
 
 
 class JobsBuilder:
@@ -215,7 +208,6 @@ class JobsBuilder:
         assert self._is_open
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                # execute_with_retry(cursor, 'SET foreign_key_checks=0;')
                 if len(self._jobs) > 0:
                     await executemany_with_retry(cursor, self._jobs_sql, self._jobs)
                     n_jobs_inserted = cursor.rowcount
@@ -230,7 +222,6 @@ class JobsBuilder:
                         log.info(f'inserted {n_jobs_parents_inserted} jobs parents, but expected {len(self._jobs_parents)}')
                         return False
 
-                # cursor.execute('SET foreign_key_checks=1;')
                 return True
 
 
@@ -284,8 +275,6 @@ class JobsTable(Table):
                           INNER JOIN {batch_name} ON `{self.name}`.batch_id = `{batch_name}`.id"""
                 await execute_with_retry(cursor, sql)
                 return await fetchall_with_retry(cursor)
-                # await cursor.execute(sql)
-                # return await cursor.fetchall()
 
     async def get_records(self, batch_id, ids, fields=None):
         async with self._db.pool.acquire() as conn:
@@ -299,8 +288,6 @@ class JobsTable(Table):
                           WHERE {where_template}"""
                 await execute_with_retry(cursor, sql, tuple(where_values))
                 result = await fetchall_with_retry(cursor)
-                # await cursor.execute(sql, tuple(where_values))
-                # result = await cursor.fetchall()
         return result
 
     async def get_undeleted_records(self, batch_id, ids, user):
@@ -315,8 +302,6 @@ class JobsTable(Table):
                 (SELECT id from `{batch_name}` WHERE `{batch_name}`.id = batch_id AND `{batch_name}`.deleted = FALSE)"""
                 await execute_with_retry(cursor, sql, tuple(where_values))
                 result = await fetchall_with_retry(cursor)
-                # await cursor.execute(sql, tuple(where_values))
-                # result = await cursor.fetchall()
         return result
 
     async def has_record(self, batch_id, job_id):
@@ -335,8 +320,6 @@ class JobsTable(Table):
                           WHERE `{self.name}`.state IN %s AND `{jobs_parents_name}`.batch_id = %s AND `{jobs_parents_name}`.job_id = %s"""
                 await execute_with_retry(cursor, sql, (('Pending', 'Running'), batch_id, job_id))
                 result = await fetchall_with_retry(cursor)
-                # await cursor.execute(sql, (('Pending', 'Running'), batch_id, job_id))
-                # result = await cursor.fetchall()
                 return [(record['batch_id'], record['job_id']) for record in result]
 
     async def get_records_by_batch(self, batch_id, limit=None, offset=None):
@@ -372,8 +355,6 @@ class JobsTable(Table):
                           {limit} {offset}"""
                 await execute_with_retry(cursor, sql, where_values)
                 return await fetchall_with_retry(cursor)
-                # await cursor.execute(sql, where_values)
-                # return await cursor.fetchall()
 
     async def get_parents(self, batch_id, job_id):
         async with self._db.pool.acquire() as conn:
@@ -386,10 +367,8 @@ class JobsTable(Table):
                           INNER JOIN `{jobs_parents_name}`
                           ON `{self.name}`.batch_id = `{jobs_parents_name}`.batch_id AND `{self.name}`.job_id = `{jobs_parents_name}`.parent_id
                           WHERE `{jobs_parents_name}`.batch_id = %s AND `{jobs_parents_name}`.job_id = %s"""
-                # await cursor.execute(sql, (batch_id, job_id))
                 await execute_with_retry(cursor, sql, (batch_id, job_id))
                 return await fetchall_with_retry(cursor)
-                # return await cursor.fetchall()
 
     async def get_children(self, batch_id, parent_id):
         async with self._db.pool.acquire() as conn:
@@ -404,8 +383,6 @@ class JobsTable(Table):
                           WHERE `{jobs_parents_name}`.batch_id = %s AND `{jobs_parents_name}`.parent_id = %s"""
                 await execute_with_retry(cursor, sql, (batch_id, parent_id))
                 return await fetchall_with_retry(cursor)
-                # await cursor.execute(sql, (batch_id, parent_id))
-                # return await cursor.fetchall()
 
 
 class JobsParentsTable(Table):
@@ -484,9 +461,7 @@ class BatchTable(Table):
             async with self._db.pool.acquire() as conn:
                 async with conn.cursor() as cursor:
                     await execute_with_retry(cursor, sql, values)
-                    # await cursor.execute(sql, values)
                     return await fetchall_with_retry(cursor)
-                    # return await cursor.fetchall()
         except Exception as err:
             log.error(f'error encountered while executing: {sql} {values}')
             raise err
@@ -503,8 +478,6 @@ class BatchTable(Table):
                 sql = f"SELECT * FROM `{self.name}` WHERE `deleted` = TRUE AND `n_completed` = `n_jobs`"
                 await execute_with_retry(cursor, sql)
                 result = await fetchall_with_retry(cursor)
-                # await cursor.execute(sql)
-                # result = await cursor.fetchall()
         return result
 
     async def get_undeleted_records(self, ids, user):

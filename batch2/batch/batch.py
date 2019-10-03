@@ -39,6 +39,7 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL
     POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, BATCH_NAMESPACE
 from .driver import Driver
 from .k8s import K8s
+from .utils import abort, jsonify
 
 from . import schemas
 
@@ -83,18 +84,6 @@ routes = web.RouteTableDef()
 
 db = get_db()
 deploy_config = get_deploy_config()
-
-
-def abort(code, reason=None):
-    if code == 400:
-        raise web.HTTPBadRequest(reason=reason)
-    if code == 404:
-        raise web.HTTPNotFound(reason=reason)
-    raise web.HTTPException(reason=reason)
-
-
-def jsonify(data):
-    return web.json_response(data)
 
 
 def copy(files):
@@ -787,6 +776,7 @@ class Batch:
         await db.batch.update_record(self.id, closed=True)
         self.closed = True
         asyncio.ensure_future(self._close_jobs())
+        log.info(f'batch {self.id} closed')
 
     async def mark_deleted(self):
         await self.cancel()
@@ -800,6 +790,8 @@ class Batch:
         # for j in await self.get_jobs():
             # Job deleted from database when batch is deleted with delete cascade
             # await j._delete_gs_files()
+
+        # Job deleted from database when batch is deleted with delete cascade
         await asyncio.gather(*[j._delete_gs_files() for j in await self.get_jobs()])
         await db.batch.delete_record(self.id)
         log.info(f'batch {self.id} deleted')
@@ -895,11 +887,11 @@ async def create_jobs(request, userdata):
     jobs_parameters = await request.json()
     log.info(f'took {round(time.time() - start2, 3)} seconds to get data from server')
 
-    # start3 = time.time()
-    # validator = await blocking_to_async(app['blocking_pool'], cerberus.Validator, schemas.job_array_schema)
-    # if not validator.validate(jobs_parameters):
-    #     abort(400, 'invalid request: {}'.format(validator.errors))
-    # log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
+    start3 = time.time()
+    validator = cerberus.Validator(schemas.job_array_schema)
+    if not await blocking_to_async(app['blocking_pool'], validator.validate, jobs_parameters):
+        abort(400, 'invalid request: {}'.format(validator.errors))
+    log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
 
     start4 = time.time()
     jobs_builder = JobsBuilder(db)
@@ -910,13 +902,12 @@ async def create_jobs(request, userdata):
         success = await jobs_builder.commit()
         if not success:
             abort(400, f'insertion of jobs in db failed')
-        # log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id} in {round(time.time() - start, 3)} seconds")
     finally:
         await jobs_builder.close()
 
     log.info(f'took {round(time.time() - start4, 3)} seconds to commit jobs to db')
 
-    log.info(f'took {round(time.time() - start, 3)} seconds to create jobs')
+    log.info(f'took {round(time.time() - start, 3)} seconds to create jobs from start to finish')
     return jsonify({})
 
 
@@ -1201,14 +1192,14 @@ async def driver_event_loop():
             log.exception(f'driver event loop failed due to exception: {exc}')
 
 
-# async def polling_event_loop():
-#     await asyncio.sleep(1)
-#     while True:
-#         try:
-#             await refresh_pods()
-#         except Exception as exc:
-#             log.exception(f'polling event loop failed due to exception: {exc}')
-#         await asyncio.sleep(60 * 10)
+async def polling_event_loop():
+    await asyncio.sleep(1)
+    while True:
+        try:
+            await refresh_pods()
+        except Exception as exc:
+            log.exception(f'polling event loop failed due to exception: {exc}')
+        await asyncio.sleep(60 * 10)
 
 
 async def db_cleanup_event_loop():
@@ -1226,7 +1217,9 @@ async def db_cleanup_event_loop():
 async def profile_loop():
     await asyncio.sleep(1)
     while True:
-        app['profile'].print_stats()
+        app['profile'].disable()
+        app['profile'].print_stats(sort='time')
+        app['profile'].enable()
         await asyncio.sleep(15)
 
 
@@ -1275,13 +1268,13 @@ async def on_startup(app):
     app['log_store'] = LogStore(pool, INSTANCE_ID, bucket_name)
 
     await driver.initialize()
-    await refresh_pods()
+    await refresh_pods()  # this is really slow for large N
 
     asyncio.ensure_future(driver.run())
-    # asyncio.ensure_future(polling_event_loop())  # we need a polling event loop in case a delete happens before a create job
+    # asyncio.ensure_future(polling_event_loop())  # we need a polling event loop in case a delete happens before a create job, but this is too slow
     asyncio.ensure_future(driver_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
-    # asyncio.ensure_future(profile_loop())
+    asyncio.ensure_future(profile_loop())
 
 
 app.on_startup.append(on_startup)
