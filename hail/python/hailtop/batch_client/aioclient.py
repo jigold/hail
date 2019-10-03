@@ -413,17 +413,13 @@ class BatchBuilder:
 
         batch = None
         try:
-            start = time.time()
             b = await self._request_with_retry(
                 self._client._post,
                 '/api/v1alpha/batches/create',
                 json=batch_doc
             )
-            print(f'took {round(time.time() - start, 3)} seconds to create batch')
-            # b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
-            batch = Batch(self._client, b['id'], b.get('attributes'))
 
-            start = time.time()
+            batch = Batch(self._client, b['id'], b.get('attributes'))
 
             docs = []
             n = 0
@@ -440,13 +436,10 @@ class BatchBuilder:
                 futures.append(self._submit_job_with_retry(batch.id, docs))
 
             await asyncio.gather(*futures)
-            print(f'took {round(time.time() - start, 3)} seconds to create all jobs')
 
-            start = time.time()
             await self._request_with_retry(
                 self._client._patch,
                 f'/api/v1alpha/batches/{batch.id}/close')
-            print(f'took {round(time.time() - start, 3)} seconds to close batch')
 
         except Exception as err:  # pylint: disable=W0703
             if batch:
