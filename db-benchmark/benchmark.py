@@ -1,10 +1,13 @@
+import os
 import json
 import time
 import statistics
 import asyncio
 import aiomysql
 
-config_file = '/batch-user-secret/sql-config.json'
+from hailtop.utils import AsyncWorkerPool
+
+config_file = '/secret/sql-config.json'
 
 
 userdata = {'username': 'jigold',
@@ -15,10 +18,6 @@ userdata = {'username': 'jigold',
 # Connect to the database
 with open(config_file, 'r') as f:
     config = json.loads(f.read().strip())
-
-
-# pymysql.cursors.DictCursor.max_stmt_length *= 5
-# print(pymysql.cursors.DictCursor.max_stmt_length)
 
 
 def new_record_template(table_name, *field_names):
@@ -38,14 +37,13 @@ async def insert_batch(pool, **data):
             return id, time.time() - start
 
 
-async def insert_jobs(pool, sem, data):
-    async with sem:
-        async with pool.acquire() as conn:
-            start = time.time()
-            async with conn.cursor() as cursor:
-                sql = new_record_template('jobs', *(data[0]))
-                await cursor.executemany(sql, data)
-                return time.time() - start
+async def insert_jobs(pool, data):
+    async with pool.acquire() as conn:
+        start = time.time()
+        async with conn.cursor() as cursor:
+            sql = new_record_template('jobs', *(data[0]))
+            await cursor.executemany(sql, data)
+            return time.time() - start
 
 
 def job_spec(image, env=None, command=None, args=None, ports=None,
@@ -102,7 +100,7 @@ def job_spec(image, env=None, command=None, args=None, ports=None,
     return spec
 
 
-async def test():
+async def test(n_replicates, batch_sizes, parallelism, chunk_size):
     pool = await aiomysql.create_pool(
         host=config['host'],
         port=config['port'],
@@ -115,17 +113,13 @@ async def test():
         maxsize=100,
         connect_timeout=100)
 
-    sem = asyncio.Semaphore(2)
-
     try:
         insert_batch_timings = []
         insert_jobs_timings = {}
-        n_replicates = 10
-        batch_size = 1000
 
-        for jobs_n in (1000, 10000, 100000):
-            print(jobs_n)
-            insert_jobs_timings[jobs_n] = []
+        for n_jobs in batch_sizes:
+            print(n_jobs)
+            insert_jobs_timings[n_jobs] = []
 
             for i in range(n_replicates):
                 data = {'userdata': json.dumps(userdata),
@@ -138,7 +132,7 @@ async def test():
                 insert_batch_timings.append(timing)
 
                 jobs_data = []
-                for job_id in range(jobs_n):
+                for job_id in range(n_jobs):
                     spec = job_spec('alpine', command=['sleep', '40'])
                     data = {'batch_id': batch_id,
                             'job_id': job_id,
@@ -156,22 +150,39 @@ async def test():
                             'exit_codes': json.dumps([None, None, None])}
                     jobs_data.append(data)
 
-                jobs_data = [jobs_data[i:i + batch_size] for i in range(0, len(jobs_data), batch_size)]
+                jobs_data = [jobs_data[i:i + chunk_size] for i in range(0, len(jobs_data), chunk_size)]
 
+                async_pool = AsyncWorkerPool(parallelism)
                 start = time.time()
-                timings = await asyncio.gather(*[insert_jobs(pool, sem, jd) for jd in jobs_data])
+
+                for jd in jobs_data:
+                    await async_pool.call(insert_jobs, pool, jd)
+
+                timings = await async_pool.wait()
                 for timing in timings:
                     print(timing)
-                insert_jobs_timings[jobs_n].append(time.time() - start)
 
-        print(f'insert batch: n={len(insert_batch_timings)} mean={statistics.mean(insert_batch_timings)} variance={statistics.variance(insert_batch_timings)}')
+                insert_jobs_timings[n_jobs].append(time.time() - start)
 
-        for jobs_n, timings in insert_jobs_timings.items():
-            print(f'insert jobs: n={jobs_n} mean={statistics.mean(timings)} variance={statistics.variance(timings)}')
+        for n_jobs, timings in insert_jobs_timings.items():
+            print(f'insert {n_jobs} jobs: n={n_replicates} mean={statistics.mean(timings)} variance={statistics.variance(timings)}')
 
     finally:
         pool.close()
 
+n_replicates = int(os.environ.get('N_REPLICATES', 10))
+batch_sizes = [int(size) for size in os.environ.get('BATCH_SIZES', '1000,10000,100000').split(",")]
+parallelism = int(os.environ.get('PARALLELISM', 1))
+chunk_size = int(os.environ.get('CHUNK_SIZE', 1000))
+
+print(f'N_REPLICATES={n_replicates}')
+print(f'BATCH_SIZES={batch_sizes}')
+print(f'PARALLELISM={parallelism}')
+print(f'CHUNK_SIZE={chunk_size}')
+
 loop = asyncio.get_event_loop()
-loop.run_until_complete(test())
+loop.run_until_complete(test(n_replicates=n_replicates,
+                             batch_sizes=batch_sizes,
+                             parallelism=parallelism,
+                             chunk_size=chunk_size))
 loop.close()
