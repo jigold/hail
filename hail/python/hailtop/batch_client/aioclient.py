@@ -381,17 +381,17 @@ class BatchBuilder:
                 if i < 64:
                     i += 1
 
-    async def _close_job_with_retry(self, batch_id):  # FIXME: get generic retry function working
-        i = 0
-        while True:
-            try:
-                return await self._client.patch(f'/api/v1alpha/batches/{batch_id}/close')
-            except Exception:  # pylint: disable=W0703
-                j = random.randrange(math.floor(1.1 ** i))
-                await asyncio.sleep(0.100 * j)
-                # max 44.5s
-                if i < 64:
-                    i += 1
+    # async def _close_job_with_retry(self, batch_id):  # FIXME: get generic retry function working
+    #     i = 0
+    #     while True:
+    #         try:
+    #             return await self._client.patch(f'/api/v1alpha/batches/{batch_id}/close')
+    #         except Exception:  # pylint: disable=W0703
+    #             j = random.randrange(math.floor(1.1 ** i))
+    #             await asyncio.sleep(0.100 * j)
+    #             # max 44.5s
+    #             if i < 64:
+    #                 i += 1
 
     async def submit(self):
         if self._submitted:
@@ -424,8 +424,8 @@ class BatchBuilder:
 
             await self.pool.wait()
 
-            await self._close_job_with_retry(batch.id)
-            # await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')  # FIXME: this needs a retry!
+            # await self._close_job_with_retry(batch.id)
+            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')  # FIXME: this needs a retry!
         except Exception as err:  # pylint: disable=W0703
             if batch:
                 await batch.cancel()
