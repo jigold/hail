@@ -748,9 +748,7 @@ class Batch:
         self.closed = closed
 
     async def get_jobs(self, limit=None, offset=None):
-        start = time.time()
         jobs = await db.jobs.get_records_by_batch(self.id, limit, offset)
-        log.info(f'took {round(time.time() - start, 3)} seconds to get all jobs from db for batch {self.id}')
         return [Job.from_record(record) for record in jobs]
 
     async def _cancel_jobs(self):
