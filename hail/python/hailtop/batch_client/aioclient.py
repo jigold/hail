@@ -3,9 +3,6 @@ import random
 import asyncio
 import aiohttp
 from asyncinit import asyncinit
-import logging
-import time
-import gzip
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
@@ -13,10 +10,6 @@ from hailtop.auth import async_get_userinfo, service_auth_headers
 from .globals import complete_states
 
 job_array_size = 1000
-
-log = logging.getLogger('aioclient')
-
-request_sem = asyncio.Semaphore(2)
 
 
 def filter_params(complete, success, attributes):
@@ -374,37 +367,24 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _request_with_retry(self, f, *args, **kwargs):
+    async def _submit_job_with_retry(self, batch_id, docs):
         i = 0
         while True:
             try:
-                async with request_sem:
-                    start = time.time()
-                    result = await f(*args, **kwargs)
-                    print(f'took {round(time.time() - start, 3)} seconds to submit a request {f.__name__}')
-                    return result
-            except Exception as exc:  # pylint: disable=W0703
-                print(f'request_with_retry failed, attempt {i} exception {exc}')
+                return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
+            except Exception:  # pylint: disable=W0703
                 j = random.randrange(math.floor(1.1 ** i))
                 await asyncio.sleep(0.100 * j)
                 # max 44.5s
                 if i < 64:
                     i += 1
 
-    async def _submit_job_with_retry(self, batch_id, docs):
-        # response = await self._request_with_retry(
-        #     self._client._post,
-        #     f'/api/v1alpha/batches/{batch_id}/jobs/create',
-        #     json={'jobs': docs})
-        return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create',
-                                        json={'jobs': docs})
-
     async def submit(self):
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
         self._submitted = True
 
-        batch_doc = {'n_jobs': len(self._job_docs)}
+        batch_doc = {}
         if self.attributes:
             batch_doc['attributes'] = self.attributes
         if self.callback:
@@ -412,38 +392,26 @@ class BatchBuilder:
 
         batch = None
         try:
-            # b = await self._request_with_retry(
-            #     self._client._post,
-            #     '/api/v1alpha/batches/create',
-            #     json=batch_doc
-            # )
             b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
-
             batch = Batch(self._client, b['id'], b.get('attributes'))
 
             docs = []
             n = 0
-            # futures = []
+            futures = []
             for jdoc in self._job_docs:
                 n += 1
                 docs.append(jdoc)
                 if n == job_array_size:
-                    await self._submit_job_with_retry(batch.id, docs)
-                    # futures.append(self._submit_job_with_retry(batch.id, docs))
+                    # await self.pool.call(self._submit_job_with_retry, batch.id, docs)
+                    futures.append(self._submit_job_with_retry(batch.id, docs))
                     n = 0
                     docs = []
 
             if docs:
-                await self._submit_job_with_retry(batch.id, docs)
-                # futures.append(self._submit_job_with_retry(batch.id, docs))
+                futures.append(self._submit_job_with_retry(batch.id, docs))
 
-            # await asyncio.gather(*futures)
-
-            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
-            # await self._request_with_retry(
-            #     self._client._patch,
-            #     f'/api/v1alpha/batches/{batch.id}/close')
-
+            await asyncio.gather(*futures)
+            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')  # FIXME: this needs a retry!
         except Exception as err:  # pylint: disable=W0703
             if batch:
                 await batch.cancel()
