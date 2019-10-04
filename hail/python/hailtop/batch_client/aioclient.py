@@ -6,6 +6,7 @@ from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
+from hailtop.utils import AsyncWorkerPool
 
 from .globals import complete_states
 
@@ -258,6 +259,7 @@ class BatchBuilder:
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
+        self.pool = AsyncWorkerPool(2)
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
@@ -397,20 +399,19 @@ class BatchBuilder:
 
             docs = []
             n = 0
-            futures = []
             for jdoc in self._job_docs:
                 n += 1
                 docs.append(jdoc)
                 if n == job_array_size:
-                    # await self.pool.call(self._submit_job_with_retry, batch.id, docs)
-                    futures.append(self._submit_job_with_retry(batch.id, docs))
+                    await self.pool.call(self._submit_job_with_retry, batch.id, docs)
                     n = 0
                     docs = []
 
             if docs:
-                futures.append(self._submit_job_with_retry(batch.id, docs))
+                await self.pool.call(self._submit_job_with_retry, batch.id, docs)
 
-            await asyncio.gather(*futures)
+            await self.pool.wait()
+
             await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')  # FIXME: this needs a retry!
         except Exception as err:  # pylint: disable=W0703
             if batch:
