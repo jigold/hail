@@ -1,4 +1,7 @@
 import asyncio
+import logging
+
+log = logging.getLogger('hailtop.utils')
 
 
 def unzip(l):
@@ -29,6 +32,10 @@ class AsyncWorkerPool:
         async with self._sem:
             try:
                 await f(*args, **kwargs)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:  # pylint: disable=broad-except
+                log.exception(f'worker pool caught exception')
             finally:
                 assert self._count > 0
                 self._count -= 1
