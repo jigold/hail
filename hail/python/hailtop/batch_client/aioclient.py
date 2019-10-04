@@ -31,6 +31,18 @@ def filter_params(complete, success, attributes):
     return params
 
 
+async def retry(f, *args, **kwargs):
+    i = 0
+    while True:
+        try:
+            return await f(*args, **kwargs)
+        except Exception:  # pylint: disable=W0703
+            j = random.randrange(math.floor(1.1 ** i))
+            await asyncio.sleep(0.100 * j)
+            # max 44.5s
+            if i < 64:
+                i += 1
+
 class Job:
     @staticmethod
     def exit_code(job_status):
@@ -394,7 +406,7 @@ class BatchBuilder:
 
         batch = None
         try:
-            b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
+            b = await retry(self._client._post, '/api/v1alpha/batches/create', json=batch_doc)
             batch = Batch(self._client, b['id'], b.get('attributes'))
 
             docs = []
