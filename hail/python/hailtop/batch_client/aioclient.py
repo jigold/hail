@@ -382,9 +382,20 @@ class BatchBuilder:
         return j
 
     async def _submit_job_with_retry(self, batch_id, docs):
-        return await retry(self._client._post,
-                           f'/api/v1alpha/batches/{batch_id}/jobs/create',
-                           json={'jobs': docs})
+        return await retry(lambda *args, **kwargs: self._client._post(
+            f'/api/v1alpha/batches/{batch_id}/jobs/create',
+            json={'jobs': docs}
+        ))
+        # i = 0
+        # while True:
+        #     try:
+        #         return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
+        #     except Exception:  # pylint: disable=W0703
+        #         j = random.randrange(math.floor(1.1 ** i))
+        #         await asyncio.sleep(0.100 * j)
+        #         # max 44.5s
+        #         if i < 64:
+        #             i += 1
 
     async def submit(self):
         if self._submitted:
