@@ -35,7 +35,7 @@ async def retry(f):
     i = 0
     while True:
         try:
-            return await f()
+            return f()
         except Exception:  # pylint: disable=W0703
             j = random.randrange(math.floor(1.1 ** i))
             await asyncio.sleep(0.100 * j)
@@ -382,7 +382,7 @@ class BatchBuilder:
         return j
 
     async def _submit_job_with_retry(self, batch_id, docs):
-        return await retry(lambda: self._client._post(
+        return await retry(lambda: await self._client._post(
             f'/api/v1alpha/batches/{batch_id}/jobs/create',
             json={'jobs': docs}
         ))
@@ -428,7 +428,7 @@ class BatchBuilder:
 
             await self.pool.wait()
 
-            await retry(lambda: self._client.patch(f'/api/v1alpha/batches/{batch.id}/close'))
+            await retry(lambda: await self._client.patch(f'/api/v1alpha/batches/{batch.id}/close'))
             # await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')  # FIXME: this needs a retry!
         except Exception as err:  # pylint: disable=W0703
             if batch:
