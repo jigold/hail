@@ -976,7 +976,6 @@ async def close_batch(request, userdata):
     if not batch:
         abort(404)
     await batch.close()
-    log.info(f'closed batch {batch.id}')
     return jsonify({})
 
 
