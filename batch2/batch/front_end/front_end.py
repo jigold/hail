@@ -3,6 +3,7 @@ import concurrent
 import logging
 import json
 import time
+import cProfile, pstats, io
 
 import asyncio
 import aiohttp
@@ -211,10 +212,7 @@ async def get_batches_list(request, userdata):
     return web.json_response(await _get_batches_list(request.app, params, user))
 
 
-@routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
-@prom_async_time(REQUEST_TIME_POST_CREATE_JOBS)
-@rest_authenticated_users_only
-async def create_jobs(request, userdata):
+async def _create_jobs(request, userdata):
     start = time.time()
     app = request.app
     batch_id = int(request.match_info['batch_id'])
@@ -255,6 +253,62 @@ async def create_jobs(request, userdata):
 
     log.info(f'took {round(time.time() - start, 3)} seconds to create jobs from start to finish')
     return web.Response()
+
+
+@routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
+@prom_async_time(REQUEST_TIME_POST_CREATE_JOBS)
+@rest_authenticated_users_only
+async def create_jobs(request, userdata):
+    pr = cProfile.Profile()
+    pr.enable()
+    result = await _create_jobs(request, userdata)
+    pr.disable()
+    s = io.StringIO()
+    sortby = 'cumulative'
+    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    ps.print_stats()
+    print(s.getvalue())
+    return result
+    # start = time.time()
+    # app = request.app
+    # batch_id = int(request.match_info['batch_id'])
+    # user = userdata['username']
+    #
+    # start1 = time.time()
+    # batch = await Batch.from_db(app, batch_id, user)
+    # log.info(f'took {round(time.time() - start1, 3)} seconds to get batch from db')
+    #
+    # if not batch:
+    #     raise web.HTTPNotFound()
+    # if batch.closed:
+    #     raise web.HTTPBadRequest(reason=f'batch {batch_id} is already closed')
+    #
+    # start2 = time.time()
+    # jobs_parameters = await request.json()
+    # log.info(f'took {round(time.time() - start2, 3)} seconds to get data from server')
+    #
+    # start3 = time.time()
+    # validator = cerberus.Validator(schemas.job_array_schema)
+    # if not await blocking_to_async(app['blocking_pool'], validator.validate, jobs_parameters):
+    #     raise web.HTTPBadRequest(reason='invalid request: {}'.format(validator.errors))
+    # log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
+    #
+    # start4 = time.time()
+    # jobs_builder = JobsBuilder(app['db'])
+    # try:
+    #     for job_params in jobs_parameters['jobs']:
+    #         create_job(app, jobs_builder, batch.id, userdata, job_params)
+    #
+    #     success = await jobs_builder.commit()
+    #     if not success:
+    #         raise web.HTTPBadRequest(reason=f'insertion of jobs in db failed')
+    # finally:
+    #     await jobs_builder.close()
+    #
+    # log.info(f'took {round(time.time() - start4, 3)} seconds to commit jobs to db')
+    #
+    # log.info(f'took {round(time.time() - start, 3)} seconds to create jobs from start to finish')
+    # return web.Response()
 
 
 @routes.post('/api/v1alpha/batches/create')
