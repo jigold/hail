@@ -264,7 +264,7 @@ async def create_jobs(request, userdata):
     result = await _create_jobs(request, userdata)
     pr.disable()
     s = io.StringIO()
-    sortby = 'cumulative'
+    sortby = 'tottime'
     ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
     ps.print_stats()
     print(s.getvalue())
