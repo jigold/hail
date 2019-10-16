@@ -63,8 +63,10 @@ deploy_config = get_deploy_config()
 
 
 def create_job(app, jobs_builder, batch_id, userdata, parameters):  # pylint: disable=R0912
+    start = time.time()
     pod_spec = app['k8s_client'].api_client._ApiClient__deserialize(
         parameters['spec'], kube.client.V1PodSpec)
+    log.info(f'took {round(time.time() - start, 3)} seconds to deserialize pod spec into k8s PodSpec')
 
     job_id = parameters.get('job_id')
     parent_ids = parameters.get('parent_ids', [])
