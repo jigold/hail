@@ -3,6 +3,7 @@ import os
 import subprocess as sp
 import uuid
 import time
+import datetime
 from shlex import quote as shq
 from hailtop.batch_client.client import BatchClient, Job
 
@@ -321,15 +322,15 @@ class BatchBackend(Backend):
             jobs_to_command[j] = cmd
             n_jobs_submitted += 1
 
-        print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
+        print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds {datetime.datetime.now()}')
         start = time.time()
         batch = batch.submit()
-        print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
+        print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds {datetime.datetime.now()}')
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
         if verbose:
-            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
+            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds {datetime.datetime.now()}')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 

@@ -263,7 +263,7 @@ class BatchBuilder:
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
-        self.pool = AsyncWorkerPool(2)
+        self.pool = AsyncWorkerPool(10)
 
     def create_job(self, image, command=None, args=None, env=None,
                    resources=None, volumes=None,

@@ -1,6 +1,7 @@
 import errno
 import random
 import logging
+import time
 import asyncio
 import aiohttp
 from aiohttp import web
@@ -79,9 +80,13 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
     delay = 0.1
     while True:
         try:
-            return await session.request(method, url, **kwargs)
+            start = time.time()
+            result = await session.request(method, url, **kwargs)
+            log.info(f'submitted request in {round(time.time() - start, 3)} seconds')
+            return result
         except Exception as e:  # pylint: disable=broad-except
             if is_transient_error(e):
+                log.info(f'got transient error {e}')
                 pass
             else:
                 raise
