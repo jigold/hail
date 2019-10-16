@@ -4,6 +4,7 @@ import logging
 import json
 import time
 
+import asyncio
 import aiohttp
 from aiohttp import web
 import aiohttp_jinja2
@@ -466,6 +467,9 @@ async def on_cleanup(app):
 def run():
     app = web.Application(client_max_size=None)
     setup_aiohttp_session(app)
+
+    loop = asyncio.get_event_loop()
+    loop.set_debug(True)
 
     setup_aiohttp_jinja2(app, 'batch.front_end')
     setup_common_static_routes(routes)
