@@ -67,7 +67,7 @@ class AsyncPriorityWorkerPool:
 
     async def _worker(self):
         while True:
-            _, (f, args, kwargs) = await self._queue.get()
+            _, _, (f, args, kwargs) = await self._queue.get()
             try:
                 await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
@@ -84,7 +84,7 @@ class AsyncPriorityWorkerPool:
         if self._count == 0:
             self._done.clear()
         self._count += 1
-        await self._queue.put((priority, (f, args, kwargs)))
+        await self._queue.put((priority, self._count, (f, args, kwargs)))
 
     async def wait(self):
         await self._done.wait()
