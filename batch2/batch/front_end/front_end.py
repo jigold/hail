@@ -38,6 +38,7 @@ from . import schemas
 log = logging.getLogger('batch.front_end')
 
 REQUEST_TIME = pc.Summary('batch2_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
+# REQUEST_TIME = REQUEST_TIME.labels(namespace=)
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
 REQUEST_TIME_GET_POD_STATUS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/pod_status', verb="GET")
@@ -259,16 +260,19 @@ async def _create_jobs(request, userdata):
 @prom_async_time(REQUEST_TIME_POST_CREATE_JOBS)
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
-    pr = cProfile.Profile()
-    pr.enable()
-    result = await _create_jobs(request, userdata)
-    pr.disable()
-    s = io.StringIO()
-    sortby = 'tottime'
-    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    ps.print_stats()
-    print(s.getvalue())
-    return result
+    return web.Response()
+    
+    # pr = cProfile.Profile()
+    # pr.enable()
+    # result = await _create_jobs(request, userdata)
+    # pr.disable()
+    # s = io.StringIO()
+    # sortby = 'tottime'
+    # ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    # ps.print_stats()
+    # print(s.getvalue())
+    # return result
+
     # start = time.time()
     # app = request.app
     # batch_id = int(request.match_info['batch_id'])
