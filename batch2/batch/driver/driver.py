@@ -176,11 +176,13 @@ class Pod:
         await self.unschedule()
 
         await self.driver.ready_queue.put(self)
+        log.info(f'done putting {self.name} on ready queue')
         self.on_ready = True
         self.driver.ready_cores_mcpu += self.cores_mcpu
         self.driver.changed.set()
 
     async def put_on_ready(self):
+        log.info(f'putting {self.name} on ready')
         await self.driver.pool.call(PUT_ON_READY_PRIORITY, self._put_on_ready)
 
     def remove_from_ready(self):
@@ -211,6 +213,7 @@ class Pod:
 
     async def create(self):
         async with self.lock:
+            log.info(f'creating pod {self.name}')
             assert not self.on_ready
 
             config = await self.config()
@@ -433,6 +436,7 @@ class Driver:
                 pod = self.ready_queue.get_nowait()
                 if not pod.deleted:
                     self.ready.add(pod)
+                    log.info(f'added {pod.name} to ready')
                 else:
                     log.info(f'skipping pod {pod} from ready queue, already deleted')
                     pod.remove_from_ready()

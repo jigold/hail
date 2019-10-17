@@ -62,13 +62,15 @@ class AsyncPriorityWorkerPool:
         self._done = asyncio.Event()
         self._queue = asyncio.PriorityQueue()
 
-        for i in range(parallelism):
+        for _ in range(parallelism):
             asyncio.ensure_future(self._worker())
 
     async def _worker(self):
+        log.info('created worker in pool')
         while True:
             _, _, (f, args, kwargs) = await self._queue.get()
             try:
+                log.info(f'running {f.__name__}')
                 await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
@@ -85,6 +87,7 @@ class AsyncPriorityWorkerPool:
             self._done.clear()
         self._count += 1
         await self._queue.put((priority, self._count, (f, args, kwargs)))
+        log.info(f'put function in priority queue')
 
     async def wait(self):
         await self._done.wait()

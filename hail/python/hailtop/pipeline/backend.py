@@ -326,6 +326,8 @@ class BatchBackend(Backend):
         batch = batch.submit()
         timing = time.time() - start
         print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(timing, 3)} seconds:')
+
+        self._batch_client.close()
         return timing
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
