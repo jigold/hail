@@ -182,7 +182,7 @@ class Pod:
         self.driver.changed.set()
 
     async def put_on_ready(self):
-        log.info(f'putting {self.name} on ready')
+        # log.info(f'putting {self.name} on ready')
         await self.driver.pool.call(PUT_ON_READY_PRIORITY, self._put_on_ready)
 
     def remove_from_ready(self):

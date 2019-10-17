@@ -9,6 +9,8 @@ import asyncio
 import requests
 import kubernetes as kube
 
+from hailtop.utils import AsyncWorkerPool
+
 from .globals import states, complete_states, valid_state_transitions, tasks
 from .batch_configuration import INSTANCE_ID
 from .log_store import LogStore
@@ -573,8 +575,12 @@ class Batch:
 
     # called by driver
     async def _close_jobs(self):
-        await asyncio.gather(*[j._create_pod() for j in await self.get_jobs()
-                               if j._state == 'Running'])
+        pool = AsyncWorkerPool(100)
+        for j in await self.get_jobs():
+            if j._state == 'Running':
+                pool.call(j._create_pod)
+        # await asyncio.gather(*[j._create_pod() for j in await self.get_jobs()
+        #                        if j._state == 'Running'])
 
     # called by front end
     async def close(self):
