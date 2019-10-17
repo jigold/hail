@@ -381,7 +381,7 @@ class BatchBuilder:
         if docs:
             await self.pool.call(self._submit_job, batch.id, docs)
 
-        if n > 0:
+        if len(self._job_docs) > 0:
             await self.pool.wait()
 
         await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
