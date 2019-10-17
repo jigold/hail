@@ -9,13 +9,15 @@ import sortedcontainers
 import traceback
 
 from hailtop.config import get_deploy_config
-from hailtop.utils import AsyncWorkerPool
+from hailtop.utils import AsyncPriorityWorkerPool
 
 from ..google_compute import GServices
 from ..utils import parse_cpu_in_mcpu
 from ..globals import tasks
 
 from .instance_pool import InstancePool
+from .constants import MARK_COMPLETE_PRIORITY, DELETE_POD_PRIORITY, CREATE_POD_PRIORITY, \
+    PUT_ON_READY_PRIORITY
 
 log = logging.getLogger('driver')
 
@@ -107,7 +109,8 @@ class Pod:
 
     async def mark_complete(self, status):
         self._status = status
-        asyncio.ensure_future(self.driver.db.pods.update_record(self.name, status=json.dumps(status)))
+        await self.driver.db.pods.update_record(self.name, status=json.dumps(status))
+        await self.driver.complete_queue.put(status)
 
     def mark_deleted(self):
         assert not self.deleted
@@ -140,12 +143,12 @@ class Pod:
 
             if not inst.active:
                 log.info(f'not scheduling {self.name} on {inst.name}; instance not active')
-                asyncio.ensure_future(self.put_on_ready())
+                await self.put_on_ready()
                 return False
 
             if not inst.healthy:
                 log.info(f'not scheduling {self.name} on {inst.name}; instance not healthy')
-                asyncio.ensure_future(self.put_on_ready())
+                await self.put_on_ready()
                 return False
 
             log.info(f'scheduling {self.name} with {self.cores_mcpu / 1000} cores on {inst}')
@@ -158,7 +161,7 @@ class Pod:
             await self.driver.db.pods.update_record(self.name, instance=inst.token)
             return True
 
-    async def put_on_ready(self):
+    async def _put_on_ready(self):
         # FIXME: does this need a lock?
         assert not self.on_ready
 
@@ -176,6 +179,9 @@ class Pod:
         self.on_ready = True
         self.driver.ready_cores_mcpu += self.cores_mcpu
         self.driver.changed.set()
+
+    async def put_on_ready(self):
+        await self.driver.pool.call(PUT_ON_READY_PRIORITY, self._put_on_ready)
 
     def remove_from_ready(self):
         if self.on_ready:
@@ -215,7 +221,7 @@ class Pod:
 
             if not self.instance:
                 log.info(f'instance was deactivated before {self.name} could be created; rescheduling')
-                asyncio.ensure_future(self.put_on_ready())
+                await self.put_on_ready()
                 return
 
             inst = self.instance
@@ -229,7 +235,7 @@ class Pod:
                 return
             assert err
             log.info(f'failed to create {self.name} on inst {inst} due to {err}, putting back on ready queue')
-            asyncio.ensure_future(self.put_on_ready())
+            await self.put_on_ready()
 
     async def delete(self):
         assert self.deleted
@@ -249,7 +255,7 @@ class Pod:
                     log.info(f'failed to delete {self.name} on inst {inst} due to err {err}, ignoring')
 
             await self.unschedule()
-            asyncio.ensure_future(self.driver.db.pods.delete_record(self.name))
+            await self.driver.db.pods.delete_record(self.name)
 
     async def read_pod_log(self, container):
         assert container in tasks
@@ -303,14 +309,15 @@ class Driver:
         self.db = db
         self.k8s = k8s
         self.batch_bucket = batch_bucket
-        self.pods = None  # populated in run
+        self.pods = None  # populated in initialize
+
         self.complete_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue(maxsize=1000)
         self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores_mcpu)
         self.ready_cores_mcpu = 0
         self.changed = asyncio.Event()
 
-        self.pool = None  # created in run
+        self.pool = None  # created in initialize
 
         deploy_config = get_deploy_config()
 
@@ -370,8 +377,7 @@ class Driver:
             log.warning(f'pod_complete from unknown pod {pod_name}, instance {inst_token}')
             return web.HTTPNotFound()
         log.info(f'pod_complete from pod {pod_name}, instance {inst_token}')
-        await pod.mark_complete(status)
-        await self.complete_queue.put(status)
+        await self.pool.call(MARK_COMPLETE_PRIORITY, pod.mark_complete, status)
         return web.Response()
 
     async def create_pod(self, spec, output_directory):
@@ -386,14 +392,14 @@ class Driver:
             return DriverException(400, f'unknown error creating pod: {err}')  # FIXME: what error code should this be?
 
         self.pods[name] = pod
-        asyncio.ensure_future(pod.put_on_ready())
+        await pod.put_on_ready()
 
     async def delete_pod(self, name):
         pod = self.pods.get(name)
         if pod is None:
             return DriverException(409, f'pod {name} does not exist')
         pod.mark_deleted()
-        await self.pool.call(pod.delete)
+        await self.pool.call(DELETE_POD_PRIORITY, pod.delete)
         del self.pods[name]  # this must be after delete finishes successfully in case pod marks complete before delete call
 
     async def read_pod_log(self, name, container):
@@ -442,12 +448,12 @@ class Driver:
                     should_wait = False
                     scheduled = await pod.schedule(inst)  # This cannot go in the pool!
                     if scheduled:
-                        await self.pool.call(pod.create)
+                        await self.pool.call(CREATE_POD_PRIORITY, pod.create)
 
     async def initialize(self):
         await self.inst_pool.initialize()
 
-        self.pool = AsyncWorkerPool(100)
+        self.pool = AsyncPriorityWorkerPool(100)
 
         def _pod(record):
             pod = Pod.from_record(self, record)
@@ -458,7 +464,7 @@ class Driver:
 
         for pod in self.pods.values():
             if not pod.instance and not pod._status:
-                asyncio.ensure_future(pod.put_on_ready())
+                await pod.put_on_ready()
 
     async def run(self):
         await self.inst_pool.start()

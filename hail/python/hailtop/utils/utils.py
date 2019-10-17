@@ -39,7 +39,7 @@ class AsyncWorkerPool:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
-                log.exception(f'worker pool caught exception')
+                raise
             finally:
                 assert self._count > 0
                 self._count -= 1
@@ -51,6 +51,40 @@ class AsyncWorkerPool:
             self._done.clear()
         self._count += 1
         asyncio.ensure_future(self._call(f, args, kwargs))
+
+    async def wait(self):
+        await self._done.wait()
+
+
+class AsyncPriorityWorkerPool:
+    def __init__(self, parallelism):
+        self._count = 0
+        self._done = asyncio.Event()
+        self._queue = asyncio.PriorityQueue()
+
+        for i in range(parallelism):
+            asyncio.ensure_future(self._worker())
+
+    async def _worker(self):
+        while True:
+            f, args, kwargs = await self._queue.get()
+            try:
+                await f(*args, **kwargs)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:  # pylint: disable=broad-except
+                log.exception(f'worker pool caught exception')
+            finally:
+                assert self._count > 0
+                self._count -= 1
+                if self._count == 0:
+                    self._done.set()
+
+    async def call(self, priority, f, *args, **kwargs):
+        if self._count == 0:
+            self._done.clear()
+        self._count += 1
+        await self._queue.put((priority, (f, args, kwargs)))
 
     async def wait(self):
         await self._done.wait()

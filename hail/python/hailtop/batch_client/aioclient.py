@@ -263,7 +263,7 @@ class BatchBuilder:
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
-        self.pool = AsyncWorkerPool(2)
+        self.pool = AsyncWorkerPool(10)
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    resources=None, secrets=None,
@@ -368,7 +368,8 @@ class BatchBuilder:
         if docs:
             await self.pool.call(self._submit_job, batch.id, docs)
 
-        await self.pool.wait()
+        if len(self._job_docs) > 0:
+            await self.pool.wait()
 
         await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
 
