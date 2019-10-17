@@ -261,7 +261,7 @@ async def _create_jobs(request, userdata):
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
     return web.Response()
-    
+
     # pr = cProfile.Profile()
     # pr.enable()
     # result = await _create_jobs(request, userdata)
@@ -526,8 +526,8 @@ def run():
     app = web.Application(client_max_size=None)
     setup_aiohttp_session(app)
 
-    loop = asyncio.get_event_loop()
-    loop.set_debug(True)
+    # loop = asyncio.get_event_loop()
+    # loop.set_debug(True)
 
     setup_aiohttp_jinja2(app, 'batch.front_end')
     setup_common_static_routes(routes)
