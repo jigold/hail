@@ -242,7 +242,7 @@ class Job:
         durations = [None for _ in tasks]
         messages = [None for _ in tasks]
         directory = app['log_store'].gs_job_output_directory(batch_id, job_id, token)
-        pod_spec = app['k8s_client'].api_client.sanitize_for_serialization(pod_spec)
+        # pod_spec = app['k8s_client'].api_client.sanitize_for_serialization(pod_spec)
 
         jobs_builder.create_job(
             batch_id=batch_id,
@@ -253,7 +253,8 @@ class Job:
             attributes=json.dumps(attributes),
             always_run=always_run,
             token=token,
-            pod_spec=json.dumps(pod_spec),
+            pod_spec=pod_spec,
+            # pod_spec=json.dumps(pod_spec),
             input_files=json.dumps(input_files),
             output_files=json.dumps(output_files),
             directory=directory,

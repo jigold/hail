@@ -67,8 +67,8 @@ deploy_config = get_deploy_config()
 
 def create_job(app, jobs_builder, batch_id, userdata, parameters):  # pylint: disable=R0912
     # start = time.time()
-    pod_spec = app['k8s_client'].api_client._ApiClient__deserialize(
-        parameters['spec'], kube.client.V1PodSpec)
+    # pod_spec = app['k8s_client'].api_client._ApiClient__deserialize(
+    #     parameters['spec'], kube.client.V1PodSpec)
     # log.info(f'took {round(time.time() - start, 7)} seconds to deserialize pod spec into k8s PodSpec')
 
     job_id = parameters.get('job_id')
@@ -80,20 +80,20 @@ def create_job(app, jobs_builder, batch_id, userdata, parameters):  # pylint: di
         pvc_size = POD_VOLUME_SIZE
     always_run = parameters.get('always_run', False)
 
-    if len(pod_spec.containers) != 1:
-        raise web.HTTPBadRequest(reason=f'only one container allowed in pod_spec {pod_spec}')
-
-    if pod_spec.containers[0].name != 'main':
-        raise web.HTTPBadRequest(reason=f'container name must be "main" was {pod_spec.containers[0].name}')
-
-    if not pod_spec.containers[0].resources:
-        pod_spec.containers[0].resources = kube.client.V1ResourceRequirements()
-    if not pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests = {}
-    if 'cpu' not in pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests['cpu'] = '100m'
-    if 'memory' not in pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests['memory'] = '500M'
+    # if len(pod_spec.containers) != 1:
+    #     raise web.HTTPBadRequest(reason=f'only one container allowed in pod_spec {pod_spec}')
+    #
+    # if pod_spec.containers[0].name != 'main':
+    #     raise web.HTTPBadRequest(reason=f'container name must be "main" was {pod_spec.containers[0].name}')
+    #
+    # if not pod_spec.containers[0].resources:
+    #     pod_spec.containers[0].resources = kube.client.V1ResourceRequirements()
+    # if not pod_spec.containers[0].resources.requests:
+    #     pod_spec.containers[0].resources.requests = {}
+    # if 'cpu' not in pod_spec.containers[0].resources.requests:
+    #     pod_spec.containers[0].resources.requests['cpu'] = '100m'
+    # if 'memory' not in pod_spec.containers[0].resources.requests:
+    #     pod_spec.containers[0].resources.requests['memory'] = '500M'
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
@@ -102,7 +102,8 @@ def create_job(app, jobs_builder, batch_id, userdata, parameters):  # pylint: di
         jobs_builder,
         batch_id=batch_id,
         job_id=job_id,
-        pod_spec=pod_spec,
+        # pod_spec=pod_spec,
+        pod_spec=parameters['spec'],
         attributes=parameters.get('attributes'),
         callback=parameters.get('callback'),
         parent_ids=parent_ids,
@@ -232,11 +233,11 @@ async def _create_jobs(request, userdata):
     jobs_parameters = await request.json()
     log.info(f'took {round(time.time() - start2, 3)} seconds to get data from server')
 
-    start3 = time.time()
-    validator = cerberus.Validator(schemas.job_array_schema)
-    if not await blocking_to_async(app['blocking_pool'], validator.validate, jobs_parameters):
-        raise web.HTTPBadRequest(reason='invalid request: {}'.format(validator.errors))
-    log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
+    # start3 = time.time()
+    # validator = cerberus.Validator(schemas.job_array_schema)
+    # if not await blocking_to_async(app['blocking_pool'], validator.validate, jobs_parameters):
+    #     raise web.HTTPBadRequest(reason='invalid request: {}'.format(validator.errors))
+    # log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
 
     start4 = time.time()
     jobs_builder = JobsBuilder(app['db'])
@@ -260,7 +261,9 @@ async def _create_jobs(request, userdata):
 @prom_async_time(REQUEST_TIME_POST_CREATE_JOBS)
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
-    return web.Response()
+    # return web.Response()
+
+    return await _create_jobs(request, userdata)
 
     # pr = cProfile.Profile()
     # pr.enable()
