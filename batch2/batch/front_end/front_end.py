@@ -394,11 +394,11 @@ async def close_batch(request, userdata):
     if not batch:
         raise web.HTTPNotFound()
     await batch.close()
-    async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        await request_retry_transient_errors(
-            session, 'PATCH',
-            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'))
+    # async with aiohttp.ClientSession(
+    #         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+    #     await request_retry_transient_errors(
+    #         session, 'PATCH',
+    #         deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'))
     return web.Response()
 
 
