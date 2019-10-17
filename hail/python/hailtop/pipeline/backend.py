@@ -324,33 +324,35 @@ class BatchBackend(Backend):
         print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
         start = time.time()
         batch = batch.submit()
-        print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
+        timing = time.time() - start
+        print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(timing, 3)} seconds:')
+        return timing
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
-        if verbose:
-            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
-            for jid, cmd in jobs_to_command.items():
-                print(f'{jid}: {cmd}')
-
-        status = batch.wait()
-
-        if status['state'] == 'success':
-            print('Pipeline completed successfully!')
-            return
-
-        failed_jobs = [((j['batch_id'], j['job_id']), j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
-
-        fail_msg = ''
-        for jid, ec in failed_jobs:
-            ec = Job.exit_code(ec)
-            job = self._batch_client.get_job(*jid)
-            log = job.log()
-            name = job.status()['attributes'].get('name', None)
-            fail_msg += (
-                f"Job {jid} failed with exit code {ec}:\n"
-                f"  Task name:\t{name}\n"
-                f"  Command:\t{jobs_to_command[jid]}\n"
-                f"  Log:\t{log}\n")
-
-        raise PipelineException(fail_msg)
+        # if verbose:
+        #     print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
+        #     for jid, cmd in jobs_to_command.items():
+        #         print(f'{jid}: {cmd}')
+        #
+        # status = batch.wait()
+        #
+        # if status['state'] == 'success':
+        #     print('Pipeline completed successfully!')
+        #     return
+        #
+        # failed_jobs = [((j['batch_id'], j['job_id']), j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
+        #
+        # fail_msg = ''
+        # for jid, ec in failed_jobs:
+        #     ec = Job.exit_code(ec)
+        #     job = self._batch_client.get_job(*jid)
+        #     log = job.log()
+        #     name = job.status()['attributes'].get('name', None)
+        #     fail_msg += (
+        #         f"Job {jid} failed with exit code {ec}:\n"
+        #         f"  Task name:\t{name}\n"
+        #         f"  Command:\t{jobs_to_command[jid]}\n"
+        #         f"  Log:\t{log}\n")
+        #
+        # raise PipelineException(fail_msg)
