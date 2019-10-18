@@ -576,10 +576,11 @@ class Batch:
 
     # called by driver
     async def _close_jobs(self):
-        pool = AsyncWorkerPool(100)
+        # pool = AsyncWorkerPool(100)
         for j in await self.get_jobs():
             if j._state == 'Running':
-                await pool.call(j._create_pod)
+                await j._create_pod()
+                # await pool.call(j._create_pod)
         # await asyncio.gather(*[j._create_pod() for j in await self.get_jobs()
         #                        if j._state == 'Running'])
 
