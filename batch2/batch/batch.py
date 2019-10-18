@@ -54,6 +54,7 @@ class Job:
                 name='batch-gsa-key')])
 
     async def _create_pod(self):
+        log.info(f'creating pod for {self.id}')
         assert self.userdata is not None
         assert self._state in states
         assert self._state == 'Running'
@@ -578,7 +579,7 @@ class Batch:
         pool = AsyncWorkerPool(100)
         for j in await self.get_jobs():
             if j._state == 'Running':
-                pool.call(j._create_pod)
+                await pool.call(j._create_pod)
         # await asyncio.gather(*[j._create_pod() for j in await self.get_jobs()
         #                        if j._state == 'Running'])
 
