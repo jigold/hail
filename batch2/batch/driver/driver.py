@@ -16,8 +16,7 @@ from ..utils import parse_cpu_in_mcpu
 from ..globals import tasks
 
 from .instance_pool import InstancePool
-from .constants import MARK_COMPLETE_PRIORITY, DELETE_POD_PRIORITY, CREATE_POD_PRIORITY, \
-    PUT_ON_READY_PRIORITY
+from .constants import DELETE_POD_PRIORITY, CREATE_POD_PRIORITY
 
 log = logging.getLogger('driver')
 
