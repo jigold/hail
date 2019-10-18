@@ -580,7 +580,6 @@ class Batch:
         for j in await self.get_jobs():
             if j._state == 'Running':
                 await j._create_pod()
-                await asyncio.sleep(1)
                 # await pool.call(j._create_pod)
         # await asyncio.gather(*[j._create_pod() for j in await self.get_jobs()
         #                        if j._state == 'Running'])

@@ -9,7 +9,7 @@ import sortedcontainers
 import traceback
 
 from hailtop.config import get_deploy_config
-from hailtop.utils import AsyncPriorityWorkerPool
+from hailtop.utils import AsyncPriorityWorkerPool, AsyncWorkerPool
 
 from ..google_compute import GServices
 from ..utils import parse_cpu_in_mcpu
@@ -110,7 +110,6 @@ class Pod:
     async def mark_complete(self, status):
         self._status = status
         await self.driver.db.pods.update_record(self.name, status=json.dumps(status))
-        await self.driver.complete_queue.put(status)
 
     def mark_deleted(self):
         assert not self.deleted
@@ -183,7 +182,8 @@ class Pod:
 
     async def put_on_ready(self):
         # log.info(f'putting {self.name} on ready')
-        await self.driver.pool.call(PUT_ON_READY_PRIORITY, self._put_on_ready)
+        await self._put_on_ready()
+        # await self.driver.pool.call(PUT_ON_READY_PRIORITY, self._put_on_ready)
 
     def remove_from_ready(self):
         if self.on_ready:
@@ -314,8 +314,9 @@ class Driver:
         self.batch_bucket = batch_bucket
         self.pods = None  # populated in initialize
 
-        self.complete_queue = asyncio.Queue()
+        self.complete_queue = asyncio.Queue(maxsize=1000)
         self.ready_queue = asyncio.Queue(maxsize=1000)
+
         self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores_mcpu)
         self.ready_cores_mcpu = 0
         self.changed = asyncio.Event()
@@ -380,7 +381,8 @@ class Driver:
             log.warning(f'pod_complete from unknown pod {pod_name}, instance {inst_token}')
             return web.HTTPNotFound()
         log.info(f'pod_complete from pod {pod_name}, instance {inst_token}')
-        await self.pool.call(MARK_COMPLETE_PRIORITY, pod.mark_complete, status)
+        await pod.mark_complete(status)
+        await self.complete_queue.put(status)
         return web.Response()
 
     async def create_pod(self, spec, output_directory):

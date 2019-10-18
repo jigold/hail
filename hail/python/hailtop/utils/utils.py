@@ -57,10 +57,10 @@ class AsyncWorkerPool:
 
 
 class AsyncPriorityWorkerPool:
-    def __init__(self, parallelism):
+    def __init__(self, parallelism, queue_size=1000):
         self._count = 0
         self._done = asyncio.Event()
-        self._queue = asyncio.PriorityQueue()
+        self._queue = asyncio.PriorityQueue(maxsize=queue_size)
 
         for _ in range(parallelism):
             asyncio.ensure_future(self._worker())
