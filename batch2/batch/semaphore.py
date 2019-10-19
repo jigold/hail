@@ -1,4 +1,7 @@
 import asyncio
+import logging
+
+log = logging.getLogger('semaphore')
 
 
 class ANullContextManager:
@@ -35,10 +38,12 @@ class WeightedSemaphore:
         while self.value < weight:
             async with self.cond:
                 await self.cond.wait()
+        log.info(f'acquire old value = {self.value} weight = {weight}')
         self.value -= weight
 
     async def release(self, weight):
         self.value += weight
+        log.info(f'release new value = {self.value} weight = {weight}')
         async with self.cond:
             self.cond.notify_all()
 
