@@ -162,10 +162,10 @@ class Container:
             try:
                 start1 = time.time()
                 await self._container.start()
-                log.info(f'took {round(time.time() - start1, 3)} seconds to start the container')
+                log.info(f'took {round(time.time() - start1, 3)} seconds to start the container {self.id}')
                 start2 = time.time()
                 await self._container.wait()
-                log.info(f'took {round(time.time() - start2, 3)} seconds to wait on the container')
+                log.info(f'took {round(time.time() - start2, 3)} seconds to wait on the container {self.id}')
                 error = None
                 break
             except DockerError as err:
