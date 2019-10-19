@@ -250,8 +250,13 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: batch2
+{% if deploy %}
   minReplicas: 3
   maxReplicas: 10
+{% else %}
+  minReplicas: 1
+  maxReplicas: 1
+{% endif %}
   metrics:
    - type: Resource
      resource:
