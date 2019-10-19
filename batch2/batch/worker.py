@@ -125,15 +125,19 @@ class Container:
         image = config['Image']
         while n_tries <= 3:
             try:
+                start = time.time()
                 self._container = await docker.containers.create(config, name=self.id)
+                log.info(f'took {round(time.time() - start, 3)} seconds to create the docker container for {self.id}')
                 self._container = await docker.containers.get(self._container._id)
                 return True
             except DockerError as create_error:
                 log.info(f'Attempt {n_tries}: caught error while creating container {self.id}: {create_error.message}')
                 if create_error.status == 404:
                     try:
+                        start = time.time()
                         log.info(f'pulling image {image} for container {self.id}')
                         await docker.pull(image)
+                        log.info(f'took {round(time.time() - start, 3)} seconds to pull image {image} for container {self.id}')
                     except DockerError as pull_error:
                         log.info(f'caught error pulling image {image} for container {self.id}: {pull_error.status} {pull_error.message}')
                         error = ImagePullBackOff(msg=pull_error.message)
@@ -148,15 +152,20 @@ class Container:
 
     async def run(self):
         assert self.error is None
-        log.info(f'running container {self.id}')
+        log.info(f'starting container {self.id}')
+        start = time.time()
 
         n_tries = 1
         error = None
 
         while n_tries <= 5:
             try:
+                start1 = time.time()
                 await self._container.start()
+                log.info(f'took {round(time.time() - start1, 3)} seconds to start the container')
+                start2 = time.time()
                 await self._container.wait()
+                log.info(f'took {round(time.time() - start2, 3)} seconds to wait on the container')
                 error = None
                 break
             except DockerError as err:
@@ -168,6 +177,7 @@ class Container:
 
         if error:
             self.error = error
+        log.info(f'container {self.id} completed in {round(time.time() - start, 3)} seconds')
 
         self._container = await docker.containers.get(self._container._id)
         self.exit_code = self._container['State']['ExitCode']
@@ -177,7 +187,9 @@ class Container:
         log.info(f'writing log for {self.id} to {log_path}')
         log.info(f'writing status for {self.id} to {status_path}')
 
+        start = time.time()
         log_data = await self.log()
+        log.info(f'took {round(time.time() - start, 3)} seconds to get the log')
         status_data = json.dumps(self._container._container, indent=4)
 
         upload_log = self.pod.worker.gcs_client.write_gs_file(log_path, log_data)
@@ -397,18 +409,21 @@ class BatchPod:
 
             last_ec = None
             for _, container in self.containers.items():
+                log.info(f'ready to run container ({self.name}, {container.name})')
+                start = time.time()
                 async with semaphore(container.cores_mcpu):
-                    log.info(f'running container ({self.name}, {container.name}) with {container.cores_mcpu / 1000} cores')
+                    log.info(f'running container ({self.name}, {container.name}) with {container.cores_mcpu / 1000} cores after waiting {round(time.time() - start, 3)} seconds')
+                    start = time.time()
                     await container.run()
                     last_ec = container.exit_code
-                    log.info(f'ran container {container.id} with exit code {container.exit_code} and error {container.error}')
+                    log.info(f'ran container {container.id} with exit code {container.exit_code} and error {container.error} after {round(time.time() - start, 3)} seconds')
                     if container.error or last_ec != 0:  # Docker sets exit code to 0 by default even if container errors
                         break
 
             self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
 
             await self._mark_complete()
-            log.info(f'took {time.time() - start} seconds to run pod {self.name}')
+            log.info(f'took {round(time.time() - start, 3)} seconds to run pod {self.name}')
 
         except asyncio.CancelledError:
             log.info(f'pod {self.name} was cancelled')

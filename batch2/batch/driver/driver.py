@@ -107,7 +107,7 @@ class Pod:
 
     async def mark_complete(self, status):
         self._status = status
-        asyncio.ensure_future(self.driver.db.pods.update_record(self.name, status=json.dumps(status)))
+        await self.driver.db.pods.update_record(self.name, status=json.dumps(status))
 
     def mark_deleted(self):
         assert not self.deleted
@@ -250,7 +250,7 @@ class Pod:
                     log.info(f'failed to delete {self.name} on inst {inst} due to err {err}, ignoring')
 
             await self.unschedule()
-            asyncio.ensure_future(self.driver.db.pods.delete_record(self.name))
+            await self.driver.db.pods.delete_record(self.name)
 
     async def read_pod_log(self, container):
         assert container in tasks
@@ -380,6 +380,7 @@ class Driver:
 
     async def create_pod(self, spec, output_directory):
         name = spec['metadata']['name']
+        log.info(f'creating pod {name}')
 
         if name in self.pods:
             return DriverException(409, f'pod {name} already exists')
