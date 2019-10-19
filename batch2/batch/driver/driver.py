@@ -313,8 +313,7 @@ class Driver:
         self.ready_cores_mcpu = 0
         self.changed = asyncio.Event()
 
-        self.create_pool = None  # created in run
-        self.delete_pool = None  # created in run
+        self.pool = None  # created in run
 
         deploy_config = get_deploy_config()
 
@@ -398,7 +397,7 @@ class Driver:
         if pod is None:
             return DriverException(409, f'pod {name} does not exist')
         pod.mark_deleted()
-        await self.delete_pool.call(pod.delete)
+        await self.pool.call(pod.delete)
         del self.pods[name]  # this must be after delete finishes successfully in case pod marks complete before delete call
 
     async def read_pod_log(self, name, container):
@@ -447,13 +446,12 @@ class Driver:
                     should_wait = False
                     scheduled = await pod.schedule(inst)  # This cannot go in the pool!
                     if scheduled:
-                        await self.create_pool.call(pod.create)
+                        await self.pool.call(pod.create)
 
     async def initialize(self):
         await self.inst_pool.initialize()
 
-        self.create_pool = AsyncWorkerPool(100)
-        self.delete_pool = AsyncWorkerPool(100)
+        self.pool = AsyncWorkerPool(100)
 
         def _pod(record):
             pod = Pod.from_record(self, record)
