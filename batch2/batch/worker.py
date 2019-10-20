@@ -124,6 +124,9 @@ class Container:
         n_tries = 1
         error = None
         image = config['Image']
+
+        log.info(config)
+        
         while n_tries <= 3:
             try:
                 start = time.time()
