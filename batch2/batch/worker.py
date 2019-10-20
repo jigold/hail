@@ -14,7 +14,6 @@ from aiohttp import web
 import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
-import docker as d
 
 # import uvloop
 
@@ -32,7 +31,6 @@ configure_logging()
 log = logging.getLogger('batch2-agent')
 
 docker = aiodocker.Docker()
-dc = d.from_env()
 
 MAX_IDLE_TIME_WITH_PODS = 60 * 2  # seconds
 MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1  # seconds
@@ -96,6 +94,7 @@ class Container:
             'OpenStdin': False,
             'Cmd': self.spec['command'],
             'Image': self.spec['image'],
+            'NetworkDisabled': True,
             'HostConfig': {'CpuPeriod': 100000,
                            'CpuQuota': self.cores_mcpu * 100}
         }
@@ -162,10 +161,8 @@ class Container:
 
         while n_tries <= 5:
             try:
-                container = dc.containers.get(self._container._container['Id'])
                 start1 = time.time()
-                container.start()
-                # await self._container.start()
+                await self._container.start()
                 log.info(f'took {round(time.time() - start1, 3)} seconds to start the container {self.id}')
                 start2 = time.time()
                 await self._container.wait()
