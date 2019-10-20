@@ -97,7 +97,7 @@ class Container:
             'NetworkDisabled': True,
             'HostConfig': {'CpuPeriod': 100000,
                            'CpuQuota': self.cores_mcpu * 100,
-                           'Binds': []}
+                           'Binds': None}
         }
 
         volume_mounts = []
