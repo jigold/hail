@@ -96,8 +96,7 @@ class Container:
             'Image': self.spec['image'],
             'NetworkDisabled': True,
             'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': self.cores_mcpu * 100,
-                           'Binds': None}
+                           'CpuQuota': self.cores_mcpu * 100}
         }
 
         volume_mounts = []
