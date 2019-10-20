@@ -161,7 +161,9 @@ class Container:
         while n_tries <= 5:
             try:
                 start1 = time.time()
-                await self._container.start()
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(self._container.start())
+                # await self._container.start()
                 log.info(f'took {round(time.time() - start1, 3)} seconds to start the container {self.id}')
                 start2 = time.time()
                 await self._container.wait()
