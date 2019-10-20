@@ -96,7 +96,8 @@ class Container:
             'Image': self.spec['image'],
             'NetworkDisabled': True,
             'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': self.cores_mcpu * 100}
+                           'CpuQuota': self.cores_mcpu * 100,
+                           'Binds': []}
         }
 
         volume_mounts = []
@@ -126,7 +127,7 @@ class Container:
         image = config['Image']
 
         log.info(config)
-        
+
         while n_tries <= 3:
             try:
                 start = time.time()
