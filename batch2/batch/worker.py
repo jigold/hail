@@ -118,8 +118,8 @@ class Container:
             log.info(f'caught {self.error.reason} error while creating container {self.id}: {self.error.message}')
             return False
 
-        if volume_mounts:
-            config['HostConfig']['Binds'] = volume_mounts
+        # if volume_mounts:
+        #     config['HostConfig']['Binds'] = volume_mounts
 
         n_tries = 1
         error = None
