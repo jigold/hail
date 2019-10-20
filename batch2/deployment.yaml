@@ -49,9 +49,9 @@ spec:
          - name: WORKER_TYPE
            value: "standard"
          - name: WORKER_CORES
-           value: "1"
+           value: "2"
          - name: WORKER_DISK_SIZE_GB
-           value: "10"
+           value: "40"
          - name: POOL_SIZE
            value: "1"
          - name: MAX_INSTANCES
