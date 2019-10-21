@@ -339,10 +339,10 @@ class Job:
 
 
 class JobsIterator:
-    def __init__(self, batch, limit=None, offset=0):
+    def __init__(self, batch, limit=None, offset=None):
         self.batch = batch
         self.limit = limit if limit else batch.n_jobs
-        self.offset = offset
+        self.offset = offset if offset else 0
 
     def __aiter__(self):
         return self
