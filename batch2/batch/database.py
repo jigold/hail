@@ -320,7 +320,7 @@ class JobsTable(Table):
                           INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
                           WHERE batch_id = {batch_id} AND job_id > {offset}
                           ORDER BY batch_id, job_id ASC
-                          OFFSET 0 {limit}"""
+                          {limit} OFFSET 0"""
                 await execute_with_retry(cursor, sql)
                 return await fetchall_with_retry(cursor)
 
