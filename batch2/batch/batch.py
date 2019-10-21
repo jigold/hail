@@ -351,14 +351,14 @@ class JobsIterator:
         if self.offset >= self.batch.n_jobs:
             raise StopAsyncIteration()
 
-        result = await self.batch.app['db'].jobs.get_records_by_batch(
+        records = await self.batch.app['db'].jobs.get_records_by_batch(
             self.batch.id,
             offset=self.offset,
             limit=self.limit)
 
         self.offset += self.limit
 
-        return result
+        return [Job.from_record(self.batch.app, record) for record in records]
 
 
 class Batch:
