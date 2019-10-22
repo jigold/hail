@@ -524,6 +524,6 @@ class Batch:
         if self.attributes:
             result['attributes'] = self.attributes
         if include_jobs:
-            jobs = next(await self.jobs_iterator(limit, offset))
+            jobs = await next(await self.jobs_iterator(limit, offset))
             result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
         return result
