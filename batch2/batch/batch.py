@@ -368,8 +368,7 @@ class Batch:
                          complete=complete,
                          deleted=record['deleted'],
                          cancelled=record['cancelled'],
-                         closed=record['closed'],
-                         n_jobs=record['n_jobs'])
+                         closed=record['closed'])
         return None
 
     @staticmethod
@@ -402,7 +401,7 @@ class Batch:
         batch = Batch(app, id=id, attributes=attributes, callback=callback,
                       userdata=userdata, user=user, state='running',
                       complete=False, deleted=False, cancelled=False,
-                      closed=False, n_jobs=n_jobs)
+                      closed=False)
 
         if attributes is not None:
             items = [{'batch_id': id, 'key': k, 'value': v} for k, v in attributes.items()]
@@ -414,7 +413,7 @@ class Batch:
         return batch
 
     def __init__(self, app, id, attributes, callback, userdata, user,
-                 state, complete, deleted, cancelled, closed, n_jobs):
+                 state, complete, deleted, cancelled, closed):
         self.app = app
         self.id = id
         self.attributes = attributes
@@ -426,7 +425,6 @@ class Batch:
         self.deleted = deleted
         self.cancelled = cancelled
         self.closed = closed
-        self.n_jobs = n_jobs
 
     async def get_jobs(self, limit=None, offset=None, size=None):
         async for records in self.app['db'].jobs.get_records_by_batch(limit=limit, offset=offset, size=size):
@@ -502,6 +500,6 @@ class Batch:
         if self.attributes:
             result['attributes'] = self.attributes
         if include_jobs:
-            jobs = [jobs async for jobs in self.get_jobs(limit=limit, offset=offset)]
+            jobs = [job async for jobs in self.get_jobs(limit=limit, offset=offset) for job in jobs]
             result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
         return result

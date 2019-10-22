@@ -224,27 +224,6 @@ class BatchDatabase(Database):
         self.instances = InstancesTable(self)
 
 
-# class JobsIterator:
-#     def __init__(self, cursor, size=None):
-#         self.cursor = cursor
-#         self.size = size
-#
-#     def __aiter__(self):
-#         return self
-#
-#     async def __anext__(self):
-#         result = await fetchmany_with_retry(self.cursor, self.size)
-#         if not result:
-#             raise StopAsyncIteration
-#         return result
-#
-#     async def __aenter__(self):
-#         pass
-#
-#     async def __aexit__(self, exc_type, exc_val, exc_tb):
-#         await self.cursor.close()
-
-
 class JobsTable(Table):
     batch_view_fields = {'cancelled', 'user', 'userdata'}
 
