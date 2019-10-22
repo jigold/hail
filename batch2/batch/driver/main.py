@@ -137,7 +137,9 @@ async def pod_changed(app, pod):
 async def refresh_pods(app):
     log.info(f'refreshing pods')
 
-    pod_jobs = [Job.from_record(app, record) for record in await app['db'].jobs.get_records_where({'state': 'Running'})]
+    pod_jobs = [Job.from_record(app, record)
+                async for records in await app['db'].jobs.get_records_where({'state': 'Running'})
+                for record in records]
 
     pods = app['driver'].list_pods()
     log.info(f'batch had {len(pods)} pods')
