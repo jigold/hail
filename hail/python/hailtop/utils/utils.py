@@ -29,13 +29,7 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
 
 
 class GatheringFuture(asyncio.futures.Future):
-    """Helper for throttled_gather().
-    This overrides cancel() to cancel all the children and act more
-    like Task.cancel(), which doesn't immediately mark itself as
-    cancelled.
-    """
-
-    def __init__(self, *, loop=None):
+    def __init__(self, loop=None):
         super().__init__(loop=loop)
         self._children = []
 
@@ -52,25 +46,28 @@ class GatheringFuture(asyncio.futures.Future):
         return ret
 
 
-def throttled_gather(*coros, loop=None, parallelism=10, return_exceptions=False):
-    if not coros:
-        if loop is None:
-            loop = asyncio.get_event_loop()
-        outer = loop.create_future()
-        outer.set_result([])
-        return outer
+def throttled_gather(*coros, parallelism=10, return_exceptions=False):
+    gatherer = AsyncThrottledGather(*coros, parallelism=parallelism, return_exceptions=return_exceptions)
+    return gatherer.wait()
 
-    sem = threading.Semaphore(parallelism)
-    outer = GatheringFuture(loop=loop)
-    n_finished = 0
-    n_children = len(coros)
-    print(f'have {n_children} children')
-    results = [None] * n_children
 
-    def _done_callback(i, fut):
-        print(f'done callback for {i}')
-        nonlocal n_finished
-        if outer.done():
+class AsyncThrottledGather:
+    def __init__(self, *coros, parallelism=10, return_exceptions=False):
+        self._queue = asyncio.Queue(maxsize=1000)
+        self._count = len(coros)
+        self._outer = GatheringFuture()
+        self.return_exceptions = return_exceptions
+        self.results = [None] * len(coros)
+        self.n_finished = 0
+
+        self._futures = []
+        for _ in range(parallelism):
+            self._futures.append(asyncio.ensure_future(self._worker()))
+
+        self._futures.append(asyncio.ensure_future(self._run(*coros)))
+
+    def _callback(self, i, fut):
+        if self._outer.done():
             if not fut.cancelled():
                 # Mark exception retrieved.
                 fut.exception()
@@ -78,33 +75,38 @@ def throttled_gather(*coros, loop=None, parallelism=10, return_exceptions=False)
 
         if fut.cancelled():
             res = asyncio.futures.CancelledError()
-            if not return_exceptions:
-                outer.set_exception(res)
+            if not self.return_exceptions:
+                self._outer.set_exception(res)
                 return
         elif fut._exception is not None:
             res = fut.exception()  # Mark exception retrieved.
-            if not return_exceptions:
-                outer.set_exception(res)
+            if not self.return_exceptions:
+                self._outer.set_exception(res)
                 return
         else:
-            res = fut._result
-        results[i] = res
-        n_finished += 1
-        if n_finished == n_children:
-            print('setting the result of outer')
-            outer.set_result(results)
+            res = fut.result()
 
-    for i, coro in enumerate(coros):
-        with sem:
-            fut = asyncio.ensure_future(coro, loop=loop)
-            outer.add_child(fut)
-            if loop is None:
-                loop = fut._loop
-            # The caller cannot control this future, the "destroy pending task"
-            # warning should not be emitted.
-            fut._log_destroy_pending = False
-            fut.add_done_callback(functools.partial(_done_callback, i))
-    return outer
+        self.results[i] = res
+        self.n_finished += 1
+
+        if self.n_finished == self._count:
+            [fut.cancel() for fut in self._futures]
+            self._outer.set_result(self.results)
+
+    async def _worker(self):
+        while True:
+            i, coro = await self._queue.get()
+            fut = asyncio.ensure_future(coro)
+            self._outer.add_child(fut)
+            fut.add_done_callback(functools.partial(self._callback, i))
+            await asyncio.wait_for(fut, timeout=None)
+
+    async def _run(self, *coros):
+        for i, coro in enumerate(coros):
+            await self._queue.put((i, coro))
+
+    def wait(self):
+        return self._outer
 
 
 class AsyncWorkerPool:
