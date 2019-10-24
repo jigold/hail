@@ -66,6 +66,10 @@ class AsyncThrottledGather:
 
         self._futures.append(asyncio.ensure_future(self._fill_queue(*coros)))
 
+    def _close(self):
+        for fut in self._futures:
+            fut.cancel()
+
     def _callback(self, i, fut):
         if self._outer.done():
             if not fut.cancelled():
@@ -76,11 +80,13 @@ class AsyncThrottledGather:
         if fut.cancelled():
             res = asyncio.futures.CancelledError()
             if not self.return_exceptions:
+                self._close()
                 self._outer.set_exception(res)
                 return
         elif fut._exception is not None:
             res = fut.exception()  # Mark exception retrieved.
             if not self.return_exceptions:
+                self._close()
                 self._outer.set_exception(res)
                 return
         else:
@@ -90,7 +96,7 @@ class AsyncThrottledGather:
         self.n_finished += 1
 
         if self.n_finished == self._count:
-            [fut.cancel() for fut in self._futures]
+            self._close()
             self._outer.set_result(self.results)
 
     async def _worker(self):
