@@ -370,7 +370,7 @@ class BatchBuilder:
         if specs:
             coros.append(self._submit_job(batch.id, specs))
 
-        await throttled_gather(*coros, parallelism=10)
+        await throttled_gather(*coros, parallelism=2)
 
         await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
         log.info(f'closed batch {b["id"]}')

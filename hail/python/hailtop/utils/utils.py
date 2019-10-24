@@ -5,6 +5,7 @@ import logging
 import asyncio
 import aiohttp
 from aiohttp import web
+import threading
 
 log = logging.getLogger('hailtop.utils')
 
@@ -28,7 +29,7 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
 
 
 class GatheringFuture(asyncio.futures.Future):
-    """Helper for gather().
+    """Helper for throttled_gather().
     This overrides cancel() to cancel all the children and act more
     like Task.cancel(), which doesn't immediately mark itself as
     cancelled.
@@ -51,7 +52,7 @@ class GatheringFuture(asyncio.futures.Future):
         return ret
 
 
-async def throttled_gather(*coros, loop=None, parallelism=10, return_exceptions=False):
+def throttled_gather(*coros, loop=None, parallelism=10, return_exceptions=False):
     if not coros:
         if loop is None:
             loop = asyncio.get_event_loop()
@@ -59,13 +60,15 @@ async def throttled_gather(*coros, loop=None, parallelism=10, return_exceptions=
         outer.set_result([])
         return outer
 
-    sem = asyncio.Semaphore(parallelism)
+    sem = threading.Semaphore(parallelism)
     outer = GatheringFuture(loop=loop)
     n_finished = 0
     n_children = len(coros)
+    print(f'have {n_children} children')
     results = [None] * n_children
 
     def _done_callback(i, fut):
+        print(f'done callback for {i}')
         nonlocal n_finished
         if outer.done():
             if not fut.cancelled():
@@ -88,10 +91,11 @@ async def throttled_gather(*coros, loop=None, parallelism=10, return_exceptions=
         results[i] = res
         n_finished += 1
         if n_finished == n_children:
+            print('setting the result of outer')
             outer.set_result(results)
 
     for i, coro in enumerate(coros):
-        async with sem:
+        with sem:
             fut = asyncio.ensure_future(coro, loop=loop)
             outer.add_child(fut)
             if loop is None:
