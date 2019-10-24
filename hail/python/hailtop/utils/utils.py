@@ -1,11 +1,10 @@
 import errno
 import random
-import functools
 import logging
 import asyncio
 import aiohttp
 from aiohttp import web
-import threading
+
 
 log = logging.getLogger('hailtop.utils')
 
@@ -67,9 +66,9 @@ class AsyncThrottledGather:
 
             try:
                 res = await coro
-            except asyncio.CancelledError:
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except Exception as err:
+            except Exception as err:  # pylint: disable=broad-except
                 res = err
                 if not self._return_exceptions:
                     self._error = err
@@ -84,7 +83,6 @@ class AsyncThrottledGather:
 
     async def _fill_queue(self, *coros):
         for i, coro in enumerate(coros):
-            self._done.clear()
             await self._queue.put((i, coro))
 
     async def wait(self):
