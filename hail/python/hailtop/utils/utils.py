@@ -64,7 +64,7 @@ class AsyncThrottledGather:
         for _ in range(parallelism):
             self._futures.append(asyncio.ensure_future(self._worker()))
 
-        self._futures.append(asyncio.ensure_future(self._run(*coros)))
+        self._futures.append(asyncio.ensure_future(self._fill_queue(*coros)))
 
     def _callback(self, i, fut):
         if self._outer.done():
@@ -101,7 +101,7 @@ class AsyncThrottledGather:
             fut.add_done_callback(functools.partial(self._callback, i))
             await asyncio.wait_for(fut, timeout=None)
 
-    async def _run(self, *coros):
+    async def _fill_queue(self, *coros):
         for i, coro in enumerate(coros):
             await self._queue.put((i, coro))
 
