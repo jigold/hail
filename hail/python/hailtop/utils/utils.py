@@ -28,91 +28,73 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-class GatheringFuture(asyncio.futures.Future):
-    def __init__(self, loop=None):
-        super().__init__(loop=loop)
-        self._children = []
-
-    def add_child(self, fut):
-        self._children.append(fut)
-
-    def cancel(self):
-        if self.done():
-            return False
-        ret = False
-        for child in self._children:
-            if child.cancel():
-                ret = True
-        return ret
-
-
-def throttled_gather(*coros, parallelism=10, return_exceptions=False):
-    gatherer = AsyncThrottledGather(*coros, parallelism=parallelism, return_exceptions=return_exceptions)
-    return gatherer.wait()
+async def throttled_gather(*coros, parallelism=10, return_exceptions=False):
+    gatherer = AsyncThrottledGather(*coros,
+                                    parallelism=parallelism,
+                                    return_exceptions=return_exceptions)
+    return await gatherer.wait()
 
 
 class AsyncThrottledGather:
     def __init__(self, *coros, parallelism=10, return_exceptions=False):
-        self._queue = asyncio.Queue(maxsize=1000)
-        self._count = len(coros)
-        self._outer = GatheringFuture()
-        self.return_exceptions = return_exceptions
-        self.results = [None] * len(coros)
+        self.count = len(coros)
         self.n_finished = 0
 
+        self._queue = asyncio.Queue(maxsize=1000)
+        self._done = asyncio.Event()
+        self._return_exceptions = return_exceptions
         self._futures = []
+
+        self._results = [None] * len(coros)
+        self._error = None
+
+        if self.count == 0:
+            self._done.set()
+            return
+
         for _ in range(parallelism):
             self._futures.append(asyncio.ensure_future(self._worker()))
 
         self._futures.append(asyncio.ensure_future(self._fill_queue(*coros)))
 
-    def _close(self):
+    def _cancel_futures(self):
         for fut in self._futures:
             fut.cancel()
-
-    def _callback(self, i, fut):
-        if self._outer.done():
-            if not fut.cancelled():
-                # Mark exception retrieved.
-                fut.exception()
-            return
-
-        if fut.cancelled():
-            res = asyncio.futures.CancelledError()
-            if not self.return_exceptions:
-                self._close()
-                self._outer.set_exception(res)
-                return
-        elif fut._exception is not None:
-            res = fut.exception()  # Mark exception retrieved.
-            if not self.return_exceptions:
-                self._close()
-                self._outer.set_exception(res)
-                return
-        else:
-            res = fut.result()
-
-        self.results[i] = res
-        self.n_finished += 1
-
-        if self.n_finished == self._count:
-            self._close()
-            self._outer.set_result(self.results)
 
     async def _worker(self):
         while True:
             i, coro = await self._queue.get()
-            fut = asyncio.ensure_future(coro)
-            self._outer.add_child(fut)
-            fut.add_done_callback(functools.partial(self._callback, i))
-            await asyncio.wait_for(fut, timeout=None)
+
+            try:
+                res = await coro
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:
+                res = err
+                if not self._return_exceptions:
+                    self._error = err
+                    self._done.set()
+                    return
+
+            self._results[i] = res
+            self.n_finished += 1
+
+            if self.n_finished == self.count:
+                self._done.set()
 
     async def _fill_queue(self, *coros):
         for i, coro in enumerate(coros):
+            self._done.clear()
             await self._queue.put((i, coro))
 
-    def wait(self):
-        return self._outer
+    async def wait(self):
+        await self._done.wait()
+        self._cancel_futures()
+
+        if self._error:
+            raise self._error
+        else:
+            return self._results
 
 
 class AsyncWorkerPool:
