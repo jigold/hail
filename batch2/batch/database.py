@@ -311,7 +311,7 @@ class JobsTable(Table):
         if offset is not None:
             assert limit is not None
 
-        return self.get_records_where({'batch_id': batch_id},
+        yield self.get_records_where({'batch_id': batch_id},
                                       limit=limit,
                                       offset=offset,
                                       order_by='batch_id, job_id',
