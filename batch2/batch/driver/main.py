@@ -138,7 +138,7 @@ async def refresh_pods(app):
     log.info(f'refreshing pods')
 
     pod_jobs = [Job.from_record(app, record)
-                async for records in await app['db'].jobs.get_records_where({'state': 'Running'})
+                async for records in app['db'].jobs.get_records_where({'state': 'Running'})
                 for record in records]
 
     pods = app['driver'].list_pods()
