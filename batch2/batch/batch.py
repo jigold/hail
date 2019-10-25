@@ -427,7 +427,8 @@ class Batch:
         self.closed = closed
 
     async def get_jobs(self, limit=None, offset=None, size=None):
-        async for record in self.app['db'].jobs.get_records_by_batch(limit=limit, offset=offset, size=size):
+        async for record in self.app['db'].jobs.get_records_by_batch(
+                self.id, limit=limit, offset=offset, size=size):
             yield Job.from_record(self.app, record)
 
     # called by driver
