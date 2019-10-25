@@ -427,14 +427,13 @@ class Batch:
         self.closed = closed
 
     async def get_jobs(self, limit=None, offset=None, size=None):
-        async for records in self.app['db'].jobs.get_records_by_batch(limit=limit, offset=offset, size=size):
-            yield (Job.from_record(self.app, record) for record in records)
+        async for record in self.app['db'].jobs.get_records_by_batch(limit=limit, offset=offset, size=size):
+            yield Job.from_record(self.app, record)
 
     # called by driver
     async def _cancel_jobs(self):
-        async for jobs in self.get_jobs(size=1000):
-            for j in jobs:
-                await j.cancel()
+        async for job in self.get_jobs(size=1000):
+            await job.cancel()
 
     # called by front end
     async def cancel(self):
@@ -445,10 +444,9 @@ class Batch:
 
     # called by driver
     async def _close_jobs(self):
-        async for jobs in self.get_jobs(size=1000):
-            for j in jobs:
-                if j._state == 'Running':
-                    await j._create_pod()
+        async for job in self.get_jobs(size=1000):
+            if job._state == 'Running':
+                await job._create_pod()
 
     # called by front end
     async def close(self):
@@ -468,8 +466,8 @@ class Batch:
 
     async def delete(self):
         # Job deleted from database when batch is deleted with delete cascade
-        async for jobs in self.get_jobs(size=1000):
-            await asyncio.gather(*[j._delete_gs_files() for j in jobs])
+        async for job in self.get_jobs(size=1000):
+            await job._delete_gs_files()
         await self.app['db'].batch.delete_record(self.id)
         log.info(f'batch {self.id} deleted')
 

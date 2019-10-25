@@ -343,10 +343,11 @@ class JobsTable(Table):
                           {limit} {offset}"""
                 await execute_with_retry(cursor, sql, where_values)
 
-                result = fetchmany_with_retry(cursor, size)
-                while result:
-                    yield result
-                    result = fetchmany_with_retry(cursor, size)
+                records = await fetchmany_with_retry(cursor, size)
+                while records:
+                    for record in records:
+                        yield record
+                    records = await fetchmany_with_retry(cursor, size)
 
     async def get_parents(self, batch_id, job_id):
         async with self._db.pool.acquire() as conn:
@@ -469,8 +470,7 @@ class BatchTable(Table):
             async with conn.cursor() as cursor:
                 sql = f"SELECT * FROM `{self.name}` WHERE `deleted` = TRUE AND `n_completed` = `n_jobs`"
                 await execute_with_retry(cursor, sql)
-                result = await fetchall_with_retry(cursor)
-        return result
+                return await fetchall_with_retry(cursor)
 
     async def get_undeleted_records(self, ids, user):
         return await super().get_records({'id': ids, 'user': user, 'deleted': False})
