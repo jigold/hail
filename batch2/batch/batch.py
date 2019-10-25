@@ -427,8 +427,6 @@ class Batch:
         self.closed = closed
 
     async def get_jobs(self, limit=None, offset=None, size=None):
-        log.info(type(self.app['db'].jobs.get_records_by_batch(
-            self.id, limit=limit, offset=offset, size=size)))
         async for record in self.app['db'].jobs.get_records_by_batch(
                 self.id, limit=limit, offset=offset, size=size):
             yield Job.from_record(self.app, record)
@@ -447,7 +445,6 @@ class Batch:
 
     # called by driver
     async def _close_jobs(self):
-        log.info(type(self.get_jobs(size=1000)))
         async for job in self.get_jobs(size=1000):
             if job._state == 'Running':
                 await job._create_pod()
@@ -502,6 +499,6 @@ class Batch:
         if self.attributes:
             result['attributes'] = self.attributes
         if include_jobs:
-            jobs = [job async for jobs in self.get_jobs(limit=limit, offset=offset) for job in jobs]
+            jobs = [job async for job in self.get_jobs(limit=limit, offset=offset)]
             result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
         return result
