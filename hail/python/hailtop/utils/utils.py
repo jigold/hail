@@ -26,19 +26,6 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-class AsyncMapIterator:
-    def __init__(self, ait, f):
-        self._ait = ait
-        self._f = f
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        record = await self._ait.__anext__()
-        return self._f(record)
-
-
 class AsyncWorkerPool:
     def __init__(self, parallelism):
         self._sem = asyncio.Semaphore(parallelism)

@@ -4,8 +4,6 @@ import traceback
 import asyncio
 import aiohttp
 
-from hailtop.utils import AsyncMapIterator
-
 from .globals import states, complete_states, valid_state_transitions, tasks
 from .log_store import LogStore
 
@@ -429,12 +427,13 @@ class Batch:
         self.closed = closed
 
     async def get_jobs(self, limit=None, offset=None, size=None):
-        it = self.app['db'].jobs.get_records_by_batch(self.id, limit=limit, offset=offset, size=size)
-        return AsyncMapIterator(it, lambda record: Job.from_record(self.app, record))
+        async for record in self.app['db'].jobs.get_records_by_batch(
+                self.id, limit=limit, offset=offset, size=size):
+            yield Job.from_record(self.app, record)
 
     # called by driver
     async def _cancel_jobs(self):
-        async for job in await self.get_jobs(size=1000):
+        async for job in self.get_jobs(size=1000):
             await job.cancel()
 
     # called by front end
@@ -446,7 +445,7 @@ class Batch:
 
     # called by driver
     async def _close_jobs(self):
-        async for job in await self.get_jobs(size=1000):
+        async for job in self.get_jobs(size=1000):
             if job._state == 'Running':
                 await job._create_pod()
 
@@ -468,7 +467,7 @@ class Batch:
 
     async def delete(self):
         # Job deleted from database when batch is deleted with delete cascade
-        async for job in await self.get_jobs(size=1000):
+        async for job in self.get_jobs(size=1000):
             await job._delete_gs_files()
         await self.app['db'].batch.delete_record(self.id)
         log.info(f'batch {self.id} deleted')
@@ -500,6 +499,6 @@ class Batch:
         if self.attributes:
             result['attributes'] = self.attributes
         if include_jobs:
-            jobs = [job async for job in await self.get_jobs(limit=limit, offset=offset)]
+            jobs = [job async for job in self.get_jobs(limit=limit, offset=offset)]
             result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
         return result
