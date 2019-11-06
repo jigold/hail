@@ -776,6 +776,9 @@ class CreateDatabaseStep(Step):
         self.namespace = get_namespace(namespace, self.input_config(params.code, params.scope))
         self.job = None
 
+        if is_test_deployment:
+            self.namespace = CI_NAMESPACE
+
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         if params.scope == 'deploy':
             self._name = database_name
