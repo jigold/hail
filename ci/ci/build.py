@@ -460,7 +460,7 @@ class CreateNamespaceStep(Step):
         self.secrets = secrets
         self.job = None
 
-        if CI_NAMESPACE != 'default':
+        if is_test_deployment:
             self._name = CI_NAMESPACE
             return
 
