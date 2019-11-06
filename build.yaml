@@ -10,9 +10,6 @@ steps:
     - test-gsa-key
     - auth-oauth2-client-secret
     - scorecard-github-access-token
-    - gcr-push-service-account-key
-    - database-server-config
-    - hail-ci-0-1-service-account-key
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -65,6 +62,9 @@ steps:
    config: ci/service-account.yaml
    dependsOn:
     - default_ns
+   scopes:
+    - test
+    - dev
 # deploy_ci_agent_sa and deploy_ci_agent_role are only needed
 # when ci is submitting jobs in batch-pods
  - kind: deploy

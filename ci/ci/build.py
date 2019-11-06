@@ -460,7 +460,7 @@ class CreateNamespaceStep(Step):
         self.secrets = secrets
         self.job = None
 
-        if is_test_deployment and namespace_name != 'default':
+        if is_test_deployment:
             self._name = CI_NAMESPACE
             return
 
@@ -606,7 +606,7 @@ date
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
-        if scope in ['deploy', 'dev'] and self._name != CI_NAMESPACE:
+        if scope in ['deploy', 'dev'] or is_test_deployment:
             return
 
         script = f'''
