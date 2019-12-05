@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `pool_size` BIGINT NOT NULL
 ) ENGINE = InnoDB;
 
-
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`name`)
@@ -62,13 +61,20 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `n_cancelled` INT NOT NULL DEFAULT 0,
   `time_created` BIGINT NOT NULL,
   `time_completed` BIGINT,
-  `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`user`) REFERENCES user_resources(user) ON DELETE CASCADE,
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
 CREATE INDEX `batches_user` ON `batches` (`user`);
 CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
+
+CREATE TABLE IF NOT EXISTS `batches_resource_usage` (
+  `batch_id` BIGINT NOT NULL,
+  `product` VARCHAR(100) NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`batch_id`, `product`)
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
+) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
@@ -80,12 +86,20 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `status` VARCHAR(65535),
   `n_pending_parents` INT NOT NULL,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
-  `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `attempt_id` VARCHAR(40),
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_state` ON `jobs` (`state`);
+
+CREATE TABLE IF NOT EXISTS `jobs_resource_usage` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `product` VARCHAR(100) NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`batch_id`, `job_id`, `product`),
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
+) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `attempts` (
   `batch_id` BIGINT NOT NULL,
@@ -101,6 +115,16 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   FOREIGN KEY (`instance_name`) REFERENCES instances(name)  
 ) ENGINE = InnoDB;
 CREATE INDEX `attempts_instance_name` ON `attempts` (`instance_name`);
+
+CREATE TABLE IF NOT EXISTS `attempts_resources` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `attempt_id` VARCHAR(40) NOT NULL,
+  `product` VARCHAR(100) NOT NULL,
+  `quantity` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `product`),
+  FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(batch_id, job_id, attempt_id) ON DELETE CASCADE
+) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `ready_cores` (
   ready_cores_mcpu INT NOT NULL
@@ -162,24 +186,25 @@ END $$
 CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
 FOR EACH ROW
 BEGIN
-  DECLARE job_cores_mcpu INT;
   DECLARE msec_diff BIGINT;
-  DECLARE msec_mcpu_diff BIGINT;
-
-  SELECT cores_mcpu INTO job_cores_mcpu FROM jobs
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 
   SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
                    GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
 
-  SET msec_mcpu_diff = msec_diff * job_cores_mcpu;
+  UPDATE batches_resource_usage
+  RIGHT JOIN (SELECT * FROM attempts_resources
+             WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id) AS resources
+    ON batches_resource_usage.batch_id = resources.batch_id AND batches_resource_usage.product = resources.product
+  SET usage = COALESCE(usage, 0) + msec_diff * quantity
+  WHERE batch_id = NEW.batch_id;
 
-  UPDATE batches
-  SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff
-  WHERE id = NEW.batch_id;
-
-  UPDATE jobs
-  SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
+  UPDATE jobs_resource_usage
+  RIGHT JOIN (SELECT * FROM attempts_resources
+             WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id) AS resources
+    ON jobs_resource_usage.batch_id = resources.batch_id AND
+       jobs_resource_usage.job_id = resources.job_id AND
+       jobs_resource_usage.product = resources.product
+  SET usage = COALESCE(usage, 0) + msec_diff * quantity
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 END $$
 

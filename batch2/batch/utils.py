@@ -9,6 +9,10 @@ from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
 log = logging.getLogger('utils')
 
 
+def cost_from_resource_usage(resource_usage):
+    pass
+
+
 def cost_from_msec_mcpu(msec_mcpu):
     cost_per_core_sec = 0.013 / 3600
     return msec_mcpu * cost_per_core_sec * 0.001 * 0.001

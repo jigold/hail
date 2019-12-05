@@ -11,7 +11,7 @@ from .globals import complete_states, tasks
 from .database import check_call_procedure
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
-from .utils import cost_from_msec_mcpu
+from .utils import cost_from_resource_usage
 
 log = logging.getLogger('batch')
 
@@ -41,11 +41,12 @@ def batch_record_to_dict(record):
     if attributes:
         d['attributes'] = attributes
 
-    msec_mcpu = record['msec_mcpu']
-    d['msec_mcpu'] = msec_mcpu
+    resource_usage = json.loads(record['resource_usage'])
+    if resource_usage:
+        d['resource_usage'] = resource_usage
 
-    cost = cost_from_msec_mcpu(msec_mcpu)
-    d['cost'] = f'${cost:.4f}'
+        cost = cost_from_resource_usage(resource_usage)
+        d['cost'] = f'${cost:.4f}'
 
     return d
 
@@ -156,11 +157,12 @@ def job_record_to_dict(record, running_status=None):
     if status:
         result['status'] = status
 
-    msec_mcpu = record['msec_mcpu']
-    result['msec_mcpu'] = msec_mcpu
+    resource_usage = json.loads(record['resource_usage'])
+    if resource_usage:
+        result['resource_usage'] = resource_usage
 
-    cost = cost_from_msec_mcpu(msec_mcpu)
-    result['cost'] = f'${cost:.4f}'
+        cost = cost_from_resource_usage(resource_usage)
+        result['cost'] = f'${cost:.4f}'
 
     return result
 

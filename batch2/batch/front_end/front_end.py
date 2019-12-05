@@ -141,7 +141,14 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
+SET SESSION group_concat_max_len = 1048576;
 SELECT * FROM jobs
+LEFT JOIN (SELECT batch_id, job_id
+   CONCAT('{{', GROUP_CONCAT(
+     CONCAT('"', product, '"', '":"', usage, '"') 
+   ), '}}') AS resource_usage 
+   FROM jobs_resource_usage GROUP BY batch_id, job_id) AS t1
+   ON jobs.batch_id = t1.batch_id AND jobs.job_id = t1.job_id
 WHERE {' AND '.join(where_conditions)}
 ORDER BY batch_id, job_id ASC
 LIMIT 50;
@@ -316,6 +323,7 @@ async def _query_batches(request, user):
         where_args.extend(args)
 
     sql = f'''
+SET SESSION group_concat_max_len = 1048576;
 SELECT * 
 FROM (SELECT *, CASE
     WHEN NOT closed THEN 'open'
@@ -324,7 +332,13 @@ FROM (SELECT *, CASE
     WHEN n_succeeded = n_jobs THEN 'success'
     ELSE 'running'
   END AS state
-FROM batches) as t
+FROM batches) AS t1
+LEFT JOIN (SELECT batch_id, 
+   CONCAT('{{', GROUP_CONCAT(
+     CONCAT('"', product, '"', '":"', usage, '"') 
+   ), '}}') AS resource_usage 
+   FROM batches_resource_usage GROUP BY batch_id) AS t2
+   ON t1.batch_id = t2.batch_id
 WHERE {' AND '.join(where_conditions)}
 ORDER BY id DESC
 LIMIT 50;
