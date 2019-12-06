@@ -8,7 +8,7 @@ from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
 
 log = logging.getLogger('utils')
 
-
+# https://cloud.google.com/compute/all-pricing
 product_to_cost_per_hour = {
     'preemptible-n1-predefined-core': 0.006655 * 0.001,  # core / hour => mcore / hour
     'preemptible-n1-predefined-ram': 0.000892 * 0.001,  # GB / hour => MB / hour

@@ -24,7 +24,8 @@ class Instance:
         token = secrets.token_urlsafe(32)
         await db.just_execute(
             '''
-INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated)
+INSERT INTO instances (name, state, activation_token, token, cores_mcpu, 
+                       free_cores_mcpu, time_created, last_updated)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (name, state, activation_token, token, worker_cores_mcpu,
