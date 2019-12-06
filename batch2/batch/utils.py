@@ -12,7 +12,7 @@ log = logging.getLogger('utils')
 product_to_cost_per_hour = {
     'preemptible-n1-predefined-core': 0.006655 * 0.001,  # core / hour => mcore / hour
     'preemptible-n1-predefined-ram': 0.000892 * 0.001,  # GB / hour => MB / hour
-    'ssd-pd': 0.048 / 30,  # GB / month
+    'ssd-pd': 0.048 / (30 * 24),  # GB / month => GB / hour
 }
 
 
