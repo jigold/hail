@@ -141,23 +141,34 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SET SESSION group_concat_max_len = 1048576;
 SELECT * FROM jobs
-LEFT JOIN (SELECT batch_id, job_id
-   CONCAT('{{', GROUP_CONCAT(
-     CONCAT('"', product, '"', '":"', usage, '"') 
-   ), '}}') AS resource_usage 
-   FROM jobs_resource_usage GROUP BY batch_id, job_id) AS t1
-   ON jobs.batch_id = t1.batch_id AND jobs.job_id = t1.job_id
+LEFT JOIN jobs_resource_usage
+   ON jobs.batch_id = jobs_resource_usage.batch_id AND 
+      jobs.job_id = jobs_resource_usage.job_id
 WHERE {' AND '.join(where_conditions)}
 ORDER BY batch_id, job_id ASC
 LIMIT 50;
 '''
     sql_args = where_args
 
-    jobs = [job_record_to_dict(job)
-            async for job
-            in db.execute_and_fetchall(sql, sql_args)]
+    jobs = []
+    resource_usage = {}
+    last_row = None
+    async for row in db.execute_and_fetchall(sql, sql_args):
+        resource_usage[row['product']] = row['usage']
+        if row['batch_id'] != last_row['batch_id'] or row['job_id'] != last_row['job_id']:
+            del row['product']
+            del row['usage']
+            row['resource_usage'] = resource_usage
+            jobs.append(job_record_to_dict(row))
+            resource_usage = {}
+        last_row = row
+
+    if last_row:
+        del last_row['product']
+        del last_row['usage']
+        last_row['resource_usage'] = resource_usage
+        jobs.append(job_record_to_dict(last_row))
 
     if len(jobs) == 50:
         last_job_id = jobs[-1]['job_id']
@@ -323,7 +334,6 @@ async def _query_batches(request, user):
         where_args.extend(args)
 
     sql = f'''
-SET SESSION group_concat_max_len = 1048576;
 SELECT * 
 FROM (SELECT *, CASE
     WHEN NOT closed THEN 'open'
@@ -332,22 +342,33 @@ FROM (SELECT *, CASE
     WHEN n_succeeded = n_jobs THEN 'success'
     ELSE 'running'
   END AS state
-FROM batches) AS t1
-LEFT JOIN (SELECT batch_id, 
-   CONCAT('{{', GROUP_CONCAT(
-     CONCAT('"', product, '"', '":"', usage, '"') 
-   ), '}}') AS resource_usage 
-   FROM batches_resource_usage GROUP BY batch_id) AS t2
-   ON t1.batch_id = t2.batch_id
+FROM batches) AS t
+LEFT JOIN batches_resource_usage
+   ON t.id = batches_resource_usage.batch_id
 WHERE {' AND '.join(where_conditions)}
 ORDER BY id DESC
 LIMIT 50;
 '''
     sql_args = where_args
 
-    batches = [batch_record_to_dict(batch)
-               async for batch
-               in db.execute_and_fetchall(sql, sql_args)]
+    batches = []
+    resource_usage = {}
+    last_row = None
+    async for row in db.execute_and_fetchall(sql, sql_args):
+        resource_usage[row['product']] = row['usage']
+        if row['id'] != last_row['id']:
+            del row['product']
+            del row['usage']
+            row['resource_usage'] = resource_usage
+            batches.append(batch_record_to_dict(row))
+            resource_usage = {}
+        last_row = row
+
+    if last_row:
+        del last_row['product']
+        del last_row['usage']
+        last_row['resource_usage'] = resource_usage
+        batches.append(batch_record_to_dict(last_row))
 
     if len(batches) == 50:
         last_batch_id = batches[-1]['id']
