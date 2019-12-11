@@ -2,8 +2,9 @@ import random
 import logging
 import asyncio
 import sortedcontainers
+import functools
 
-from hailtop.utils import time_msecs
+from hailtop.utils import time_msecs, bounded_gather
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 
@@ -133,10 +134,10 @@ WHERE running_cores_mcpu > 0;
         async for user_record in user_records:
             records = self.db.execute_and_fetchall(
                 '''
-SELECT jobs.job_id, jobs.batch_id, cores_mcpu, instance_name
-FROM jobs
+SELECT attempts.job_id, attempts.batch_id, attempts.attempt_id, instance_name
+FROM attempts
 STRAIGHT_JOIN batches ON batches.id = jobs.batch_id
-STRAIGHT_JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
+STRAIGHT_JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
 WHERE jobs.state = 'Running' AND (NOT jobs.always_run) AND batches.closed AND batches.cancelled AND batches.user = %s
 LIMIT 50;
 ''',
@@ -148,12 +149,14 @@ LIMIT 50;
         return should_wait
 
     async def schedule_1(self):
+        log.info('scheduling loop')
         user_resources = await self.compute_fair_share()
 
         should_wait = True
 
+        to_schedule = []
         for user, resources in user_resources.items():
-            allocated_cores_mcpu = resources['allocated_cores_mcpu']
+            allocated_cores_mcpu = resources.get('allocated_cores_mcpu', 0)
             if allocated_cores_mcpu == 0:
                 continue
 
@@ -178,7 +181,7 @@ LIMIT 50;
 
                 if record['cancel']:
                     log.info(f'cancelling job {id}')
-                    await mark_job_complete(self.app, batch_id, job_id, None,
+                    await mark_job_complete(self.app, batch_id, job_id, None, None,
                                             'Cancelled', None, None, None, 'cancelled')
                     should_wait = False
                     continue
@@ -190,12 +193,29 @@ LIMIT 50;
                 if i < len(self.inst_pool.healthy_instances_by_free_cores):
                     instance = self.inst_pool.healthy_instances_by_free_cores[i]
                     assert record['cores_mcpu'] <= instance.free_cores_mcpu
-                    log.info(f'scheduling job {id} on {instance}')
-                    try:
-                        await schedule_job(self.app, record, instance)
-                    except Exception:
-                        log.exception(f'while scheduling job {id} on {instance}')
+                    free_cores_before = instance.free_cores_mcpu
+                    instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
+                    log.info(f'pre-schedule job {id} on instance {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={-record["cores_mcpu"]}')
                     should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
+                    to_schedule.append((record, instance))
+
+        results = await bounded_gather(*[functools.partial(schedule_job, self.app, record, instance)
+                                         for record, instance in to_schedule],
+                                       parallelism=10,
+                                       return_exceptions=True)
+
+        for ((record, instance), result) in zip(to_schedule, results):
+            batch_id = record['batch_id']
+            job_id = record['job_id']
+            id = (batch_id, job_id)
+            if isinstance(result, Exception):
+                log.info(f'error while scheduling job {id} on {instance}, {result}')
+                if instance.state == 'active':
+                    free_cores_before = instance.free_cores_mcpu
+                    instance.adjust_free_cores_in_memory(record['cores_mcpu'])
+                    log.info(f'error job {id} on instance {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["cores_mcpu"]}')
+            else:
+                log.info(f'success scheduling job {id} on {instance}')
 
         return should_wait

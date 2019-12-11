@@ -8,7 +8,6 @@ import traceback
 from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
-from .database import check_call_procedure
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 from .utils import cost_from_msec_mcpu
@@ -81,8 +80,8 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
 
-async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status,
-                            start_time, end_time, reason):
+async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, new_state,
+                            status, start_time, end_time, reason):
     scheduler_state_changed = app['scheduler_state_changed']
     db = app['db']
     inst_pool = app['inst_pool']
@@ -93,14 +92,24 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
 
     now = time_msecs()
 
-    rv = await check_call_procedure(
-        db,
-        'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s);',
-        (batch_id, job_id, attempt_id, new_state,
+    rv = await db.execute_and_fetchone(
+        'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
+        (batch_id, job_id, attempt_id, instance_name, new_state,
          json.dumps(status) if status is not None else None,
          start_time, end_time, reason, now))
 
-    log.info(f'mark_job_complete returned {rv} for job {id}')
+    if instance_name:
+        instance = inst_pool.name_instance.get(instance_name)
+        if instance:
+            if rv['delta_cores_mcpu']:
+                instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
+                scheduler_state_changed.set()
+        else:
+            log.warning(f'mark_complete for job {id} from unknown {instance}')
+
+    if rv['rc'] != 0:
+        log.info(f'mark_job_complete returned {rv} for job {id}')
+        return
 
     old_state = rv['old_state']
     if old_state in complete_states:
@@ -110,34 +119,24 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
 
     log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
-    instance_name = rv['instance_name']
-    if instance_name:
-        instance = inst_pool.name_instance.get(instance_name)
-        if instance:
-            log.info(f'updating {instance}')
-
-            instance.adjust_free_cores_in_memory(rv['cores_mcpu'])
-            scheduler_state_changed.set()
-        else:
-            log.warning(f'mark_complete for job {id} from unknown {instance}')
-
     await notify_batch_job_complete(db, batch_id)
 
 
-async def mark_job_started(app, batch_id, job_id, attempt_id, start_time):
+async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time):
     db = app['db']
 
     id = (batch_id, job_id)
 
     log.info(f'mark job {id} started')
 
-    await db.execute_update(
+    rv = db.execute_and_fetchone(
         '''
-UPDATE attempts
-SET start_time = %s
-WHERE batch_id = %s AND job_id = %s AND attempt_id = %s;
+CALL mark_job_started(%s, %s, %s, %s, %s);
 ''',
-        (start_time, batch_id, job_id, attempt_id))
+        (batch_id, job_id, attempt_id, instance.name, start_time))
+
+    if rv['delta_cores_mcpu']:
+        instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
 
 def job_record_to_dict(record, running_status=None):
@@ -178,30 +177,30 @@ async def unschedule_job(app, record):
 
     batch_id = record['batch_id']
     job_id = record['job_id']
+    attempt_id = record['attempt_id']
     id = (batch_id, job_id)
 
     instance_name = record['instance_name']
     assert instance_name is not None
 
-    log.info(f'unscheduling job {id} from instance {instance_name}')
+    log.info(f'unscheduling job {id}, attempt {attempt_id} from instance {instance_name}')
+
+    end_time = time_msecs()
+    rv = await db.execute_and_fetchone(
+        'CALL unschedule_job(%s, %s, %s, %s, %s, %s);',
+        (batch_id, job_id, attempt_id, instance_name, end_time, 'cancelled'))
+
+    log.info(f'unschedule job {id}: updated database {rv}')
 
     instance = inst_pool.name_instance.get(instance_name)
     if not instance:
-        log.warning(f'unschedule job {id}: unknown instance {instance_name}')
+        log.warning(f'unschedule job {id}, attempt {attempt_id}: unknown instance {instance_name}')
         return
 
-    end_time = time_msecs()
-    await check_call_procedure(
-        db,
-        'CALL unschedule_job(%s, %s, %s, %s, %s);',
-        (batch_id, job_id, instance_name, end_time, 'cancelled'))
-
-    log.info(f'unschedule job {id}: updated database')
-
-    instance.adjust_free_cores_in_memory(record['cores_mcpu'])
-    scheduler_state_changed.set()
-
-    log.info(f'unschedule job {id}: updated {instance} free cores')
+    if rv['delta_cores_mcpu']:
+        instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
+        scheduler_state_changed.set()
+        log.info(f'unschedule job {id}, attempt {attempt_id}: updated {instance} free cores')
 
     url = (f'http://{instance.ip_address}:5000'
            f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
@@ -228,7 +227,7 @@ async def unschedule_job(app, record):
                     raise
         delay = await sleep_and_backoff(delay)
 
-    log.info(f'unschedule job {id}: called delete job')
+    log.info(f'unschedule job {id}, attempt {attempt_id}: called delete job')
 
 
 async def job_config(app, record, attempt_id):
@@ -342,9 +341,9 @@ async def schedule_job(app, record, instance):
             'error': traceback.format_exc(),
             'container_statuses': {k: {} for k in tasks}
         }
-        await mark_job_complete(app, batch_id, job_id, attempt_id, 'Error', status,
-                                None, None, 'error')
-        return
+        await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
+                                'Error', status, None, None, 'error')
+        raise
 
     log.info(f'schedule job {id} on {instance}: made job config')
 
@@ -355,19 +354,28 @@ async def schedule_job(app, record, instance):
                    f'/api/v1alpha/batches/jobs/create')
             await session.post(url, json=body)
             await instance.mark_healthy()
+    except aiohttp.ClientResponseError as err:
+        if err.status == 403:
+            raise Exception(f'attempt already exists for job {id} on instance {instance}, aborting')
+        else:
+            await instance.incr_failed_request_count()
+            raise err
     except Exception:
         await instance.incr_failed_request_count()
         raise
 
     log.info(f'schedule job {id} on {instance}: called create job')
 
-    await check_call_procedure(
-        db,
-        'CALL schedule_job(%s, %s, %s, %s);',
+    rv = await db.execute_and_fetchone(
+        '''
+CALL schedule_job(%s, %s, %s, %s);
+''',
         (batch_id, job_id, attempt_id, instance.name))
+
+    if rv['delta_cores_mcpu'] != 0:
+        instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
     log.info(f'schedule job {id} on {instance}: updated database')
 
-    instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
-
-    log.info(f'schedule job {id} on {instance}: adjusted instance pool')
+    if rv['rc'] != 0:
+        log.info(rv)
