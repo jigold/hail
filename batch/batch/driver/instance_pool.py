@@ -114,7 +114,7 @@ SET worker_disk_size_gb = %s,
         self.n_instances_by_state[instance.state] -= 1
 
         if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu -= instance.free_cores_mcpu
+            self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
         if instance in self.healthy_instances_by_free_cores:
             self.healthy_instances_by_free_cores.remove(instance)
 
@@ -134,7 +134,7 @@ SET worker_disk_size_gb = %s,
 
         self.instances_by_last_updated.add(instance)
         if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu += instance.free_cores_mcpu
+            self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
         if (instance.state == 'active' and
                 instance.failed_request_count <= 1):
             self.healthy_instances_by_free_cores.add(instance)
