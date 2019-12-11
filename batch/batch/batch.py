@@ -70,7 +70,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
         return
     callback = record['callback']
 
-    log.info(f'making callback for batch {batch_id}: {callback}')
+    # log.info(f'making callback for batch {batch_id}: {callback}')
 
     try:
         async with aiohttp.ClientSession(
@@ -89,7 +89,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
 
     id = (batch_id, job_id)
 
-    log.info(f'marking job {id} complete new_state {new_state}')
+    # log.info(f'marking job {id} complete new_state {new_state}')
 
     now = time_msecs()
 
@@ -100,7 +100,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
          json.dumps(status) if status is not None else None,
          start_time, end_time, reason, now))
 
-    log.info(f'mark_job_complete returned {rv} for job {id}')
+    # log.info(f'mark_job_complete returned {rv} for job {id}')
 
     old_state = rv['old_state']
     if old_state in complete_states:
@@ -108,7 +108,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
         # already complete, do nothing
         return
 
-    log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
+    # log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
     instance_name = rv['instance_name']
     if instance_name:
@@ -346,7 +346,7 @@ async def schedule_job(app, record, instance):
                                 None, None, 'error')
         return
 
-    log.info(f'schedule job {id} on {instance}: made job config')
+    # log.info(f'schedule job {id} on {instance}: made job config')
 
     try:
         async with aiohttp.ClientSession(
@@ -359,15 +359,11 @@ async def schedule_job(app, record, instance):
         await instance.incr_failed_request_count()
         raise
 
-    log.info(f'schedule job {id} on {instance}: called create job')
+    # log.info(f'schedule job {id} on {instance}: called create job')
 
     await check_call_procedure(
         db,
         'CALL schedule_job(%s, %s, %s, %s);',
         (batch_id, job_id, attempt_id, instance.name))
 
-    log.info(f'schedule job {id} on {instance}: updated database')
-
-    instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
-
-    log.info(f'schedule job {id} on {instance}: adjusted instance pool')
+    # log.info(f'schedule job {id} on {instance}: updated database')

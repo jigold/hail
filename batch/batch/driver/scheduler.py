@@ -2,8 +2,9 @@ import random
 import logging
 import asyncio
 import sortedcontainers
+import functools
 
-from hailtop.utils import time_msecs
+from hailtop.utils import time_msecs, bounded_gather
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 
@@ -153,7 +154,7 @@ LIMIT 50;
         should_wait = True
 
         for user, resources in user_resources.items():
-            allocated_cores_mcpu = resources['allocated_cores_mcpu']
+            allocated_cores_mcpu = resources.get('allocated_cores_mcpu', 0)
             if allocated_cores_mcpu == 0:
                 continue
 
@@ -171,6 +172,7 @@ LIMIT 50;
 ''',
                 (user, ))
 
+            to_schedule = []
             async for record in records:
                 batch_id = record['batch_id']
                 job_id = record['job_id']
@@ -190,12 +192,22 @@ LIMIT 50;
                 if i < len(self.inst_pool.healthy_instances_by_free_cores):
                     instance = self.inst_pool.healthy_instances_by_free_cores[i]
                     assert record['cores_mcpu'] <= instance.free_cores_mcpu
-                    log.info(f'scheduling job {id} on {instance}')
-                    try:
-                        await schedule_job(self.app, record, instance)
-                    except Exception:
-                        log.exception(f'while scheduling job {id} on {instance}')
+                    instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
+                    to_schedule.append((record, instance))
+
+            results = await bounded_gather(*[functools.partial(schedule_job, self.app, record, instance)
+                                             for record, instance in to_schedule],
+                                           parallelism=10,
+                                           return_exceptions=True)
+
+            for ((record, instance), result) in zip(to_schedule, results):
+                if isinstance(result, Exception):
+                    batch_id = record['batch_id']
+                    job_id = record['job_id']
+                    id = (batch_id, job_id)
+                    log.exception(f'while scheduling job {id} on {instance}')
+                    instance.adjust_free_cores_in_memory(record['cores_mcpu'])
 
         return should_wait
