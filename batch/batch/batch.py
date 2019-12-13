@@ -11,7 +11,7 @@ from .globals import complete_states, tasks
 from .database import check_call_procedure
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
-from .utils import cost_from_msec_mcpu
+from .utils import cost_from_msec_mcpu, LoggingTimer
 
 log = logging.getLogger('batch')
 
@@ -57,14 +57,16 @@ def batch_record_to_dict(record):
 
 
 async def notify_batch_job_complete(db, batch_id):
-    record = await db.select_and_fetchone(
-        '''
-SELECT *
-FROM batches
-WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
-   closed AND n_completed = n_jobs;
-''',
-        (batch_id,))
+    async with LoggingTimer(f'notify batch job complete') as timer:
+        async with timer.step('db -- execute query'):
+            record = await db.select_and_fetchone(
+                '''
+        SELECT *
+        FROM batches
+        WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
+           closed AND n_completed = n_jobs;
+        ''',
+                (batch_id,))
 
     if not record:
         return
@@ -89,39 +91,42 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
 
     id = (batch_id, job_id)
 
-    log.info(f'marking job {id} complete new_state {new_state}')
+    async with LoggingTimer(f'mark_job_complete {id}') as timer:
+        log.info(f'marking job {id} complete new_state {new_state}')
 
-    now = time_msecs()
+        now = time_msecs()
 
-    rv = await check_call_procedure(
-        db,
-        'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s);',
-        (batch_id, job_id, attempt_id, new_state,
-         json.dumps(status) if status is not None else None,
-         start_time, end_time, reason, now))
+        async with timer.step('db -- mark_job_complete stored procedure'):
+            rv = await check_call_procedure(
+                db,
+                'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s);',
+                (batch_id, job_id, attempt_id, new_state,
+                 json.dumps(status) if status is not None else None,
+                 start_time, end_time, reason, now))
 
-    log.info(f'mark_job_complete returned {rv} for job {id}')
+        log.info(f'mark_job_complete returned {rv} for job {id}')
 
-    old_state = rv['old_state']
-    if old_state in complete_states:
-        log.info(f'old_state {old_state} complete, doing nothing')
-        # already complete, do nothing
-        return
+        old_state = rv['old_state']
+        if old_state in complete_states:
+            log.info(f'old_state {old_state} complete, doing nothing')
+            # already complete, do nothing
+            return
 
-    log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
+        log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
-    instance_name = rv['instance_name']
-    if instance_name:
-        instance = inst_pool.name_instance.get(instance_name)
-        if instance:
-            log.info(f'updating {instance}')
+        instance_name = rv['instance_name']
+        if instance_name:
+            instance = inst_pool.name_instance.get(instance_name)
+            if instance:
+                log.info(f'updating {instance}')
 
-            instance.adjust_free_cores_in_memory(rv['cores_mcpu'])
-            scheduler_state_changed.set()
-        else:
-            log.warning(f'mark_complete for job {id} from unknown {instance}')
+                instance.adjust_free_cores_in_memory(rv['cores_mcpu'])
+                scheduler_state_changed.set()
+            else:
+                log.warning(f'mark_complete for job {id} from unknown {instance}')
 
-    await notify_batch_job_complete(db, batch_id)
+        async with timer.step('notify batch_job_complete'):
+            await notify_batch_job_complete(db, batch_id)
 
 
 async def mark_job_started(app, batch_id, job_id, attempt_id, start_time):
@@ -321,53 +326,57 @@ users:
 async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
-    db = app['db']
+    async with LoggingTimer(f'schedule_1') as timer:
+        db = app['db']
 
-    batch_id = record['batch_id']
-    job_id = record['job_id']
-    attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
-    id = (batch_id, job_id)
+        batch_id = record['batch_id']
+        job_id = record['job_id']
+        attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
+        id = (batch_id, job_id)
 
-    try:
-        body = await job_config(app, record, attempt_id)
-    except Exception:
-        log.exception('while making job config')
-        status = {
-            'worker': None,
-            'batch_id': batch_id,
-            'job_id': job_id,
-            'attempt_id': attempt_id,
-            'user': record['user'],
-            'state': 'error',
-            'error': traceback.format_exc(),
-            'container_statuses': {k: {} for k in tasks}
-        }
-        await mark_job_complete(app, batch_id, job_id, attempt_id, 'Error', status,
-                                None, None, 'error')
-        return
+        try:
+            async with timer.step(f'get job config for {id}'):
+                body = await job_config(app, record, attempt_id)
+        except Exception:
+            log.exception('while making job config')
+            status = {
+                'worker': None,
+                'batch_id': batch_id,
+                'job_id': job_id,
+                'attempt_id': attempt_id,
+                'user': record['user'],
+                'state': 'error',
+                'error': traceback.format_exc(),
+                'container_statuses': {k: {} for k in tasks}
+            }
+            await mark_job_complete(app, batch_id, job_id, attempt_id, 'Error', status,
+                                    None, None, 'error')
+            return
 
-    log.info(f'schedule job {id} on {instance}: made job config')
+        log.info(f'schedule job {id} on {instance}: made job config')
 
-    try:
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            url = (f'http://{instance.ip_address}:5000'
-                   f'/api/v1alpha/batches/jobs/create')
-            await session.post(url, json=body)
-            await instance.mark_healthy()
-    except Exception:
-        await instance.incr_failed_request_count()
-        raise
+        try:
+            async with timer.step(f'send post /jobs/create to worker for {id}'):
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    url = (f'http://{instance.ip_address}:5000'
+                           f'/api/v1alpha/batches/jobs/create')
+                    await session.post(url, json=body)
+                    await instance.mark_healthy()
+        except Exception:
+            await instance.incr_failed_request_count()
+            raise
 
-    log.info(f'schedule job {id} on {instance}: called create job')
+        log.info(f'schedule job {id} on {instance}: called create job')
 
-    await check_call_procedure(
-        db,
-        'CALL schedule_job(%s, %s, %s, %s);',
-        (batch_id, job_id, attempt_id, instance.name))
+        async with timer.step(f'db -- schedule job stored procedure for {id}'):
+            await check_call_procedure(
+            db,
+            'CALL schedule_job(%s, %s, %s, %s);',
+            (batch_id, job_id, attempt_id, instance.name))
 
-    log.info(f'schedule job {id} on {instance}: updated database')
+        log.info(f'schedule job {id} on {instance}: updated database')
 
-    instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
+        instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
 
-    log.info(f'schedule job {id} on {instance}: adjusted instance pool')
+        log.info(f'schedule job {id} on {instance}: adjusted instance pool')
