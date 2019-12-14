@@ -33,7 +33,6 @@ from .scheduler import Scheduler
 
 from ..batch import *
 from .instance import *
-from ..database import *
 from ..google_storage import *
 from ..google_compute import *
 from ..log_store import *
@@ -442,7 +441,7 @@ async def line_profiler_loop():
             pr.print_stats(stream=s)
             log.info(s.getvalue())
         except:
-            pass
+            log.exception('in line profiler loop')
 
 
 async def on_startup(app):
