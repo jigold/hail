@@ -431,17 +431,18 @@ async def cprofile_loop(app):
 
 
 async def line_profiler_loop():
-    log.info(f'starting line profiler loop')
     while True:
-        pr = LineProfiler()
-        pr.add_module(sys.modules[__name__])
-        log.info(f'added module to line profiler loop')
-        pr.enable()
-        await asyncio.sleep(10)
-        pr.disable()
-        s = io.StringIO()
-        pr.print_stats(stream=s)
-        log.info(s.getvalue())
+        try:
+            pr = LineProfiler()
+            pr.add_module(sys.modules[__name__])
+            pr.enable()
+            await asyncio.sleep(60)
+            pr.disable()
+            s = io.StringIO()
+            pr.print_stats(stream=s)
+            log.info(s.getvalue())
+        except:
+            pass
 
 
 async def on_startup(app):
