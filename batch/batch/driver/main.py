@@ -30,6 +30,15 @@ from ..google_compute import GServices
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
 
+
+from ..batch import *
+from .instance import *
+from ..database import *
+from ..google_storage import *
+from ..google_compute import *
+from ..log_store import *
+from ..utils import *
+
 # uvloop.install()
 
 log = logging.getLogger('batch')
@@ -425,6 +434,7 @@ async def line_profiler_loop():
     while True:
         pr = LineProfiler()
         pr.add_module(sys.modules[__name__])
+        pr.add_function(schedule_job)
         pr.enable()
         await asyncio.sleep(60)
         pr.disable()
@@ -477,7 +487,7 @@ async def on_startup(app):
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
-    asyncio.ensure_future(cprofile_loop(app))
+    # asyncio.ensure_future(cprofile_loop(app))
     asyncio.ensure_future(line_profiler_loop())
 
 
