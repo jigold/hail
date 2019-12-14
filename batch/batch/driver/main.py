@@ -434,7 +434,6 @@ async def line_profiler_loop():
     while True:
         pr = LineProfiler()
         pr.add_module(sys.modules[__name__])
-        pr.add_function(schedule_job)
         pr.enable()
         await asyncio.sleep(60)
         pr.disable()
