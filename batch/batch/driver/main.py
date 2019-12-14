@@ -422,7 +422,6 @@ async def cprofile_loop(app):
 
 
 async def line_profiler_loop():
-    await asyncio.sleep(5)
     while True:
         pr = LineProfiler()
         pr.add_module(sys.modules[__name__])
