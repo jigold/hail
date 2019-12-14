@@ -16,6 +16,8 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
     set_message
 
 import cProfile, pstats, io
+import line_profiler import LineProfiler
+import sys
 
 # import uvloop
 
@@ -406,7 +408,7 @@ async def get_user_resources(request, userdata):
                                  'user_resources.html', page_context)
 
 
-async def profile_loop(app):
+async def cprofile_loop(app):
     while True:
         pr = cProfile.Profile()
         pr.enable()
@@ -418,6 +420,15 @@ async def profile_loop(app):
         ps.print_stats()
         log.info(s.getvalue())
 
+
+async def line_profiler_loop():
+    while True:
+        pr = LineProfiler()
+        pr.add_module(sys.modules[__name__])
+        pr.enable()
+        await asyncio.sleep(60)
+        pr.disable()
+        log.info(pr.print_stats())
 
 
 async def on_startup(app):
@@ -464,7 +475,8 @@ async def on_startup(app):
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
-    asyncio.ensure_future(profile_loop(app))
+    asyncio.ensure_future(cprofile_loop(app))
+    asyncio.ensure_future(line_profiler_loop())
 
 
 async def on_cleanup(app):
