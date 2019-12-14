@@ -34,9 +34,9 @@ from .scheduler import Scheduler
 from ..batch import *
 from .instance import *
 # from ..google_storage import *
-from ..google_compute import *
+# from ..google_compute import *
 # from ..log_store import *
-from ..utils import *
+# from ..utils import *
 
 # uvloop.install()
 
