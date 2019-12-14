@@ -431,6 +431,7 @@ async def cprofile_loop(app):
 
 
 async def line_profiler_loop():
+    log.info(f'starting line profiler loop')
     while True:
         pr = LineProfiler()
         pr.add_module(sys.modules[__name__])
