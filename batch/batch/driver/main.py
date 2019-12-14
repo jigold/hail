@@ -16,7 +16,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
     set_message
 
 import cProfile, pstats, io
-import line_profiler import LineProfiler
+from line_profiler import LineProfiler
 import sys
 
 # import uvloop
