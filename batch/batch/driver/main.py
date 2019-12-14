@@ -435,7 +435,7 @@ async def line_profiler_loop():
         pr = LineProfiler()
         pr.add_module(sys.modules[__name__])
         pr.enable()
-        await asyncio.sleep(60)
+        await asyncio.sleep(10)
         pr.disable()
         s = io.StringIO()
         pr.print_stats(stream=s)
