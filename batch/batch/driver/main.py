@@ -435,6 +435,7 @@ async def line_profiler_loop():
     while True:
         pr = LineProfiler()
         pr.add_module(sys.modules[__name__])
+        log.info(f'added module to line profiler loop')
         pr.enable()
         await asyncio.sleep(10)
         pr.disable()
