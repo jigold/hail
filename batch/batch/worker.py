@@ -516,11 +516,11 @@ class Job:
             log.info(f'{self}: marking complete')
             asyncio.ensure_future(worker.post_job_complete(self, run_duration))
 
-            log.info(f'{self}: cleaning up')
-            try:
-                shutil.rmtree(self.scratch, ignore_errors=True)
-            except Exception:
-                log.exception('while deleting volumes')
+            # log.info(f'{self}: cleaning up')
+            # try:
+            #     shutil.rmtree(self.scratch, ignore_errors=True)
+            # except Exception:
+            #     log.exception('while deleting volumes')
 
     async def get_log(self):
         return {name: await c.get_log() for name, c in self.containers.items()}
