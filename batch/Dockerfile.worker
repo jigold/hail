@@ -7,6 +7,7 @@ RUN apt-get update && \
 
 COPY docker/requirements.txt .
 RUN python3 -m pip install --no-cache-dir -U -r requirements.txt
+RUN pip3 install aiologger
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/

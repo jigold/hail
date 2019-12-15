@@ -6,11 +6,11 @@ from hailtop.utils import time_msecs
 from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
 
 
-from aiologger import Logger
+# from aiologger import Logger
 
-log = Logger.with_default_handlers(name='utils')
+# log = Logger.with_default_handlers(name='utils')
 
-#log = logging.getLogger('utils')
+log = logging.getLogger('utils')
 
 
 def cost_from_msec_mcpu(msec_mcpu):
