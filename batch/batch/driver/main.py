@@ -40,7 +40,9 @@ from .instance import *
 
 # uvloop.install()
 
-log = logging.getLogger('batch')
+from aiologger import Logger
+
+log = Logger.with_default_handlers(name='batch') # logging.getLogger('batch')
 
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 
@@ -495,6 +497,7 @@ async def on_startup(app):
 async def on_cleanup(app):
     blocking_pool = app['blocking_pool']
     blocking_pool.shutdown()
+    await log.shutdown()
 
 
 def run():

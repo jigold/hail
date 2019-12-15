@@ -9,7 +9,11 @@ import google.cloud.logging
 
 from .batch_configuration import PROJECT, ZONE
 
-log = logging.getLogger('google_compute')
+from aiologger import Logger
+
+log = Logger.with_default_handlers(name='google_compute')
+
+# log = logging.getLogger('google_compute')
 
 
 async def anext(ait):

@@ -11,7 +11,11 @@ from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
 
 from .instance import Instance
 
-log = logging.getLogger('instance_pool')
+from aiologger import Logger
+
+log = Logger.with_default_handlers(name='instance_pool')
+
+# log = logging.getLogger('instance_pool')
 
 
 class InstancePool:

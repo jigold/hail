@@ -13,7 +13,11 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 from .utils import cost_from_msec_mcpu, LoggingTimer
 
-log = logging.getLogger('batch')
+from aiologger import Logger
+
+log = Logger.with_default_handlers(name='batch')
+
+# log = logging.getLogger('batch')
 
 
 def batch_record_to_dict(record):

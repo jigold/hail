@@ -8,7 +8,11 @@ from hailtop.utils import time_msecs
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 from ..utils import LoggingTimer
 
-log = logging.getLogger('driver')
+from aiologger import Logger
+
+log = Logger.with_default_handlers(name='driver')
+
+# log = logging.getLogger('driver')
 
 
 class Scheduler:
