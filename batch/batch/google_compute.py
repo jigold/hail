@@ -122,7 +122,7 @@ jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.d
     # logging
     async def list_entries(self, timestamp):
         filter = self.filter + f' AND timestamp >= "{timestamp}"'
-        entries = await self.run_in_pool(self.logging_client.list_entries, filter_=filter, order_by=google.cloud.Logging.ASCENDING)
+        entries = await self.run_in_pool(self.logging_client.list_entries, filter_=filter, order_by=google.cloud.logging.ASCENDING)
         # entries = self.logging_client.list_entries(filter_=filter, order_by=google.cloud.logging.ASCENDING)
         return PagedIterator(self, entries.pages)
 
