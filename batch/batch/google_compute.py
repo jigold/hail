@@ -75,7 +75,8 @@ class PagedIterator:
             if self.page is None:
                 await asyncio.sleep(5)
                 try:
-                    self.page = next(self.pages)
+                    self.page = await self.gservices.run_in_pool(next, self.pages)
+                    # self.page = next(self.pages)
                 except StopIteration:
                     raise StopAsyncIteration
             try:
@@ -121,7 +122,8 @@ jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.d
     # logging
     async def list_entries(self, timestamp):
         filter = self.filter + f' AND timestamp >= "{timestamp}"'
-        entries = self.logging_client.list_entries(filter_=filter, order_by=google.cloud.logging.ASCENDING)
+        entries = await self.run_in_pool(self.logging_client.list_entries, filter_=filter, order_by=google.cloud.Logging.ASCENDING)
+        # entries = self.logging_client.list_entries(filter_=filter, order_by=google.cloud.logging.ASCENDING)
         return PagedIterator(self, entries.pages)
 
     async def stream_entries(self, db):
