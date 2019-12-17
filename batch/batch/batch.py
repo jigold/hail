@@ -116,7 +116,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
         if instance:
             log.info(f'updating {instance}')
 
-            instance.adjust_free_cores_in_memory(rv['cores_mcpu'])
+            instance.adjust_scheduled_to_free_cores(rv['cores_mcpu'])
             scheduler_state_changed.set()
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
@@ -198,7 +198,7 @@ async def unschedule_job(app, record):
 
     log.info(f'unschedule job {id}: updated database')
 
-    instance.adjust_free_cores_in_memory(record['cores_mcpu'])
+    instance.adjust_scheduled_to_free_cores(record['cores_mcpu'])
     scheduler_state_changed.set()
 
     log.info(f'unschedule job {id}: updated {instance} free cores')
@@ -319,55 +319,57 @@ users:
 
 
 async def schedule_job(app, record, instance):
-    assert instance.state == 'active'
-
-    db = app['db']
-
     batch_id = record['batch_id']
     job_id = record['job_id']
     attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
     id = (batch_id, job_id)
 
     try:
-        body = await job_config(app, record, attempt_id)
-    except Exception:
-        log.exception('while making job config')
-        status = {
-            'worker': None,
-            'batch_id': batch_id,
-            'job_id': job_id,
-            'attempt_id': attempt_id,
-            'user': record['user'],
-            'state': 'error',
-            'error': traceback.format_exc(),
-            'container_statuses': {k: {} for k in tasks}
-        }
-        await mark_job_complete(app, batch_id, job_id, attempt_id, 'Error', status,
-                                None, None, 'error')
-        return
+        assert instance.state == 'active'
 
-    log.info(f'schedule job {id} on {instance}: made job config')
+        db = app['db']
 
-    try:
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            url = (f'http://{instance.ip_address}:5000'
-                   f'/api/v1alpha/batches/jobs/create')
-            await session.post(url, json=body)
-            await instance.mark_healthy()
-    except Exception:
-        await instance.incr_failed_request_count()
-        raise
+        try:
+            body = await job_config(app, record, attempt_id)
+        except Exception:
+            log.exception('while making job config')
+            status = {
+                'worker': None,
+                'batch_id': batch_id,
+                'job_id': job_id,
+                'attempt_id': attempt_id,
+                'user': record['user'],
+                'state': 'error',
+                'error': traceback.format_exc(),
+                'container_statuses': {k: {} for k in tasks}
+            }
+            await mark_job_complete(app, batch_id, job_id, attempt_id, 'Error', status,
+                                    None, None, 'error')
+            return
 
-    log.info(f'schedule job {id} on {instance}: called create job')
+        log.info(f'schedule job {id} on {instance}: made job config')
 
-    await check_call_procedure(
-        db,
-        'CALL schedule_job(%s, %s, %s, %s);',
-        (batch_id, job_id, attempt_id, instance.name))
+        try:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                url = (f'http://{instance.ip_address}:5000'
+                       f'/api/v1alpha/batches/jobs/create')
+                await session.post(url, json=body)
+                await instance.mark_healthy()
+        except Exception:
+            await instance.incr_failed_request_count()
+            raise
 
-    log.info(f'schedule job {id} on {instance}: updated database')
+        log.info(f'schedule job {id} on {instance}: called create job')
 
-    instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
+        await check_call_procedure(
+            db,
+            'CALL schedule_job(%s, %s, %s, %s);',
+            (batch_id, job_id, attempt_id, instance.name))
 
-    log.info(f'schedule job {id} on {instance}: adjusted instance pool')
+        log.info(f'schedule job {id} on {instance}: updated database')
+
+        instance.adjust_pending_to_scheduled_cores(record['cores_mcpu'])
+    except:
+        log.exception(f'while scheduling job {id} on {instance}')
+        instance.adjust_pending_to_free_cores(record['cores_mcpu'])
