@@ -116,7 +116,9 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
         if instance:
             log.info(f'updating {instance}')
 
+            log.info(f'mark job complete before update instance {instance} id {id} has scheduled={instance._scheduled_cores_mcpu} pending={instance._pending_cores_mcpu} free={instance.free_cores_mcpu}')
             instance.adjust_scheduled_to_free_cores(rv['cores_mcpu'])
+            log.info(f'mark job complete after update instance {instance} id {id} has scheduled={instance._scheduled_cores_mcpu} pending={instance._pending_cores_mcpu} free={instance.free_cores_mcpu}')
             scheduler_state_changed.set()
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
@@ -369,7 +371,11 @@ async def schedule_job(app, record, instance):
 
         log.info(f'schedule job {id} on {instance}: updated database')
 
+        log.info(f'success scheduling before update instance {instance} id {id} has scheduled={instance._scheduled_cores_mcpu} pending={instance._pending_cores_mcpu} free={instance.free_cores_mcpu}')
         instance.adjust_pending_to_scheduled_cores(record['cores_mcpu'])
+        log.info(f'success scheduling after update instance {instance} id {id} has scheduled={instance._scheduled_cores_mcpu} pending={instance._pending_cores_mcpu} free={instance.free_cores_mcpu}')
     except:
         log.exception(f'while scheduling job {id} on {instance}')
+        log.info(f'error scheduling before update instance {instance} id {id} has scheduled={instance._scheduled_cores_mcpu} pending={instance._pending_cores_mcpu} free={instance.free_cores_mcpu}')
         instance.adjust_pending_to_free_cores(record['cores_mcpu'])
+        log.info(f'error scheduling after update instance {instance} id {id} has scheduled={instance._scheduled_cores_mcpu} pending={instance._pending_cores_mcpu} free={instance.free_cores_mcpu}')

@@ -193,7 +193,9 @@ LIMIT 50;
                     assert record['cores_mcpu'] <= instance.free_cores_mcpu
                     log.info(f'scheduling job {id} on {instance}')
                     try:
+                        log.info(f'before update for {id} instance {instance} has scheduled={instance._scheduled_cores_mcpu} pending={instance._pending_cores_mcpu} free={instance.free_cores_mcpu}')
                         instance.add_pending_cores(record['cores_mcpu'])
+                        log.info(f'after update for {id} instance {instance} has scheduled={instance._scheduled_cores_mcpu} pending={instance._pending_cores_mcpu} free={instance.free_cores_mcpu}')
                         asyncio.ensure_future(self.worker_pool.call(schedule_job, self.app, record, instance))
                         scheduled_cores_mcpu += record['cores_mcpu']
                     except Exception:
