@@ -3,7 +3,7 @@ import logging
 import asyncio
 import sortedcontainers
 
-from hailtop.utils import time_msecs
+from hailtop.utils import time_msecs, AsyncWorkerPool
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 
@@ -17,6 +17,7 @@ class Scheduler:
         self.cancel_state_changed = app['cancel_state_changed']
         self.db = app['db']
         self.inst_pool = app['inst_pool']
+        self.worker_pool = AsyncWorkerPool(100)
 
     async def async_init(self):
         asyncio.ensure_future(self.loop('schedule_loop', self.scheduler_state_changed, self.schedule_1))
@@ -143,7 +144,7 @@ LIMIT 50;
                 (user_record['user'],))
             async for record in records:
                 should_wait = False
-                await unschedule_job(self.app, record)
+                asyncio.ensure_future(self.worker_pool.call(unschedule_job, self.app, record))
 
         return should_wait
 
@@ -192,10 +193,11 @@ LIMIT 50;
                     assert record['cores_mcpu'] <= instance.free_cores_mcpu
                     log.info(f'scheduling job {id} on {instance}')
                     try:
-                        await schedule_job(self.app, record, instance)
+                        instance.add_pending_cores(record['cores_mcpu'])
+                        asyncio.ensure_future(self.worker_pool.call(schedule_job, self.app, record, instance))
+                        scheduled_cores_mcpu += record['cores_mcpu']
                     except Exception:
                         log.exception(f'while scheduling job {id} on {instance}')
                     should_wait = False
-                    scheduled_cores_mcpu += record['cores_mcpu']
 
         return should_wait

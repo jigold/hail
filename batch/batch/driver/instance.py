@@ -41,7 +41,8 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         self._state = state
         self.name = name
         self.cores_mcpu = cores_mcpu
-        self._free_cores_mcpu = free_cores_mcpu
+        self._pending_cores_mcpu = 0
+        self._scheduled_cores_mcpu = 0
         self.time_created = time_created
         self._failed_request_count = failed_request_count
         self._last_updated = last_updated
@@ -82,7 +83,8 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._state = 'inactive'
-        self._free_cores_mcpu = self.cores_mcpu
+        self._pending_cores_mcpu = 0
+        self._scheduled_cores_mcpu = 0
         self.instance_pool.adjust_for_add_instance(self)
 
         # there might be jobs to reschedule
@@ -105,11 +107,25 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 
     @property
     def free_cores_mcpu(self):
-        return self._free_cores_mcpu
+        return self.cores_mcpu - (self._pending_cores_mcpu + self._scheduled_cores_mcpu)
 
-    def adjust_free_cores_in_memory(self, delta_mcpu):
+    def add_pending_cores(self, mcpu):
         self.instance_pool.adjust_for_remove_instance(self)
-        self._free_cores_mcpu += delta_mcpu
+        self._pending_cores_mcpu += mcpu
+        self.instance_pool.adjust_for_add_instance(self)
+
+    def adjust_pending_to_scheduled_cores(self, mcpu):
+        self._pending_cores_mcpu -= mcpu
+        self._scheduled_cores_mcpu += mcpu
+
+    def adjust_pending_to_free_cores(self, mcpu):
+        self.instance_pool.adjust_for_remove_instance(self)
+        self._pending_cores_mcpu -= mcpu
+        self.instance_pool.adjust_for_add_instance(self)
+
+    def adjust_scheduled_to_free_cores(self, mcpu):
+        self.instance_pool.adjust_for_remove_instance(self)
+        self._scheduled_cores_mcpu -= mcpu
         self.instance_pool.adjust_for_add_instance(self)
 
     @property

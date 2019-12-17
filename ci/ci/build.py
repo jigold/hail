@@ -828,11 +828,6 @@ class CreateDatabaseStep(Step):
         else:
             database_server_config_namespace = DEFAULT_NAMESPACE
 
-        if params.scope == 'dev':
-            database_server_config_namespace = params.code.namespace
-        else:
-            database_server_config_namespace = DEFAULT_NAMESPACE
-
         self.secrets = [{
             'namespace': database_server_config_namespace,
             'name': 'database-server-config',
