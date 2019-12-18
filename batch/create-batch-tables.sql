@@ -456,6 +456,7 @@ CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
   IN in_attempt_id VARCHAR(40),
+  IN in_instance_name VARCHAR(100),
   IN new_state VARCHAR(40),
   IN new_status VARCHAR(65535),
   IN new_start_time BIGINT,
@@ -463,7 +464,7 @@ CREATE PROCEDURE mark_job_complete(
   IN new_reason VARCHAR(40),
   IN new_timestamp BIGINT
 )
-BEGIN
+BEGIN  
   DECLARE cur_job_state VARCHAR(40);
   DECLARE cur_job_instance_name VARCHAR(100);
   DECLARE cur_cores_mcpu INT;
@@ -480,7 +481,18 @@ BEGIN
   FROM attempts
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
-  IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN    
+  IF NOT EXISTS (SELECT * FROM attempts WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id)) THEN
+    INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name)
+      VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);  
+  END IF;
+
+  IF cur_job_instance_name IS NOT NULL THEN
+    UPDATE instances
+    SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu
+    WHERE name = cur_job_instance_name;
+  END IF;
+
+  IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
     UPDATE jobs
     SET state = new_state, status = new_status, attempt_id = NULL
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
@@ -495,12 +507,6 @@ BEGIN
       UPDATE batches SET n_failed = n_failed + 1 WHERE id = in_batch_id;
     ELSE
       UPDATE batches SET n_succeeded = n_succeeded + 1 WHERE id = in_batch_id;
-    END IF;
-
-    IF cur_job_instance_name IS NOT NULL THEN
-      UPDATE instances
-      SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu
-      WHERE name = cur_job_instance_name;
     END IF;
 
     IF cur_job_state = 'Ready' THEN
@@ -545,7 +551,8 @@ BEGIN
          cur_job_state = 'Failed' OR cur_job_state = 'Success' THEN
     COMMIT;
     SELECT 0 as rc,
-      cur_job_state as old_state;
+      cur_job_state as old_state,
+      cur_job_instance_name as instance_name;
   ELSE
     ROLLBACK;
     SELECT 1 as rc, cur_job_state, 'job state not Ready, Running or complete' as message;
