@@ -545,14 +545,12 @@ BEGIN
     COMMIT;
     SELECT 0 as rc,
       cur_job_state as old_state,
-      cur_cores_mcpu as cores_mcpu,
-      cur_job_instance_name as instance_name;
+      cur_cores_mcpu as cores_mcpu;
   ELSEIF cur_job_state = 'Cancelled' OR cur_job_state = 'Error' OR
          cur_job_state = 'Failed' OR cur_job_state = 'Success' THEN
     COMMIT;
     SELECT 0 as rc,
-      cur_job_state as old_state,
-      cur_job_instance_name as instance_name;
+      cur_job_state as old_state;
   ELSE
     ROLLBACK;
     SELECT 1 as rc, cur_job_state, 'job state not Ready, Running or complete' as message;

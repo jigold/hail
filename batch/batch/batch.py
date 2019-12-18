@@ -81,7 +81,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
 
-async def mark_job_complete(app, batch_id, job_id, attempt_id, instance, new_state, status,
+async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, new_state, status,
                             start_time, end_time, reason):
     scheduler_state_changed = app['scheduler_state_changed']
     db = app['db']
@@ -96,13 +96,12 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance, new_sta
     rv = await check_call_procedure(
         db,
         'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
-        (batch_id, job_id, attempt_id, instance, new_state,
+        (batch_id, job_id, attempt_id, instance_name, new_state,
          json.dumps(status) if status is not None else None,
          start_time, end_time, reason, now))
 
     log.info(f'mark_job_complete returned {rv} for job {id}')
 
-    instance_name = rv['instance_name']
     if instance_name:
         instance = inst_pool.name_instance.get(instance_name)
         if instance:
