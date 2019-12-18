@@ -125,20 +125,17 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     await notify_batch_job_complete(db, batch_id)
 
 
-async def mark_job_started(app, batch_id, job_id, attempt_id, start_time):
+async def mark_job_started(app, batch_id, job_id, attempt_id, instance_name, start_time):
     db = app['db']
 
     id = (batch_id, job_id)
 
     log.info(f'mark job {id} started')
 
-    await db.execute_update(
-        '''
-UPDATE attempts
-SET start_time = %s
-WHERE batch_id = %s AND job_id = %s AND attempt_id = %s;
-''',
-        (start_time, batch_id, job_id, attempt_id))
+    await check_call_procedure(
+        db,
+        'CALL mark_job_started(%s, %s, %s, %s, %s);',
+        (batch_id, job_id, attempt_id, instance_name, start_time))
 
 
 def job_record_to_dict(record, running_status=None):

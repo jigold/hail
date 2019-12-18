@@ -279,7 +279,7 @@ async def job_started_1(request, instance):
     attempt_id = status['attempt_id']
     start_time = status['start_time']
 
-    await mark_job_started(request.app, batch_id, job_id, attempt_id, start_time)
+    await mark_job_started(request.app, batch_id, job_id, attempt_id, instance.name, start_time)
 
     await instance.mark_healthy()
 

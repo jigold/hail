@@ -452,6 +452,29 @@ BEGIN
   END IF;
 END $$
 
+CREATE PROCEDURE mark_job_started(
+  IN in_batch_id BIGINT,
+  IN in_job_id INT,
+  IN in_attempt_id VARCHAR(40),
+  IN in_instance_name VARCHAR(100),
+  IN new_start_time BIGINT
+)
+BEGIN
+  START TRANSACTION;
+
+  IF NOT EXISTS (SELECT * FROM attempts WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id) THEN
+    INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name)
+      VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);  
+  END IF;
+
+  UPDATE attempts
+    SET start_time = new_start_time
+    WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
+
+  COMMIT;
+  SELECT 0 as rc;
+END $$
+
 CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
