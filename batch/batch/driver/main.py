@@ -256,8 +256,8 @@ async def job_complete_1(request, instance):
     start_time = status['start_time']
     end_time = status['end_time']
 
-    await mark_job_complete(request.app, batch_id, job_id, attempt_id, new_state, status,
-                            start_time, end_time, 'completed')
+    await mark_job_complete(request.app, batch_id, job_id, attempt_id, instance.name,
+                            new_state, status, start_time, end_time, 'completed')
 
     await instance.mark_healthy()
 

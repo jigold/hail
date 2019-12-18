@@ -81,7 +81,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
 
-async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status,
+async def mark_job_complete(app, batch_id, job_id, attempt_id, instance, new_state, status,
                             start_time, end_time, reason):
     scheduler_state_changed = app['scheduler_state_changed']
     db = app['db']
@@ -95,8 +95,8 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
 
     rv = await check_call_procedure(
         db,
-        'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s);',
-        (batch_id, job_id, attempt_id, new_state,
+        'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
+        (batch_id, job_id, attempt_id, instance, new_state,
          json.dumps(status) if status is not None else None,
          start_time, end_time, reason, now))
 
@@ -345,8 +345,8 @@ async def schedule_job(app, record, instance):
                 'error': traceback.format_exc(),
                 'container_statuses': {k: {} for k in tasks}
             }
-            await mark_job_complete(app, batch_id, job_id, attempt_id, 'Error', status,
-                                    None, None, 'error')
+            await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
+                                    'Error', status, None, None, 'error')
             return
 
         log.info(f'schedule job {id} on {instance}: made job config')

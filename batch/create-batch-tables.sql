@@ -481,7 +481,7 @@ BEGIN
   FROM attempts
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
-  IF NOT EXISTS (SELECT * FROM attempts WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id)) THEN
+  IF NOT EXISTS (SELECT * FROM attempts WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id) THEN
     INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name)
       VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);  
   END IF;
