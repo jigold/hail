@@ -42,7 +42,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         self.name = name
         self.cores_mcpu = cores_mcpu
         self._pending_cores_mcpu = 0
-        self._scheduled_cores_mcpu = 0
+        self._scheduled_cores_mcpu = self.cores_mcpu - free_cores_mcpu
         self.time_created = time_created
         self._failed_request_count = failed_request_count
         self._last_updated = last_updated
