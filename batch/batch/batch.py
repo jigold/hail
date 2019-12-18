@@ -102,14 +102,6 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
 
     log.info(f'mark_job_complete returned {rv} for job {id}')
 
-    old_state = rv['old_state']
-    if old_state in complete_states:
-        log.info(f'old_state {old_state} complete, doing nothing')
-        # already complete, do nothing
-        return
-
-    log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
-
     instance_name = rv['instance_name']
     if instance_name:
         instance = inst_pool.name_instance.get(instance_name)
@@ -122,6 +114,14 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
             scheduler_state_changed.set()
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
+
+    old_state = rv['old_state']
+    if old_state in complete_states:
+        log.info(f'old_state {old_state} complete, doing nothing')
+        # already complete, do nothing
+        return
+
+    log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
     await notify_batch_job_complete(db, batch_id)
 
