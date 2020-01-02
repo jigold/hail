@@ -344,9 +344,9 @@ async def schedule_job(app, record, instance):
         }
         await mark_job_complete(app, batch_id, job_id, attempt_id, 'Error', status,
                                 None, None, 'error')
-        return
+        raise
 
-    # log.info(f'schedule job {id} on {instance}: made job config')
+    log.info(f'schedule job {id} on {instance}: made job config')
 
     try:
         async with aiohttp.ClientSession(
@@ -359,11 +359,11 @@ async def schedule_job(app, record, instance):
         await instance.incr_failed_request_count()
         raise
 
-    # log.info(f'schedule job {id} on {instance}: called create job')
+    log.info(f'schedule job {id} on {instance}: called create job')
 
     await check_call_procedure(
         db,
         'CALL schedule_job(%s, %s, %s, %s);',
         (batch_id, job_id, attempt_id, instance.name))
 
-    # log.info(f'schedule job {id} on {instance}: updated database')
+    log.info(f'schedule job {id} on {instance}: updated database')

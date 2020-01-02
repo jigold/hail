@@ -203,11 +203,14 @@ LIMIT 50;
                                            return_exceptions=True)
 
             for ((record, instance), result) in zip(to_schedule, results):
+                batch_id = record['batch_id']
+                job_id = record['job_id']
+                id = (batch_id, job_id)
                 if isinstance(result, Exception):
-                    batch_id = record['batch_id']
-                    job_id = record['job_id']
-                    id = (batch_id, job_id)
-                    log.exception(f'while scheduling job {id} on {instance}')
-                    instance.adjust_free_cores_in_memory(record['cores_mcpu'])
+                    log.info(f'error while scheduling job {id} on {instance}, {result}')
+                    if instance.state == 'active':
+                        instance.adjust_free_cores_in_memory(record['cores_mcpu'])
+                else:
+                    log.info(f'success scheduling job {id} on {instance}')
 
         return should_wait
