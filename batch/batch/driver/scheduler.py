@@ -149,6 +149,7 @@ LIMIT 50;
         return should_wait
 
     async def schedule_1(self):
+        log.info('scheduling loop')
         user_resources = await self.compute_fair_share()
 
         should_wait = True
@@ -192,7 +193,9 @@ LIMIT 50;
                 if i < len(self.inst_pool.healthy_instances_by_free_cores):
                     instance = self.inst_pool.healthy_instances_by_free_cores[i]
                     assert record['cores_mcpu'] <= instance.free_cores_mcpu
+                    free_cores_before = instance.free_cores_mcpu
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
+                    log.info(f'pre-schedule job {id} on instance {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={-record["cores_mcpu"]}')
                     should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
                     to_schedule.append((record, instance))
@@ -209,7 +212,9 @@ LIMIT 50;
                 if isinstance(result, Exception):
                     log.info(f'error while scheduling job {id} on {instance}, {result}')
                     if instance.state == 'active':
+                        free_cores_before = instance.free_cores_mcpu
                         instance.adjust_free_cores_in_memory(record['cores_mcpu'])
+                        log.info(f'error job {id} on instance {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["cores_mcpu"]}')
                 else:
                     log.info(f'success scheduling job {id} on {instance}')
 
