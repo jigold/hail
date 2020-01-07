@@ -310,7 +310,7 @@ CREATE PROCEDURE mark_job_complete(
   IN in_attempt_id VARCHAR(40),
   IN in_instance_name VARCHAR(40),
   IN new_state VARCHAR(40),
-  IN new_status VARCHAR(65535),
+  IN new_status TEXT,
   IN new_start_time BIGINT,
   IN new_end_time BIGINT,
   IN new_reason VARCHAR(40),
