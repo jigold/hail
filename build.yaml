@@ -790,6 +790,8 @@ steps:
       script: /io/sql/create-billing-projects.sql
     - name: migration1
       script: /io/sql/migration-1.sql
+    - name: jigold
+      script: /io/sql/setup-jigold.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

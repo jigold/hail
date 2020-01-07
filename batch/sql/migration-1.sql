@@ -73,7 +73,7 @@ BEGIN
     UPDATE user_resources
     SET n_running_jobs = n_running_jobs + 1, running_cores_mcpu = running_cores_mcpu + NEW.cores_mcpu
     WHERE user = in_user;
-  END IF;  
+  END IF;
 END $$
 
 DROP PROCEDURE IF EXISTS activate_instance;
