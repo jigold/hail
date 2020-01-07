@@ -101,7 +101,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     if instance_name:
         instance = inst_pool.name_instance.get(instance_name)
         if instance:
-            if rv['delta_cores_mcpu']:
+            if rv['delta_cores_mcpu'] and instance.state == 'active':
                 instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
                 scheduler_state_changed.set()
         else:
@@ -135,7 +135,7 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
 ''',
         (batch_id, job_id, attempt_id, instance.name, start_time))
 
-    if rv['delta_cores_mcpu']:
+    if rv['delta_cores_mcpu'] and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
 
@@ -371,7 +371,7 @@ CALL schedule_job(%s, %s, %s, %s);
 ''',
         (batch_id, job_id, attempt_id, instance.name))
 
-    if rv['delta_cores_mcpu'] != 0:
+    if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
     log.info(f'schedule job {id} on {instance}: updated database')
