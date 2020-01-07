@@ -465,7 +465,7 @@ async def on_startup(app):
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
-    asyncio.ensure_future(profile_loop(app))
+    # asyncio.ensure_future(profile_loop(app))
 
 
 async def on_cleanup(app):
