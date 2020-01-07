@@ -150,11 +150,12 @@ CREATE PROCEDURE add_attempt(
   IN in_attempt_id VARCHAR(40),
   IN in_instance_name VARCHAR(100),
   IN in_cores_mcpu INT,
-  OUT delta_cores_mcpu INT DEFAULT 0
+  OUT delta_cores_mcpu INT
 )
 BEGIN
   DECLARE attempt_exists BOOLEAN;
   DECLARE cur_instance_state VARCHAR(40);
+  SET delta_cores_mcpu = IFNULL(delta_cores_mcpu, 0);
 
   START TRANSACTION;
 
