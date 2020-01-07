@@ -331,7 +331,7 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
   SELECT end_time INTO cur_end_time FROM attempts
-    WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
+    WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
