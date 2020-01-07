@@ -76,6 +76,44 @@ BEGIN
   END IF;
 END $$
 
+DROP PROCEDURE IF EXISTS close_batch;
+CREATE PROCEDURE close_batch(
+  IN in_batch_id BIGINT,
+  IN in_timestamp BIGINT
+)
+BEGIN
+  DECLARE cur_batch_closed BOOLEAN;
+  DECLARE expected_n_jobs INT;
+  DECLARE actual_n_jobs INT;
+
+  START TRANSACTION;
+
+  SELECT n_jobs, closed INTO expected_n_jobs, cur_batch_closed FROM batches
+  WHERE id = in_batch_id AND NOT deleted;
+
+  IF cur_batch_closed = 1 THEN
+    COMMIT;
+    SELECT 0 as rc;
+  ELSEIF cur_batch_closed = 0 THEN
+    SELECT COUNT(*) INTO actual_n_jobs FROM jobs
+    WHERE batch_id = in_batch_id;
+
+    IF actual_n_jobs = expected_n_jobs THEN
+      UPDATE batches SET closed = 1 WHERE id = in_batch_id;
+      UPDATE batches SET time_completed = in_timestamp
+        WHERE id = in_batch_id AND n_completed = batches.n_jobs;
+      COMMIT;
+      SELECT 0 as rc;
+    ELSE
+      ROLLBACK;
+      SELECT 2 as rc, expected_n_jobs, actual_n_jobs, 'wrong number of jobs' as message;
+    END IF;
+  ELSE
+    ROLLBACK;
+    SELECT 1 as rc, cur_batch_closed, 'batch closed is not 0 or 1' as message;
+  END IF;
+END $$
+
 DROP PROCEDURE IF EXISTS activate_instance;
 CREATE PROCEDURE activate_instance(
   IN in_instance_name VARCHAR(100),
