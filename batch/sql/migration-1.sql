@@ -347,7 +347,7 @@ BEGIN
     SET delta_cores_mcpu = delta_cores_mcpu + cur_cores_mcpu;
   END IF;
 
-  IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN    
+  IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN  
     UPDATE jobs
     SET state = new_state, status = new_status, attempt_id = NULL
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
