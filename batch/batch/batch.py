@@ -129,7 +129,7 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
 
     log.info(f'mark job {id} started')
 
-    rv = db.execute_and_fetchone(
+    rv = await db.execute_and_fetchone(
         '''
 CALL mark_job_started(%s, %s, %s, %s, %s);
 ''',
