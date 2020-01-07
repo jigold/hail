@@ -15,7 +15,7 @@ async def main():
         max_instances = 10
         pool_size = 10
     else:
-        worker_cores = 8
+        worker_cores = 1
         worker_disk_size_gb = 10
         max_instances = 4
         pool_size = 4
