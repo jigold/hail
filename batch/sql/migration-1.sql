@@ -17,45 +17,6 @@ BEGIN
   END IF;
 END $$
 
-DROP TRIGGER IF EXISTS attempts_before_update;
-CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
-FOR EACH ROW
-BEGIN
-  IF OLD.start_time IS NOT NULL AND (NEW.start_time IS NULL OR NEW.start_time < OLD.start_time) THEN
-    SET NEW.start_time = OLD.start_time;
-  END IF;
-
-  IF OLD.end_time IS NOT NULL AND (NEW.end_time IS NULL OR NEW.end_time > OLD.end_time) THEN
-    SET NEW.end_time = OLD.end_time;
-    SET NEW.reason = OLD.reason;
-  END IF;
-END $$
-
-DROP TRIGGER IF EXISTS attempts_after_update;
-CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
-FOR EACH ROW
-BEGIN
-  DECLARE job_cores_mcpu INT;
-  DECLARE msec_diff BIGINT;
-  DECLARE msec_mcpu_diff BIGINT;
-
-  SELECT cores_mcpu INTO job_cores_mcpu FROM jobs
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
-
-  SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
-                   GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
-
-  SET msec_mcpu_diff = msec_diff * job_cores_mcpu;
-
-  UPDATE batches
-  SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff
-  WHERE id = NEW.batch_id;
-
-  UPDATE jobs
-  SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
-END $$
-
 DROP TRIGGER IF EXISTS jobs_after_insert;
 CREATE TRIGGER jobs_after_insert AFTER INSERT ON jobs
 FOR EACH ROW
@@ -212,6 +173,7 @@ BEGIN
   COMMIT;
 END $$
 
+DROP PROCEDURE IF EXISTS schedule_job;
 CREATE PROCEDURE schedule_job(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
@@ -259,6 +221,7 @@ BEGIN
   END IF;
 END $$
 
+DROP PROCEDURE IF EXISTS unschedule_job;
 CREATE PROCEDURE unschedule_job(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
@@ -308,6 +271,7 @@ BEGIN
   END IF;
 END $$
 
+DROP PROCEDURE IF EXISTS mark_job_started;
 CREATE PROCEDURE mark_job_started(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
@@ -338,6 +302,7 @@ BEGIN
 
 END $$
 
+DROP PROCEDURE IF EXISTS mark_job_complete;
 CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
