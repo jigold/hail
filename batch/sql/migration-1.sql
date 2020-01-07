@@ -3,6 +3,8 @@ ALTER TABLE `attempts` ADD CONSTRAINT fk_instance_name
 
 ALTER TABLE instances ADD time_activated BIGINT;
 ALTER TABLE instances ADD time_deactivated BIGINT;
+ALTER TABLE instances ADD removed BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX `instances_removed` ON `instances` (`removed`);
 
 DELIMITER $$
 
