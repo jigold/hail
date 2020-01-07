@@ -190,7 +190,7 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu
+  SELECT state, cores_mcpu,
     (jobs.cancelled OR batches.cancelled) AND NOT always_run
   INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
   FROM jobs
