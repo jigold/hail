@@ -194,8 +194,8 @@ LIMIT 50;
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
                     break
 
-                if (batch_id, job_id) in self.pending_jobs:
-                    continue
+                # if (batch_id, job_id) in self.pending_jobs:
+                #     continue
 
                 i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
                 if i < len(self.inst_pool.healthy_instances_by_free_cores):
