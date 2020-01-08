@@ -378,3 +378,13 @@ CALL schedule_job(%s, %s, %s, %s);
 
     if rv['rc'] != 0:
         log.info(rv)
+        try:
+            record = {
+                'batch_id': batch_id,
+                'job_id': job_id,
+                'attempt_id': attempt_id,
+                'instance_name': instance.name
+            }
+            await unschedule_job(app, record)
+        except:
+            pass
