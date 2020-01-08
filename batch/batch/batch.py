@@ -104,10 +104,10 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     if instance_name:
         instance = inst_pool.name_instance.get(instance_name)
         if instance:
+            instance.remove_pending_attempt(batch_id, job_id, attempt_id)
             if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
                 instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
                 scheduler_state_changed.set()
-            instance.remove_pending_attempt(batch_id, job_id, attempt_id)
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 
@@ -117,7 +117,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
 
     old_state = rv['old_state']
     if old_state in complete_states:
-        log.info(f'old_state {old_state} complete, doing nothing')
+        log.info(f'old_state {old_state} complete for job {id}, doing nothing')
         # already complete, do nothing
         return
 
