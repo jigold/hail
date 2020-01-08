@@ -2,7 +2,6 @@ import json
 import logging
 import asyncio
 import aiohttp
-import secrets
 import base64
 import traceback
 from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
@@ -103,6 +102,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
         if instance:
             if rv['delta_cores_mcpu'] and instance.state == 'active':
                 instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
+                instance.remove_pending_attempt(batch_id, job_id, attempt_id)
                 scheduler_state_changed.set()
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
@@ -137,6 +137,7 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
 
     if rv['delta_cores_mcpu'] and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
+        instance.remove_pending_attempt(batch_id, job_id, attempt_id)
 
 
 def job_record_to_dict(record, running_status=None):
@@ -197,8 +198,9 @@ async def unschedule_job(app, record):
         log.warning(f'unschedule job {id}, attempt {attempt_id}: unknown instance {instance_name}')
         return
 
-    if rv['delta_cores_mcpu']:
+    if rv['delta_cores_mcpu'] and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
+        instance.remove_pending_attempt(batch_id, job_id, attempt_id)
         scheduler_state_changed.set()
         log.info(f'unschedule job {id}, attempt {attempt_id}: updated {instance} free cores')
 
@@ -317,18 +319,18 @@ users:
     }
 
 
-async def schedule_job(app, result, instance):
+async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
     db = app['db']
 
-    batch_id = result['batch_id']
-    job_id = result['job_id']
-    attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    attempt_id = record['attempt_id']
     id = (batch_id, job_id)
 
     try:
-        body = await job_config(app, result, attempt_id)
+        body = await job_config(app, record, attempt_id)
     except Exception:
         log.exception('while making job config')
         status = {
@@ -336,7 +338,7 @@ async def schedule_job(app, result, instance):
             'batch_id': batch_id,
             'job_id': job_id,
             'attempt_id': attempt_id,
-            'user': result['user'],
+            'user': record['user'],
             'state': 'error',
             'error': traceback.format_exc(),
             'container_statuses': {k: {} for k in tasks}
@@ -379,12 +381,12 @@ CALL schedule_job(%s, %s, %s, %s);
     if rv['rc'] != 0:
         log.info(rv)
         try:
-            result = {
+            config = {
                 'batch_id': batch_id,
                 'job_id': job_id,
                 'attempt_id': attempt_id,
                 'instance_name': instance.name
             }
-            await unschedule_job(app, result)
+            await unschedule_job(app, config)
         except:
             pass

@@ -1,6 +1,7 @@
 import random
 import logging
 import asyncio
+import secrets
 import sortedcontainers
 import functools
 
@@ -178,6 +179,8 @@ LIMIT 50;
             async for record in records:
                 batch_id = record['batch_id']
                 job_id = record['job_id']
+                attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
+                record['attempt_id'] = attempt_id
                 id = (batch_id, job_id)
 
                 if record['cancel']:
@@ -196,6 +199,7 @@ LIMIT 50;
                     assert record['cores_mcpu'] <= instance.free_cores_mcpu
                     free_cores_before = instance.free_cores_mcpu
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
+                    instance.add_pending_attempt(batch_id, job_id, attempt_id)
                     log.info(f'pre-schedule job {id} on instance {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={-record["cores_mcpu"]}')
                     should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
@@ -209,12 +213,14 @@ LIMIT 50;
         for ((record, instance), result) in zip(to_schedule, results):
             batch_id = record['batch_id']
             job_id = record['job_id']
+            attempt_id = record['attempt_id']
             id = (batch_id, job_id)
             if isinstance(result, Exception):
                 log.info(f'error while scheduling job {id} on {instance}, {result}')
-                if instance.state == 'active':
+                if instance.state == 'active' and instance.has_pending_attempt(batch_id, job_id, attempt_id):
                     free_cores_before = instance.free_cores_mcpu
                     instance.adjust_free_cores_in_memory(record['cores_mcpu'])
+                    instance.remove_pending_attempt(batch_id, job_id, attempt_id)
                     log.info(f'error job {id} on instance {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["cores_mcpu"]}')
             else:
                 log.info(f'success scheduling job {id} on {instance}')
