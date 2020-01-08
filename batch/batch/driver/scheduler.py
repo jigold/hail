@@ -4,7 +4,7 @@ import asyncio
 import sortedcontainers
 import functools
 
-from hailtop.utils import time_msecs, bounded_gather
+from hailtop.utils import time_msecs, bounded_gather, AsyncWorkerPool
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 
@@ -18,6 +18,7 @@ class Scheduler:
         self.cancel_state_changed = app['cancel_state_changed']
         self.db = app['db']
         self.inst_pool = app['inst_pool']
+        self.worker_pool = AsyncWorkerPool(50)
 
     async def async_init(self):
         asyncio.ensure_future(self.loop('schedule_loop', self.scheduler_state_changed, self.schedule_1))
@@ -144,7 +145,7 @@ LIMIT 50;
                 (user_record['user'],))
             async for record in records:
                 should_wait = False
-                await unschedule_job(self.app, record)
+                await self.worker_pool.call(unschedule_job, self.app, record)
 
         return should_wait
 
