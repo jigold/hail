@@ -356,14 +356,10 @@ async def schedule_job(app, record, instance):
         if (isinstance(e, aiohttp.ClientResponseError) and
                 e.status == 403):  # pylint: disable=no-member
             await instance.mark_healthy()
-            log.info(f'attempt already exists for job {id} on instance {instance}, aborting')
+            log.exception(f'attempt already exists for job {id} on instance {instance}, aborting')
         else:
-            log.exception(f'error while scheduling job {id} on {instance}, {e}')
             await instance.incr_failed_request_count()
-
-        if instance.state == 'active':
-            instance.adjust_free_cores_in_memory(record['cores_mcpu'])
-        return
+        raise e
 
     log.info(f'schedule job {id} on {instance}: called create job')
 
