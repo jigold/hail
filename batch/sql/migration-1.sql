@@ -292,6 +292,7 @@ BEGIN
     WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
+
   IF cur_instance_state = 'active' AND cur_end_time IS NULL THEN
     UPDATE instances
     SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu
@@ -320,13 +321,17 @@ CREATE PROCEDURE mark_job_started(
   IN new_start_time BIGINT
 )
 BEGIN
+  DECLARE cur_job_state VARCHAR(40);
+  DECLARE cur_job_cancel BOOLEAN;
   DECLARE cur_cores_mcpu INT;
   DECLARE cur_instance_state VARCHAR(40);
   DECLARE delta_cores_mcpu INT;
 
   START TRANSACTION;
 
-  SELECT cores_mcpu INTO cur_cores_mcpu
+  SELECT state, cores_mcpu,
+    (jobs.cancelled OR batches.cancelled) AND NOT always_run
+  INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND batches.closed
@@ -336,6 +341,12 @@ BEGIN
 
   UPDATE attempts SET start_time = new_start_time
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
+
+  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
+
+  IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
+    UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
+  END IF;
 
   COMMIT;
   SELECT 0 as rc, delta_cores_mcpu;
