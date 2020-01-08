@@ -100,10 +100,10 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     if instance_name:
         instance = inst_pool.name_instance.get(instance_name)
         if instance:
-            instance.remove_pending_attempt(batch_id, job_id, attempt_id)
             if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
                 instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
                 scheduler_state_changed.set()
+            instance.remove_pending_attempt(batch_id, job_id, attempt_id)
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 
@@ -201,9 +201,10 @@ async def unschedule_job(app, record):
 
     if rv['delta_cores_mcpu'] and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
-        instance.remove_pending_attempt(batch_id, job_id, attempt_id)
         scheduler_state_changed.set()
         log.info(f'unschedule job {id}, attempt {attempt_id}: updated {instance} free cores')
+
+    instance.remove_pending_attempt(batch_id, job_id, attempt_id)
 
     url = (f'http://{instance.ip_address}:5000'
            f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
