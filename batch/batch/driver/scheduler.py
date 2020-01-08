@@ -221,7 +221,7 @@ LIMIT 50;
                     free_cores_before = instance.free_cores_mcpu
                     instance.adjust_free_cores_in_memory(record['cores_mcpu'])
                     instance.remove_pending_attempt(batch_id, job_id, attempt_id)
-                    log.info(f'error job {id} on instance {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["cores_mcpu"]}')
+                    log.info(f'error job {id} on {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["cores_mcpu"]}')
             else:
                 log.info(f'success scheduling job {id} on {instance}')
 
