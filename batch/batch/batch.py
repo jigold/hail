@@ -91,11 +91,15 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
 
     now = time_msecs()
 
-    rv = await db.execute_and_fetchone(
-        'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
-        (batch_id, job_id, attempt_id, instance_name, new_state,
-         json.dumps(status) if status is not None else None,
-         start_time, end_time, reason, now))
+    try:
+        rv = await db.execute_and_fetchone(
+            'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
+            (batch_id, job_id, attempt_id, instance_name, new_state,
+             json.dumps(status) if status is not None else None,
+             start_time, end_time, reason, now))
+    except:
+        log.exception(f'error while marking job {id} complete on {instance_name}')
+        raise
 
     if instance_name:
         instance = inst_pool.name_instance.get(instance_name)
@@ -129,11 +133,15 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
 
     log.info(f'mark job {id} started')
 
-    rv = await db.execute_and_fetchone(
-        '''
-CALL mark_job_started(%s, %s, %s, %s, %s);
-''',
-        (batch_id, job_id, attempt_id, instance.name, start_time))
+    try:
+        rv = await db.execute_and_fetchone(
+            '''
+    CALL mark_job_started(%s, %s, %s, %s, %s);
+    ''',
+            (batch_id, job_id, attempt_id, instance.name, start_time))
+    except:
+        log.exception(f'error while marking job {id} started on {instance}')
+        raise
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
@@ -188,9 +196,14 @@ async def unschedule_job(app, record):
     log.info(f'unscheduling job {id}, attempt {attempt_id} from instance {instance_name}')
 
     end_time = time_msecs()
-    rv = await db.execute_and_fetchone(
-        'CALL unschedule_job(%s, %s, %s, %s, %s, %s);',
-        (batch_id, job_id, attempt_id, instance_name, end_time, 'cancelled'))
+
+    try:
+        rv = await db.execute_and_fetchone(
+            'CALL unschedule_job(%s, %s, %s, %s, %s, %s);',
+            (batch_id, job_id, attempt_id, instance_name, end_time, 'cancelled'))
+    except:
+        log.exception(f'error while unscheduling job {id} on instance {instance_name}')
+        raise
 
     log.info(f'unschedule job {id}: updated database {rv}')
 
@@ -362,7 +375,7 @@ async def schedule_job(app, record, instance):
         if (isinstance(e, aiohttp.ClientResponseError) and
                 e.status == 403):  # pylint: disable=no-member
             await instance.mark_healthy()
-            log.exception(f'attempt already exists for job {id} on instance {instance}, aborting')
+            log.exception(f'attempt already exists for job {id} on {instance}, aborting')
         else:
             await instance.incr_failed_request_count()
         raise e
