@@ -20,7 +20,7 @@ class Scheduler:
         self.db = app['db']
         self.inst_pool = app['inst_pool']
         self.worker_pool = AsyncWorkerPool(50)
-        self.pending_jobs = set()
+        # self.pending_jobs = set()
 
     async def async_init(self):
         asyncio.ensure_future(self.loop('schedule_loop', self.scheduler_state_changed, self.schedule_1))
@@ -208,7 +208,7 @@ LIMIT 50;
                     should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
                     to_schedule.append((record, instance))
-                    self.pending_jobs.add((batch_id, job_id))
+                    # self.pending_jobs.add((batch_id, job_id))
 
         results = await bounded_gather(*[functools.partial(schedule_job, self.app, record, instance)
                                          for record, instance in to_schedule],
@@ -221,14 +221,14 @@ LIMIT 50;
             attempt_id = record['attempt_id']
             id = (batch_id, job_id)
 
-            self.pending_jobs.remove((batch_id, job_id))
+            # self.pending_jobs.remove((batch_id, job_id))
 
             if isinstance(result, Exception):
                 log.info(f'error while scheduling job {id} on {instance}, {result}')
-                if instance.state == 'active' and instance.has_pending_attempt(batch_id, job_id, attempt_id):
+                if instance.state == 'active': # and instance.has_pending_attempt(batch_id, job_id, attempt_id):
                     free_cores_before = instance.free_cores_mcpu
                     instance.adjust_free_cores_in_memory(record['cores_mcpu'])
-                    instance.remove_pending_attempt(batch_id, job_id, attempt_id)
+                    # instance.remove_pending_attempt(batch_id, job_id, attempt_id)
                     log.info(f'error job {id} on {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["cores_mcpu"]}')
             else:
                 log.info(f'success scheduling job {id} on {instance}')
