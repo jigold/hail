@@ -383,7 +383,7 @@ async def schedule_job(app, record, instance):
         }
         await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
                                 'Error', status, None, None, 'error')
-        raise
+        raise  # if fails, should add back free cores
 
     log.info(f'schedule job {id} on {instance}: made job config')
 
@@ -401,11 +401,13 @@ async def schedule_job(app, record, instance):
             log.exception(f'attempt already exists for job {id} on {instance}, aborting')
         else:
             await instance.incr_failed_request_count()
-        raise e
+        raise e  # if fails, add back free cores
 
     log.info(f'schedule job {id} on {instance}: called create job')
 
     pending_before = instance.has_pending_attempt(batch_id, job_id, attempt_id)
+
+    # if mark_job_started or mark_job_complete: double allocation
 
     rv = await db.execute_and_fetchone(
         '''
@@ -415,12 +417,12 @@ CALL schedule_job(%s, %s, %s, %s);
 
     pending_after = instance.has_pending_attempt(batch_id, job_id, attempt_id)
 
+    instance.remove_pending_attempt(batch_id, job_id, attempt_id)
+
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         free_cores_before = instance.free_cores_mcpu
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
         log.info(f'change free cores schedule job {id} on {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["delta_cores_mcpu"]} pending_before={pending_before} pending_after={pending_after}')
-
-    instance.remove_pending_attempt(batch_id, job_id, attempt_id)
 
     log.info(f'schedule job {id} on {instance}: updated database')
 
