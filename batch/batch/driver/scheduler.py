@@ -222,7 +222,7 @@ LIMIT 50;
             id = (batch_id, job_id)
 
             self.pending_jobs.remove((batch_id, job_id))
-            
+
             if isinstance(result, Exception):
                 log.info(f'error while scheduling job {id} on {instance}, {result}')
                 if instance.state == 'active' and instance.has_pending_attempt(batch_id, job_id, attempt_id):
