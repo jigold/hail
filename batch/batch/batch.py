@@ -405,18 +405,24 @@ async def schedule_job(app, record, instance):
 
     log.info(f'schedule job {id} on {instance}: called create job')
 
+    pending_before = instance.has_pending_attempt(batch_id, job_id, attempt_id)
+
     rv = await db.execute_and_fetchone(
         '''
 CALL schedule_job(%s, %s, %s, %s);
 ''',
         (batch_id, job_id, attempt_id, instance.name))
 
+    pending_after = instance.has_pending_attempt(batch_id, job_id, attempt_id)
+
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
+        free_cores_before = instance.free_cores_mcpu
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
+        log.info(f'change free cores schedule job {id} on {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["delta_cores_mcpu"]} pending_before={pending_before} pending_after={pending_after}')
 
     instance.remove_pending_attempt(batch_id, job_id, attempt_id)
 
     log.info(f'schedule job {id} on {instance}: updated database')
 
     if rv['rc'] != 0:
-        log.info(rv)
+        log.info(f'could not schedule job {id}, attempt {attempt_id} on {instance}, {rv}')
