@@ -110,13 +110,13 @@ class Transaction:
         await aexit(self.conn_context_manager)
         self.conn_context_manager = None
 
-    @retry
+    # @retry
     async def just_execute(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             await cursor.execute(sql, args)
 
-    @retry
+    # @retry
     async def execute_and_fetchone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
@@ -126,11 +126,11 @@ class Transaction:
     async def execute_and_fetchall(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            @retry
+            # @retry
             async def execute(sql, args):
                 return await cursor.execute(sql, args)
 
-            @retry
+            # @retry
             async def fetchmany():
                 return await cursor.fetchmany(100)
 
@@ -142,20 +142,20 @@ class Transaction:
                 for row in rows:
                     yield row
 
-    @retry
+    # @retry
     async def execute_insertone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             await cursor.execute(sql, args)
             return cursor.lastrowid
 
-    @retry
+    # @retry
     async def execute_update(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             return await cursor.execute(sql, args)
 
-    @retry
+    # @retry
     async def execute_many(self, sql, args_array):
         assert self.conn
         async with self.conn.cursor() as cursor:
