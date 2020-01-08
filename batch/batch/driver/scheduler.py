@@ -136,8 +136,8 @@ WHERE running_cores_mcpu > 0;
                 '''
 SELECT attempts.job_id, attempts.batch_id, attempts.attempt_id, instance_name
 FROM attempts
-STRAIGHT_JOIN batches ON batches.id = jobs.batch_id
-STRAIGHT_JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
+STRAIGHT_JOIN batches ON batches.id = attempts.batch_id
+STRAIGHT_JOIN jobs ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 WHERE jobs.state = 'Running' AND (NOT jobs.always_run) AND batches.closed AND batches.cancelled AND batches.user = %s
 LIMIT 50;
 ''',
