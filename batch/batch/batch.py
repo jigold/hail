@@ -317,18 +317,18 @@ users:
     }
 
 
-async def schedule_job(app, record, instance):
+async def schedule_job(app, result, instance):
     assert instance.state == 'active'
 
     db = app['db']
 
-    batch_id = record['batch_id']
-    job_id = record['job_id']
+    batch_id = result['batch_id']
+    job_id = result['job_id']
     attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
     id = (batch_id, job_id)
 
     try:
-        body = await job_config(app, record, attempt_id)
+        body = await job_config(app, result, attempt_id)
     except Exception:
         log.exception('while making job config')
         status = {
@@ -336,7 +336,7 @@ async def schedule_job(app, record, instance):
             'batch_id': batch_id,
             'job_id': job_id,
             'attempt_id': attempt_id,
-            'user': record['user'],
+            'user': result['user'],
             'state': 'error',
             'error': traceback.format_exc(),
             'container_statuses': {k: {} for k in tasks}
@@ -379,12 +379,12 @@ CALL schedule_job(%s, %s, %s, %s);
     if rv['rc'] != 0:
         log.info(rv)
         try:
-            record = {
+            result = {
                 'batch_id': batch_id,
                 'job_id': job_id,
                 'attempt_id': attempt_id,
                 'instance_name': instance.name
             }
-            await unschedule_job(app, record)
+            await unschedule_job(app, result)
         except:
             pass
