@@ -20,7 +20,6 @@ class Scheduler:
         self.db = app['db']
         self.inst_pool = app['inst_pool']
         self.worker_pool = AsyncWorkerPool(50)
-        # self.pending_jobs = set()
 
     async def async_init(self):
         asyncio.ensure_future(self.loop('schedule_loop', self.scheduler_state_changed, self.schedule_1))
@@ -194,9 +193,6 @@ LIMIT 50;
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
                     break
 
-                # if (batch_id, job_id) in self.pending_jobs:
-                #     continue
-
                 i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
                 if i < len(self.inst_pool.healthy_instances_by_free_cores):
                     instance = self.inst_pool.healthy_instances_by_free_cores[i]
@@ -208,11 +204,20 @@ LIMIT 50;
                     should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
                     to_schedule.append((record, instance))
-                    # self.pending_jobs.add((batch_id, job_id))
 
-        await bounded_gather(*[functools.partial(schedule_job, self.app, record, instance)
-                               for record, instance in to_schedule],
-                             parallelism=10,
-                             return_exceptions=True)
+        results = await bounded_gather(*[functools.partial(schedule_job, self.app, record, instance)
+                                         for record, instance in to_schedule],
+                                       parallelism=10,
+                                       return_exceptions=True)
+
+        for ((record, instance), result) in zip(to_schedule, results):
+            batch_id = record['batch_id']
+            job_id = record['job_id']
+            id = (batch_id, job_id)
+
+            if isinstance(result, Exception):
+                log.info(f'error while scheduling job {id} on {instance}, {result!r}')
+            else:
+                log.info(f'success scheduling job {id} on {instance}')
 
         return should_wait
