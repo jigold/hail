@@ -126,8 +126,9 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT FOR UPDATE state, token INTO cur_state, cur_token FROM instances
-  WHERE name = in_instance_name;
+  SELECT state, token INTO cur_state, cur_token FROM instances
+  WHERE name = in_instance_name
+  FOR UPDATE;
 
   IF cur_state = 'pending' THEN
     UPDATE instances
@@ -154,7 +155,7 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT FOR UPDATE state INTO cur_state FROM instances WHERE name = in_instance_name;
+  SELECT state INTO cur_state FROM instances WHERE name = in_instance_name FOR UPDATE ;
 
   UPDATE instances
   SET time_deactivated = in_timestamp
@@ -197,9 +198,10 @@ BEGIN
 
   START TRANSACTION;
 
-  SET attempt_exists = EXISTS (SELECT FOR UPDATE * FROM attempts
+  SET attempt_exists = EXISTS (SELECT * FROM attempts
                                WHERE batch_id = in_batch_id AND
-                                 job_id = in_job_id AND attempt_id = in_attempt_id);
+                                 job_id = in_job_id AND attempt_id = in_attempt_id
+                               FOR UPDATE);
 
   IF NOT attempt_exists AND in_attempt_id IS NOT NULL THEN
     INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name) VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
@@ -229,13 +231,14 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT FOR UPDATE state, cores_mcpu, attempt_id,
+  SELECT state, cores_mcpu, attempt_id,
     (jobs.cancelled OR batches.cancelled) AND NOT always_run
   INTO cur_job_state, cur_cores_mcpu, cur_attempt_id, cur_job_cancel
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND batches.closed
-    AND job_id = in_job_id;
+    AND job_id = in_job_id
+  FOR UPDATE;
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
@@ -291,12 +294,14 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT FOR UPDATE state, cores_mcpu, attempt_id
+  SELECT state, cores_mcpu, attempt_id
   INTO cur_job_state, cur_cores_mcpu, cur_attempt_id
-  FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id;
+  FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id
+  FOR UPDATE;
 
-  SELECT FOR UPDATE end_time INTO cur_end_time FROM attempts
-    WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
+  SELECT end_time INTO cur_end_time FROM attempts
+    WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
+    FOR UPDATE;
 
   UPDATE attempts
     SET end_time = new_end_time, reason = new_reason
@@ -340,13 +345,14 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT FOR UPDATE state, cores_mcpu,
+  SELECT state, cores_mcpu,
     (jobs.cancelled OR batches.cancelled) AND NOT always_run
   INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND batches.closed
-    AND job_id = in_job_id;
+    AND job_id = in_job_id
+  FOR UPDATE;
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
@@ -387,10 +393,11 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT FOR UPDATE state, cores_mcpu
+  SELECT state, cores_mcpu
   INTO cur_job_state, cur_cores_mcpu
   FROM jobs
-  WHERE batch_id = in_batch_id AND job_id = in_job_id;
+  WHERE batch_id = in_batch_id AND job_id = in_job_id
+  FOR UPDATE;
 
   SELECT end_time INTO cur_end_time FROM attempts
     WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
@@ -410,8 +417,9 @@ BEGIN
     SET delta_cores_mcpu = delta_cores_mcpu + cur_cores_mcpu;
   END IF;
 
-  SELECT FOR UPDATE attempt_id INTO expected_attempt_id FROM jobs
-  WHERE batch_id = in_batch_id AND job_id = in_job_id;
+  SELECT attempt_id INTO expected_attempt_id FROM jobs
+  WHERE batch_id = in_batch_id AND job_id = in_job_id
+  FOR UPDATE;
 
   IF expected_attempt_id != in_attempt_id THEN
     COMMIT;
