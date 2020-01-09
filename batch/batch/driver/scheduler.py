@@ -210,27 +210,9 @@ LIMIT 50;
                     to_schedule.append((record, instance))
                     # self.pending_jobs.add((batch_id, job_id))
 
-        results = await bounded_gather(*[functools.partial(schedule_job, self.app, record, instance)
-                                         for record, instance in to_schedule],
-                                       parallelism=10,
-                                       return_exceptions=True)
-
-        for ((record, instance), result) in zip(to_schedule, results):
-            batch_id = record['batch_id']
-            job_id = record['job_id']
-            attempt_id = record['attempt_id']
-            id = (batch_id, job_id)
-
-            # self.pending_jobs.remove((batch_id, job_id))
-
-            if isinstance(result, Exception):
-                log.info(f'error while scheduling job {id} on {instance}, {result!r}')
-                if instance.state == 'active': # and instance.has_pending_attempt(batch_id, job_id, attempt_id):
-                    free_cores_before = instance.free_cores_mcpu
-                    instance.adjust_free_cores_in_memory(record['cores_mcpu'])
-                    # instance.remove_pending_attempt(batch_id, job_id, attempt_id)
-                    log.info(f'error job {id} on {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["cores_mcpu"]}')
-            else:
-                log.info(f'success scheduling job {id} on {instance}')
+        await bounded_gather(*[functools.partial(schedule_job, self.app, record, instance)
+                               for record, instance in to_schedule],
+                             parallelism=10,
+                             return_exceptions=True)
 
         return should_wait

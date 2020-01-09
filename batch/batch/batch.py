@@ -368,50 +368,59 @@ async def schedule_job(app, record, instance):
     id = (batch_id, job_id)
 
     try:
-        body = await job_config(app, record, attempt_id)
-    except Exception:
-        log.exception('while making job config')
-        status = {
-            'worker': None,
-            'batch_id': batch_id,
-            'job_id': job_id,
-            'attempt_id': attempt_id,
-            'user': record['user'],
-            'state': 'error',
-            'error': traceback.format_exc(),
-            'container_statuses': {k: {} for k in tasks}
-        }
-        await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
-                                'Error', status, None, None, 'error')
-        raise
+        try:
+            body = await job_config(app, record, attempt_id)
+        except Exception:
+            log.exception('while making job config')
+            status = {
+                'worker': None,
+                'batch_id': batch_id,
+                'job_id': job_id,
+                'attempt_id': attempt_id,
+                'user': record['user'],
+                'state': 'error',
+                'error': traceback.format_exc(),
+                'container_statuses': {k: {} for k in tasks}
+            }
+            await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
+                                    'Error', status, None, None, 'error')
+            raise
 
-    log.info(f'schedule job {id} on {instance}: made job config')
+        log.info(f'schedule job {id} on {instance}: made job config')
 
-    try:
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            url = (f'http://{instance.ip_address}:5000'
-                   f'/api/v1alpha/batches/jobs/create')
-            await session.post(url, json=body)
-            await instance.mark_healthy()
-    except Exception as e:
-        if (isinstance(e, aiohttp.ClientResponseError) and
-                e.status == 403):  # pylint: disable=no-member
-            await instance.mark_healthy()
-            log.exception(f'attempt already exists for job {id} on {instance}, aborting')
-        else:
-            await instance.incr_failed_request_count()
-        raise e
+        try:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                url = (f'http://{instance.ip_address}:5000'
+                       f'/api/v1alpha/batches/jobs/create')
+                await session.post(url, json=body)
+                await instance.mark_healthy()
+        except Exception as e:
+            if (isinstance(e, aiohttp.ClientResponseError) and
+                    e.status == 403):  # pylint: disable=no-member
+                await instance.mark_healthy()
+                log.exception(f'attempt already exists for job {id} on {instance}, aborting')
+            else:
+                await instance.incr_failed_request_count()
+            raise e
 
-    log.info(f'schedule job {id} on {instance}: called create job')
+        log.info(f'schedule job {id} on {instance}: called create job')
 
-    pending_before = instance.has_pending_attempt(batch_id, job_id, attempt_id)
+        pending_before = instance.has_pending_attempt(batch_id, job_id, attempt_id)
 
-    rv = await db.execute_and_fetchone(
-        '''
+        rv = await db.execute_and_fetchone(
+            '''
 CALL schedule_job(%s, %s, %s, %s);
 ''',
-        (batch_id, job_id, attempt_id, instance.name))
+            (batch_id, job_id, attempt_id, instance.name))
+    except:
+        log.exception(f'error while scheduling job {id} on {instance}')
+        if instance.state == 'active': # and instance.has_pending_attempt(batch_id, job_id, attempt_id):
+            free_cores_before = instance.free_cores_mcpu
+            instance.adjust_free_cores_in_memory(record['cores_mcpu'])
+            # instance.remove_pending_attempt(batch_id, job_id, attempt_id)
+            log.info(f'error job {id} on {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["cores_mcpu"]}')
+        return
 
     pending_after = instance.has_pending_attempt(batch_id, job_id, attempt_id)
 
@@ -426,3 +435,13 @@ CALL schedule_job(%s, %s, %s, %s);
 
     if rv['rc'] != 0:
         log.info(f'could not schedule job {id}, attempt {attempt_id} on {instance}, {rv}')
+        # try:
+        #     config = {
+        #         'batch_id': batch_id,
+        #         'job_id': job_id,
+        #         'attempt_id': attempt_id,
+        #         'instance_name': instance.name
+        #     }
+        #     await unschedule_job(app, config)
+        # except:
+        #     pass
