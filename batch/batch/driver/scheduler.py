@@ -158,7 +158,7 @@ LIMIT 50;
 
         to_schedule = []
         for user, resources in user_resources.items():
-            allocated_cores_mcpu = resources.get('allocated_cores_mcpu', 0)
+            allocated_cores_mcpu = resources['allocated_cores_mcpu']
             if allocated_cores_mcpu == 0:
                 continue
 
