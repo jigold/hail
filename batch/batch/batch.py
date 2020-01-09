@@ -91,11 +91,6 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
 
     now = time_msecs()
 
-    pending_before = None
-    if instance_name:
-        instance = inst_pool.name_instance.get(instance_name)
-        pending_before = instance.has_pending_attempt(batch_id, job_id, attempt_id)
-
     try:
         rv = await db.execute_and_fetchone(
             'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
@@ -108,13 +103,10 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
 
     if instance_name:
         instance = inst_pool.name_instance.get(instance_name)
-        pending_after = instance.has_pending_attempt(batch_id, job_id, attempt_id)
         if instance:
             instance.remove_pending_attempt(batch_id, job_id, attempt_id)
             if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
-                free_cores_before = instance.free_cores_mcpu
                 instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
-                log.info(f'mark job complete changed free cores {id} on {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={rv["delta_cores_mcpu"]} pending_before={pending_before} pending_after={pending_after}')
                 scheduler_state_changed.set()
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
@@ -141,8 +133,6 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
 
     log.info(f'mark job {id} started')
 
-    pending_before = instance.has_pending_attempt(batch_id, job_id, attempt_id)
-
     try:
         rv = await db.execute_and_fetchone(
             '''
@@ -153,14 +143,8 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
         log.exception(f'error while marking job {id} started on {instance}')
         raise
 
-    pending_after = instance.has_pending_attempt(batch_id, job_id, attempt_id)
-
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
-        free_cores_before = instance.free_cores_mcpu
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
-        log.info(f'mark job started changed free cores {id} on {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={rv["delta_cores_mcpu"]} pending_before={pending_before} pending_after={pending_after}')
-
-    instance.remove_pending_attempt(batch_id, job_id, attempt_id)
 
 
 def job_record_to_dict(record, running_status=None):
@@ -211,11 +195,6 @@ async def unschedule_job(app, record):
 
     end_time = time_msecs()
 
-    pending_before = None
-    if instance_name:
-        instance = inst_pool.name_instance.get(instance_name)
-        pending_before = instance.has_pending_attempt(batch_id, job_id, attempt_id)
-
     try:
         rv = await db.execute_and_fetchone(
             'CALL unschedule_job(%s, %s, %s, %s, %s, %s);',
@@ -231,16 +210,10 @@ async def unschedule_job(app, record):
         log.warning(f'unschedule job {id}, attempt {attempt_id}: unknown instance {instance_name}')
         return
 
-    pending_after = instance.has_pending_attempt(batch_id, job_id, attempt_id)
-
     if rv['delta_cores_mcpu'] and instance.state == 'active':
-        free_cores_before = instance.free_cores_mcpu
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
-        log.info(f'change free cores unschedule job {id} on {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["delta_cores_mcpu"]} pending_before={pending_before} pending_after={pending_after}')
         scheduler_state_changed.set()
         log.info(f'unschedule job {id}, attempt {attempt_id}: updated {instance} free cores')
-
-    instance.remove_pending_attempt(batch_id, job_id, attempt_id)
 
     url = (f'http://{instance.ip_address}:5000'
            f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
@@ -406,8 +379,6 @@ async def schedule_job(app, record, instance):
 
         log.info(f'schedule job {id} on {instance}: called create job')
 
-        pending_before = instance.has_pending_attempt(batch_id, job_id, attempt_id)
-
         rv = await db.execute_and_fetchone(
             '''
 CALL schedule_job(%s, %s, %s, %s);
@@ -415,33 +386,24 @@ CALL schedule_job(%s, %s, %s, %s);
             (batch_id, job_id, attempt_id, instance.name))
     except:
         log.exception(f'error while scheduling job {id} on {instance}')
-        if instance.state == 'active': # and instance.has_pending_attempt(batch_id, job_id, attempt_id):
-            free_cores_before = instance.free_cores_mcpu
+        if instance.state == 'active':
             instance.adjust_free_cores_in_memory(record['cores_mcpu'])
-            # instance.remove_pending_attempt(batch_id, job_id, attempt_id)
-            log.info(f'error job {id} on {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={record["cores_mcpu"]}')
         return
 
-    pending_after = instance.has_pending_attempt(batch_id, job_id, attempt_id)
-
-    instance.remove_pending_attempt(batch_id, job_id, attempt_id)
-
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
-        free_cores_before = instance.free_cores_mcpu
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
-        log.info(f'change free cores schedule job {id} on {instance} before={free_cores_before} after={instance.free_cores_mcpu} delta={rv["delta_cores_mcpu"]} pending_before={pending_before} pending_after={pending_after}')
 
     log.info(f'schedule job {id} on {instance}: updated database')
 
     if rv['rc'] != 0:
         log.info(f'could not schedule job {id}, attempt {attempt_id} on {instance}, {rv}')
+        config = {
+            'batch_id': batch_id,
+            'job_id': job_id,
+            'attempt_id': attempt_id,
+            'instance_name': instance.name
+        }
+        asyncio.ensure_future(unschedule_job(app, config))
         return
-        # config = {
-        #     'batch_id': batch_id,
-        #     'job_id': job_id,
-        #     'attempt_id': attempt_id,
-        #     'instance_name': instance.name
-        # }
-        # await unschedule_job(app, config)
 
     log.info(f'success scheduling job {id} on {instance}')
