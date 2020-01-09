@@ -217,7 +217,5 @@ LIMIT 50;
 
             if isinstance(result, Exception):
                 log.info(f'error while scheduling job {id} on {instance}, {result!r}')
-            else:
-                log.info(f'success scheduling job {id} on {instance}')
 
         return should_wait
