@@ -104,7 +104,6 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     if instance_name:
         instance = inst_pool.name_instance.get(instance_name)
         if instance:
-            instance.remove_pending_attempt(batch_id, job_id, attempt_id)
             if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
                 instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
                 scheduler_state_changed.set()
@@ -372,7 +371,7 @@ async def schedule_job(app, record, instance):
             if (isinstance(e, aiohttp.ClientResponseError) and
                     e.status == 403):  # pylint: disable=no-member
                 await instance.mark_healthy()
-                log.exception(f'attempt already exists for job {id} on {instance}, aborting')
+                log.info(f'attempt already exists for job {id} on {instance}, aborting')
             else:
                 await instance.incr_failed_request_count()
             raise e
