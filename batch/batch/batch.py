@@ -385,9 +385,10 @@ CALL schedule_job(%s, %s, %s, %s);
 ''',
             (batch_id, job_id, attempt_id, instance.name))
     except:
+        log.exception(f'error while scheduling job {id} on {instance}')
         if instance.state == 'active':
             instance.adjust_free_cores_in_memory(record['cores_mcpu'])
-        raise
+        return
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
