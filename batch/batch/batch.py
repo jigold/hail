@@ -98,7 +98,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
              json.dumps(status) if status is not None else None,
              start_time, end_time, reason, now))
     except:
-        log.exception(f'error while marking job {id} complete on {instance_name}')
+        log.exception(f'error while marking job {id} complete on instance {instance_name}')
         raise
 
     if instance_name:
