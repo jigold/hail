@@ -150,7 +150,6 @@ LIMIT 50;
         return should_wait
 
     async def schedule_1(self):
-        log.info('scheduling loop')
         user_resources = await self.compute_fair_share()
 
         should_wait = True
