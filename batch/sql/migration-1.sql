@@ -126,7 +126,7 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state, token INTO cur_state, cur_token FROM instances
+  SELECT FOR UPDATE state, token INTO cur_state, cur_token FROM instances
   WHERE name = in_instance_name;
 
   IF cur_state = 'pending' THEN
@@ -154,7 +154,7 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state INTO cur_state FROM instances WHERE name = in_instance_name;
+  SELECT FOR UPDATE state INTO cur_state FROM instances WHERE name = in_instance_name;
 
   UPDATE instances
   SET time_deactivated = in_timestamp
@@ -203,7 +203,7 @@ BEGIN
 
   IF NOT attempt_exists AND in_attempt_id IS NOT NULL THEN
     INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name) VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
-    SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
+    SELECT FOR UPDATE state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
     IF cur_instance_state = 'active' THEN
       UPDATE instances SET free_cores_mcpu = free_cores_mcpu - in_cores_mcpu WHERE name = in_instance_name;
       SET delta_cores_mcpu = -1 * in_cores_mcpu;
@@ -229,7 +229,7 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu, attempt_id,
+  SELECT FOR UPDATE state, cores_mcpu, attempt_id,
     (jobs.cancelled OR batches.cancelled) AND NOT always_run
   INTO cur_job_state, cur_cores_mcpu, cur_attempt_id, cur_job_cancel
   FROM jobs
@@ -245,17 +245,11 @@ BEGIN
     SET delta_cores_mcpu = 0;
   END IF;
 
-  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
+  SELECT FOR UPDATE state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
   IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
     UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
     COMMIT;
     SELECT 0 as rc, in_instance_name, delta_cores_mcpu;
-  ELSEIF cur_attempt_id != in_attempt_id THEN
-    COMMIT;
-    SELECT 2 as rc,
-      cur_attempt_id,
-      delta_cores_mcpu,
-      'job not Re';
   ELSEIF cur_attempt_id = in_attempt_id THEN
     COMMIT;
     SELECT 1 as rc,
@@ -297,18 +291,18 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu, attempt_id
+  SELECT FOR UPDATE state, cores_mcpu, attempt_id
   INTO cur_job_state, cur_cores_mcpu, cur_attempt_id
   FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-  SELECT end_time INTO cur_end_time FROM attempts
+  SELECT FOR UPDATE end_time INTO cur_end_time FROM attempts
     WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   UPDATE attempts
     SET end_time = new_end_time, reason = new_reason
     WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
-  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
+  SELECT FOR UPDATE state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
 
   IF cur_instance_state = 'active' AND cur_end_time IS NULL THEN
     UPDATE instances
@@ -346,7 +340,7 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu,
+  SELECT FOR UPDATE state, cores_mcpu,
     (jobs.cancelled OR batches.cancelled) AND NOT always_run
   INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
   FROM jobs
@@ -359,7 +353,7 @@ BEGIN
   UPDATE attempts SET start_time = new_start_time
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
-  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
+  SELECT FOR UPDATE state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
 
   IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
     UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
@@ -393,7 +387,7 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu
+  SELECT FOR UPDATE state, cores_mcpu
   INTO cur_job_state, cur_cores_mcpu
   FROM jobs
   WHERE batch_id = in_batch_id AND job_id = in_job_id;
@@ -407,7 +401,7 @@ BEGIN
   SET start_time = new_start_time, end_time = new_end_time, reason = new_reason
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
-  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
+  SELECT FOR UPDATE state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
   IF cur_instance_state = 'active' AND cur_end_time IS NULL THEN
     UPDATE instances
     SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu
@@ -416,7 +410,7 @@ BEGIN
     SET delta_cores_mcpu = delta_cores_mcpu + cur_cores_mcpu;
   END IF;
 
-  SELECT attempt_id INTO expected_attempt_id FROM jobs
+  SELECT FOR UPDATE attempt_id INTO expected_attempt_id FROM jobs
   WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
   IF expected_attempt_id != in_attempt_id THEN
