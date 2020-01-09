@@ -253,18 +253,9 @@ BEGIN
     UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
     COMMIT;
     SELECT 0 as rc, in_instance_name, delta_cores_mcpu;
-  ELSEIF cur_attempt_id = in_attempt_id THEN
-    COMMIT;
-    SELECT 1 as rc,
-      cur_job_state,
-      cur_job_cancel,
-      cur_instance_state,
-      in_instance_name,
-      delta_cores_mcpu,
-      'job not Ready or cancelled or instance not active' as message;
   ELSE
     COMMIT;
-    SELECT 2 as rc,
+    SELECT 1 as rc,
       cur_job_state,
       cur_job_cancel,
       cur_instance_state,
@@ -300,12 +291,12 @@ BEGIN
   FOR UPDATE;
 
   SELECT end_time INTO cur_end_time FROM attempts
-    WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
-    FOR UPDATE;
+  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
+  FOR UPDATE;
 
   UPDATE attempts
-    SET end_time = new_end_time, reason = new_reason
-    WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
+  SET end_time = new_end_time, reason = new_reason
+  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
 
@@ -400,7 +391,8 @@ BEGIN
   FOR UPDATE;
 
   SELECT end_time INTO cur_end_time FROM attempts
-    WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
+  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
+  FOR UPDATE;
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
