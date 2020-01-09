@@ -373,7 +373,7 @@ BEGIN
   DECLARE cur_end_time BIGINT;
   DECLARE delta_cores_mcpu INT DEFAULT 0;
   DECLARE expected_instance_name VARCHAR(100);
-  DECLARE cur_attempt_id VARCHAR(40);
+  DECLARE expected_attempt_id VARCHAR(40);
 
   START TRANSACTION;
 
@@ -400,13 +400,13 @@ BEGIN
     SET delta_cores_mcpu = delta_cores_mcpu + cur_cores_mcpu;
   END IF;
 
-  SELECT attempt_id INTO cur_attempt_id FROM jobs
+  SELECT attempt_id INTO expected_attempt_id FROM jobs
   WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-  IF cur_attempt_id != in_attempt_id THEN
+  IF expected_attempt_id != in_attempt_id THEN
     COMMIT;
     SELECT 2 as rc,
-      cur_attempt_id as expected_attempt_id,
+      expected_attempt_id,
       delta_cores_mcpu,
       'input attempt id does not match expected attempt id' as message;
   ELSEIF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
