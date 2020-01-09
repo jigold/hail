@@ -435,6 +435,7 @@ CALL schedule_job(%s, %s, %s, %s);
 
     if rv['rc'] != 0:
         log.info(f'could not schedule job {id}, attempt {attempt_id} on {instance}, {rv}')
+        return
         # config = {
         #     'batch_id': batch_id,
         #     'job_id': job_id,
@@ -442,3 +443,5 @@ CALL schedule_job(%s, %s, %s, %s);
         #     'instance_name': instance.name
         # }
         # await unschedule_job(app, config)
+
+    log.info(f'success scheduling job {id} on {instance}')
