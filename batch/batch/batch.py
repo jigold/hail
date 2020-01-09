@@ -396,13 +396,14 @@ CALL schedule_job(%s, %s, %s, %s);
 
     if rv['rc'] != 0:
         log.info(f'could not schedule job {id}, attempt {attempt_id} on {instance}, {rv}')
-        config = {
-            'batch_id': batch_id,
-            'job_id': job_id,
-            'attempt_id': attempt_id,
-            'instance_name': instance.name
-        }
-        asyncio.ensure_future(unschedule_job(app, config))
+        if rv['rc'] == 2:
+            config = {
+                'batch_id': batch_id,
+                'job_id': job_id,
+                'attempt_id': attempt_id,
+                'instance_name': instance.name
+            }
+            asyncio.ensure_future(unschedule_job(app, config))
         return
 
     log.info(f'success scheduling job {id} on {instance}')

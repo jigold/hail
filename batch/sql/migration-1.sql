@@ -224,13 +224,14 @@ BEGIN
   DECLARE cur_cores_mcpu INT;
   DECLARE cur_job_cancel BOOLEAN;
   DECLARE cur_instance_state VARCHAR(40);
+  DECLARE cur_attempt_id VARCHAR(40);
   DECLARE delta_cores_mcpu INT;
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu,
+  SELECT state, cores_mcpu, attempt_id,
     (jobs.cancelled OR batches.cancelled) AND NOT always_run
-  INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
+  INTO cur_job_state, cur_cores_mcpu, cur_attempt_id, cur_job_cancel
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND batches.closed
@@ -249,13 +250,29 @@ BEGIN
     UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
     COMMIT;
     SELECT 0 as rc, in_instance_name, delta_cores_mcpu;
-  ELSE
+  ELSEIF cur_attempt_id != in_attempt_id THEN
+    COMMIT;
+    SELECT 2 as rc,
+      cur_attempt_id,
+      delta_cores_mcpu,
+      'job not Re';
+  ELSEIF cur_attempt_id = in_attempt_id THEN
     COMMIT;
     SELECT 1 as rc,
       cur_job_state,
       cur_job_cancel,
       cur_instance_state,
       in_instance_name,
+      delta_cores_mcpu,
+      'job not Ready or cancelled or instance not active' as message;
+  ELSE
+    COMMIT;
+    SELECT 2 as rc,
+      cur_job_state,
+      cur_job_cancel,
+      cur_instance_state,
+      in_instance_name,
+      cur_attempt_id,
       delta_cores_mcpu,
       'job not Ready or cancelled or instance not active' as message;
   END IF;
