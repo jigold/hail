@@ -170,7 +170,7 @@ BEGIN
     INNER JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
     SET state = 'Ready',
         jobs.attempt_id = NULL
-    WHERE instance_name = in_instance_name;
+    WHERE instance_name = in_instance_name AND state = 'Running';
 
     UPDATE instances SET state = 'inactive', free_cores_mcpu = cores_mcpu WHERE name = in_instance_name;
 
