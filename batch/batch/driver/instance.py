@@ -45,7 +45,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         self.time_created = time_created
         self._failed_request_count = failed_request_count
         self._last_updated = last_updated
-        self._pending_attempts = set()
         self.ip_address = ip_address
 
     @property
@@ -112,17 +111,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         self.instance_pool.adjust_for_remove_instance(self)
         self._free_cores_mcpu += delta_mcpu
         self.instance_pool.adjust_for_add_instance(self)
-
-    def has_pending_attempt(self, batch_id, job_id, attempt_id):
-        return (batch_id, job_id, attempt_id) in self._pending_attempts
-
-    def add_pending_attempt(self, batch_id, job_id, attempt_id):
-        self._pending_attempts.add((batch_id, job_id, attempt_id))
-
-    def remove_pending_attempt(self, batch_id, job_id, attempt_id):
-        id = (batch_id, job_id, attempt_id)
-        if id in self._pending_attempts:
-            self._pending_attempts.remove(id)
 
     @property
     def failed_request_count(self):
