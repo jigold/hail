@@ -372,7 +372,6 @@ BEGIN
   DECLARE cur_cores_mcpu INT;
   DECLARE cur_end_time BIGINT;
   DECLARE delta_cores_mcpu INT DEFAULT 0;
-  DECLARE expected_instance_name VARCHAR(100);
   DECLARE expected_attempt_id VARCHAR(40);
 
   START TRANSACTION;
