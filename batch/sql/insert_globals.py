@@ -17,8 +17,8 @@ async def main():
     else:
         worker_cores = 4
         worker_disk_size_gb = 10
-        max_instances = 10
-        pool_size = 10
+        max_instances = 3
+        pool_size = 3
         
     db = Database()
     await db.async_init()
