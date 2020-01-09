@@ -383,7 +383,7 @@ async def schedule_job(app, record, instance):
         }
         await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
                                 'Error', status, None, None, 'error')
-        raise  # if fails, should add back free cores
+        raise
 
     log.info(f'schedule job {id} on {instance}: made job config')
 
@@ -401,7 +401,7 @@ async def schedule_job(app, record, instance):
             log.exception(f'attempt already exists for job {id} on {instance}, aborting')
         else:
             await instance.incr_failed_request_count()
-        raise e  # if fails, add back free cores
+        raise e
 
     log.info(f'schedule job {id} on {instance}: called create job')
 

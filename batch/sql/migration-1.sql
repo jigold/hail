@@ -358,7 +358,7 @@ CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
   IN in_attempt_id VARCHAR(40),
-  IN in_instance_name VARCHAR(40),
+  IN in_instance_name VARCHAR(100),
   IN new_state VARCHAR(40),
   IN new_status TEXT,
   IN new_start_time BIGINT,
@@ -372,6 +372,8 @@ BEGIN
   DECLARE cur_cores_mcpu INT;
   DECLARE cur_end_time BIGINT;
   DECLARE delta_cores_mcpu INT DEFAULT 0;
+  DECLARE expected_instance_name VARCHAR(100);
+  DECLARE cur_attempt_id VARCHAR(40);
 
   START TRANSACTION;
 
@@ -398,7 +400,16 @@ BEGIN
     SET delta_cores_mcpu = delta_cores_mcpu + cur_cores_mcpu;
   END IF;
 
-  IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN  
+  SELECT attempt_id INTO cur_attempt_id FROM jobs
+  WHERE batch_id = in_batch_id AND job_id = in_job_id;
+
+  IF cur_attempt_id != in_attempt_id THEN
+    COMMIT;
+    SELECT 2 as rc,
+      cur_attempt_id as expected_attempt_id,
+      delta_cores_mcpu,
+      'input attempt id does not match expected attempt id' as message;
+  ELSEIF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
     UPDATE jobs
     SET state = new_state, status = new_status, attempt_id = NULL
     WHERE batch_id = in_batch_id AND job_id = in_job_id;

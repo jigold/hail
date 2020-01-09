@@ -224,7 +224,7 @@ LIMIT 50;
             # self.pending_jobs.remove((batch_id, job_id))
 
             if isinstance(result, Exception):
-                log.info(f'error while scheduling job {id} on {instance}, {result}')
+                log.info(f'error while scheduling job {id} on {instance}, {result!r}')
                 if instance.state == 'active': # and instance.has_pending_attempt(batch_id, job_id, attempt_id):
                     free_cores_before = instance.free_cores_mcpu
                     instance.adjust_free_cores_in_memory(record['cores_mcpu'])
