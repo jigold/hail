@@ -268,7 +268,7 @@ BEGIN
       in_instance_name,
       cur_attempt_id,
       delta_cores_mcpu,
-      'job not Ready or cancelled or instance not active' as message;
+      'job not Ready or cancelled or instance not active, but attempt already exists' as message;
   END IF;
 END $$
 

@@ -403,6 +403,7 @@ CALL schedule_job(%s, %s, %s, %s);
                 'attempt_id': attempt_id,
                 'instance_name': instance.name
             }
+            log.info(f'attempt already exists for job {id}, unscheduling attempt {attempt_id} on {instance}')
             asyncio.ensure_future(unschedule_job(app, config))
         return
 
