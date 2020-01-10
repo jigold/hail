@@ -239,12 +239,6 @@ BEGIN
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
-  IF delta_cores_mcpu = 0 THEN
-    SET delta_cores_mcpu = cur_cores_mcpu;
-  ELSE
-    SET delta_cores_mcpu = 0;
-  END IF;
-
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
   IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
     UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
