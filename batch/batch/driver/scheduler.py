@@ -202,7 +202,7 @@ LIMIT 50;
 
         results = await bounded_gather(*[functools.partial(schedule_job, self.app, record, instance)
                                          for record, instance in to_schedule],
-                                       parallelism=50,
+                                       parallelism=10,
                                        return_exceptions=True)
 
         for ((record, instance), result) in zip(to_schedule, results):
