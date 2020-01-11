@@ -586,9 +586,9 @@ BEGIN
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
---  SELECT end_time INTO cur_end_time FROM attempts
---  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
---  FOR UPDATE;
+  SELECT end_time INTO cur_end_time FROM attempts
+  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
+  FOR UPDATE;
 
   UPDATE attempts
   SET start_time = new_start_time, end_time = new_end_time, reason = new_reason
