@@ -275,12 +275,12 @@ class Container:
                         asyncio.ensure_future(worker.post_job_started(self.job))
 
                     async with self.step('starting'):
-                        await asyncio.sleep(0.1)
+                        await asyncio.sleep(5)
                         pass
                         # await docker_call_retry(self.container.start)
 
                     async with self.step('running'):
-                        await asyncio.sleep(0.1)
+                        await asyncio.sleep(5)
                         pass
                         # await docker_call_retry(self.container.wait)
 
