@@ -9,4 +9,4 @@ CREATE TABLE IF NOT EXISTS `instance_healthchecks` (
 INSERT INTO instance_healthchecks (name, failed_request_count, last_updated)
   SELECT name, failed_request_count, last_updated FROM instances;
 
-ALTER TABLE instances DROP COLUMN failed_request_count, last_updated;
+ALTER TABLE instances DROP failed_request_count, DROP last_updated;
