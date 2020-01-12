@@ -789,6 +789,8 @@ steps:
       script: /io/sql/add-user-resources-ready-cores-token.py
     - name: split-instances-table
       script: /io/sql/split-instances-table.sql
+    - name: setup-jigold
+      script: /io/sql/setup-jigold.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
