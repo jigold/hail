@@ -2,7 +2,8 @@ CREATE TABLE IF NOT EXISTS `instance_healthchecks` (
   `name` VARCHAR(100) NOT NULL,
   `failed_request_count` INT NOT NULL DEFAULT 0,
   `last_updated` BIGINT NOT NULL,
-  PRIMARY KEY (`name`) REFERENCES instances(name) ON DELETE CASCADE
+  PRIMARY KEY (`name`),
+  FOREIGN KEY (`name`) REFERENCES instances(`name`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 INSERT INTO instance_healthchecks (name, failed_request_count, last_updated)
