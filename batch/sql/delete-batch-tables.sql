@@ -20,6 +20,7 @@ DROP TABLE IF EXISTS `gevents_mark`;
 DROP TABLE IF EXISTS `jobs`;
 DROP TABLE IF EXISTS `batches`;
 DROP TABLE IF EXISTS `user_resources`;
+DROP TABLE IF EXISTS `instance_healthchecks`;
 DROP TABLE IF EXISTS `instances`;
 DROP TABLE IF EXISTS `tokens`;
 DROP TABLE IF EXISTS `billing_project_users`;

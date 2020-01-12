@@ -786,7 +786,9 @@ steps:
     - name: add-user-resources-ready-cores-token-1
       script: /io/sql/add-user-resources-ready-cores-token.sql
     - name: add-user-resources-ready-cores-token-2
-      script: /io/sql/add-user-resources-ready-cores-token.py      
+      script: /io/sql/add-user-resources-ready-cores-token.py
+    - name: split-instances-table
+      script: /io/sql/split-instances-table.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
