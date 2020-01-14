@@ -60,6 +60,7 @@ INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_
     tmp_resources.n_jobs,
     tmp_resources.n_ready_jobs,
     tmp_resources.ready_cores_mcpu
+  FROM tmp_resources
   WHERE NOT closed;
 
 DELIMITER $$
