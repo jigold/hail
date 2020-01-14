@@ -1,5 +1,7 @@
+SET @n_tokens = 200;
+
 ALTER TABLE globals ADD COLUMN n_tokens INT NOT NULL;
-UPDATE globals SET n_tokens = 200;
+UPDATE globals SET n_tokens = @n_tokens;
 
 CREATE TABLE IF NOT EXISTS `batches_staging` (
   `batch_id` BIGINT NOT NULL,
@@ -75,7 +77,7 @@ BEGIN
   SELECT user INTO in_user from batches
   WHERE id = NEW.batch_id;
 
-  SET rand_token = FLOOR(RAND() * 32);
+  SET rand_token = FLOOR(RAND() * @n_tokens);
 
   IF OLD.state = 'Ready' THEN
     INSERT INTO user_resources (user, token) VALUES (in_user, rand_token)
