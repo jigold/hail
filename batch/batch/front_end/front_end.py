@@ -548,6 +548,13 @@ WHERE billing_project = %s AND user = %s;
             assert len(rows) == 0
             raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
 
+        await tx.just_execute(
+            '''
+INSERT INTO user_resources (user, token) VALUES (%s, 0) 
+ON DUPLICATE KEY UPDATE n_ready_jobs = n_ready_jobs;
+''',
+            (user,))
+
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
