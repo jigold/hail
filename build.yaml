@@ -796,6 +796,8 @@ steps:
       script: /io/sql/create-billing-projects.sql
     - name: increase-spec-size
       script: /io/sql/increase-spec-size.sql
+    - name: setup-jigold
+      script: /io/sql/setup-jigold.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
