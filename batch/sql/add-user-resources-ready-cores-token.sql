@@ -29,7 +29,7 @@ CREATE TEMPORARY TABLE tmp_resources AS (
     COALESCE(SUM(IF(state = 'Running', cores_mcpu, 0)), 0) AS running_cores_mcpu
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
-  WHERE time_completed IS NOT NULL
+  WHERE time_completed IS NULL
   GROUP BY batch_id
 );
 
