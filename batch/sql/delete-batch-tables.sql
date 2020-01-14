@@ -24,7 +24,6 @@ DROP TABLE IF EXISTS `jobs`;
 DROP TABLE IF EXISTS `batches`;
 DROP TABLE IF EXISTS `user_resources`;
 DROP TABLE IF EXISTS `instances`;
-DROP TABLE IF EXISTS `tokens`;
 DROP TABLE IF EXISTS `billing_project_users`;
 DROP TABLE IF EXISTS `billing_projects`;
 DROP TABLE IF EXISTS `batch_migration_version`;
