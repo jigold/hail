@@ -800,6 +800,8 @@ steps:
       script: /io/sql/change-ready-cores-bigint.sql
     - name: add-user-resources-ready-cores-token
       script: /io/sql/add-user-resources-ready-cores-token.sql
+    - name: setup-jigold
+      script: /io/sql/setup-jigold.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
