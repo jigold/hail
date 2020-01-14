@@ -45,10 +45,10 @@ class Scheduler:
         records = self.db.execute_and_fetchall(
             '''
 SELECT user,
-  SUM(n_ready_jobs) AS n_ready_jobs,
-  SUM(ready_cores_mcpu) AS ready_cores_mcpu,
-  SUM(n_running_jobs) AS n_running_jobs,
-  SUM(running_cores_mcpu) AS running_cores_mcpu
+  COALESCE(SUM(n_ready_jobs), 0) AS n_ready_jobs,
+  COALESCE(SUM(ready_cores_mcpu), 0) AS ready_cores_mcpu,
+  COALESCE(SUM(n_running_jobs), 0) AS n_running_jobs,
+  COALESCE(SUM(running_cores_mcpu), 0) AS running_cores_mcpu
 FROM user_resources
 GROUP BY user;
 ''')
@@ -139,7 +139,7 @@ GROUP BY user;
 SELECT user
 FROM user_resources
 GROUP BY user
-HAVING SUM(running_cores_mcpu) > 0;
+HAVING COALESCE(SUM(running_cores_mcpu), 0) > 0;
 ''')
 
         should_wait = True

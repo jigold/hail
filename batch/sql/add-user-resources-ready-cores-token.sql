@@ -21,17 +21,17 @@ CREATE TEMPORARY TABLE tmp_resources AS (
   SELECT batch_id, user, closed,
     0 as token,
     COUNT(*) AS n_jobs,
-    SUM(state = 'Ready') AS n_ready_jobs,
-    SUM(state = 'Running') AS n_running_jobs,
-    SUM(IF(state = 'Ready', cores_mcpu, 0)) AS ready_cores_mcpu,
-    SUM(IF(state = 'Running', cores_mcpu, 0)) AS running_cores_mcpu
+    COALESCE(SUM(state = 'Ready'), 0) AS n_ready_jobs,
+    COALESCE(SUM(state = 'Running'), 0) AS n_running_jobs,
+    COALESCE(SUM(IF(state = 'Ready', cores_mcpu, 0)), 0) AS ready_cores_mcpu,
+    COALESCE(SUM(IF(state = 'Running', cores_mcpu, 0)), 0) AS running_cores_mcpu
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE time_completed IS NOT NULL
   GROUP BY batch_id, user, closed
 );
 
-SELECT SUM(ready_cores_mcpu) INTO @closed_ready_cores_mcpu
+SELECT COALESCE(SUM(ready_cores_mcpu), 0) INTO @closed_ready_cores_mcpu
 FROM tmp_resources
 WHERE closed;
 
@@ -40,10 +40,10 @@ UPDATE ready_cores SET ready_cores_mcpu = @closed_ready_cores_mcpu;
 UPDATE user_resources
 RIGHT JOIN (
   SELECT user, token,
-    SUM(n_ready_jobs) as n_ready_jobs,
-    SUM(n_running_jobs) as n_running_jobs,
-    SUM(ready_cores_mcpu) as ready_cores_mcpu,
-    SUM(running_cores_mcpu) as running_cores_mcpu
+    COALESCE(SUM(n_ready_jobs), 0) as n_ready_jobs,
+    COALESCE(SUM(n_running_jobs), 0) as n_running_jobs,
+    COALESCE(SUM(ready_cores_mcpu), 0) as ready_cores_mcpu,
+    COALESCE(SUM(running_cores_mcpu), 0) as running_cores_mcpu
   FROM tmp_resources
   WHERE closed
   GROUP BY user) AS t

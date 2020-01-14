@@ -399,7 +399,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
             try:
                 ready_cores = await self.db.select_and_fetchone(
                     '''
-SELECT SUM(ready_cores_mcpu) AS ready_cores_mcpu
+SELECT COALESCE(SUM(ready_cores_mcpu), 0) AS ready_cores_mcpu
 FROM ready_cores;
 ''')
                 ready_cores_mcpu = int(ready_cores['ready_cores_mcpu'])
