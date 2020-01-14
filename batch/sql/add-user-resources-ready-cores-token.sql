@@ -46,7 +46,7 @@ RIGHT JOIN (
     COALESCE(SUM(running_cores_mcpu), 0) as running_cores_mcpu
   FROM tmp_resources
   WHERE closed
-  GROUP BY user) AS t
+  GROUP BY user, token) AS t
 ON user_resources.user = t.user AND user_resources.token = t.token
 SET
   user_resources.n_ready_jobs = t.n_ready_jobs,
