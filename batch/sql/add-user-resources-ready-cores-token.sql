@@ -28,7 +28,7 @@ CREATE TEMPORARY TABLE tmp_resources AS (
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE time_completed IS NOT NULL
-  GROUP BY batch_id, user, closed
+  GROUP BY batch_id
 );
 
 SELECT COALESCE(SUM(ready_cores_mcpu), 0) INTO @closed_ready_cores_mcpu
@@ -40,10 +40,10 @@ UPDATE ready_cores SET ready_cores_mcpu = @closed_ready_cores_mcpu;
 UPDATE user_resources
 RIGHT JOIN (
   SELECT user, token,
-    COALESCE(SUM(n_ready_jobs), 0) as n_ready_jobs,
-    COALESCE(SUM(n_running_jobs), 0) as n_running_jobs,
-    COALESCE(SUM(ready_cores_mcpu), 0) as ready_cores_mcpu,
-    COALESCE(SUM(running_cores_mcpu), 0) as running_cores_mcpu
+    SUM(n_ready_jobs) as n_ready_jobs,
+    SUM(n_running_jobs) as n_running_jobs,
+    SUM(ready_cores_mcpu) as ready_cores_mcpu,
+    SUM(running_cores_mcpu) as running_cores_mcpu
   FROM tmp_resources
   WHERE closed
   GROUP BY user, token) AS t
