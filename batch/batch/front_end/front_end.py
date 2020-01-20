@@ -564,7 +564,7 @@ VALUES (%s, %s, %s);
 ''',
                                             (batch_id, spec_writer.token, start_job_id))
 
-        await insert()  # pylint: disable=no-value-for-parameter
+            await insert()  # pylint: disable=no-value-for-parameter
         return web.Response()
 
 
