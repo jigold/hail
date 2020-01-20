@@ -28,6 +28,7 @@ class SpecWriter:
 
         self._data_bytes = bytearray()
         self._data_bytes.append(ord('['))
+
         self._offsets_bytes = bytearray()
         self._n_elements = 0
 
@@ -48,5 +49,5 @@ class SpecWriter:
     async def write(self):
         self._data_bytes.append(ord(']'))
         await self.log_store.write_spec_file(self.batch_id, self.token,
-                                             self._data_bytes, self._offsets_bytes)
+                                             bytes(self._data_bytes), bytes(self._offsets_bytes))
         return self.token
