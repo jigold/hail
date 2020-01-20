@@ -789,16 +789,16 @@ class Worker:
             'status': status
         }
 
+        if job.format_version > 1:
+            await self.log_store.write_status_file(job.batch_id,
+                                                   job.job_id,
+                                                   job.attempt_id,
+                                                   json.dumps(status))
+
         start_time = time_msecs()
         delay_secs = 0.1
         while True:
             try:
-                if job.format_version > 1:
-                    await self.log_store.write_status_file(job.batch_id,
-                                                           job.job_id,
-                                                           job.attempt_id,
-                                                           json.dumps(status))
-
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     await session.post(

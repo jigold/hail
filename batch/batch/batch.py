@@ -183,6 +183,7 @@ LIMIT 1;
         status, spec = await asyncio.gather(
             read_file_from_gcs(log_store.read_status_file, batch_id, job_id, attempt_id),
             read_spec_file_from_gcs())
+        log.info(f'status: {status}, spec: {spec}')
     else:
         status = record['status']
         spec = record['spec']
@@ -394,6 +395,7 @@ LIMIT 1;
 async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
+    log_store = app['log_store']
     db = app['db']
 
     batch_id = record['batch_id']
@@ -420,7 +422,7 @@ async def schedule_job(app, record, instance):
             }
 
             if format_version > 1:
-                await app['log_store'].write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
+                await log_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
                 status = None
 
             await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
