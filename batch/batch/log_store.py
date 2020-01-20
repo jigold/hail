@@ -69,7 +69,7 @@ class LogStore:
         log.info(f'index path: {idx_path}')
         idx_start, idx_end = SpecWriter.get_index_file_offsets(job_id, start_job_id)
         log.info(f'index_start: {idx_start}, index_end: {idx_end}')
-        offsets = await self.gcs.read_gs_file(idx_path, start=idx_start, end=idx_end)
+        offsets = await self.gcs.read_binary_gs_file(idx_path, start=idx_start, end=idx_end)
         log.info(f'offsets: {offsets}')
 
         spec_path = self.specs_path(batch_id, token)
