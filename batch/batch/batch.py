@@ -187,6 +187,7 @@ LIMIT 1;
         status = record['status']
         spec = record['spec']
 
+    log.info(spec)
     spec = json.loads(spec)
 
     attributes = spec.pop('attributes', None)
