@@ -503,7 +503,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     }
 
                 jobs_args.append(
-                    (batch_id, job_id, state, spec, always_run, cores_mcpu, len(parent_ids)))
+                    (batch_id, job_id, state, json.dumps(spec),
+                     always_run, cores_mcpu, len(parent_ids)))
 
                 for parent_id in parent_ids:
                     job_parents_args.append(
