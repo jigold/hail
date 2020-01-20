@@ -287,7 +287,7 @@ class Container:
             async with self.step('uploading_log'):
                 await worker.log_store.write_log_file(
                     self.job.format_version, self.job.batch_id,
-                    self.job.job_id, self.name,
+                    self.job.job_id, self.job.attempt_id, self.name,
                     await self.get_container_log())
 
             async with self.step('deleting'):
