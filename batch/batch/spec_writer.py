@@ -12,6 +12,7 @@ class SpecWriter:
 
     @staticmethod
     def get_index_file_offsets(job_id, start_job_id):
+        assert job_id >= start_job_id
         bytes_per_job = 2 * SpecWriter.bytes_per_offset
         idx_start = bytes_per_job * (job_id - start_job_id)
         idx_end = (idx_start + bytes_per_job) - 1
