@@ -174,11 +174,11 @@ LIMIT 1;
                 (batch_id, job_id))
             token = bunch_record['token']
             start_job_id = bunch_record['start_job_id']
-            await read_file_from_gcs(log_store.read_spec_file,
-                                     batch_id,
-                                     token,
-                                     start_job_id,
-                                     job_id)
+            return await read_file_from_gcs(log_store.read_spec_file,
+                                            batch_id,
+                                            token,
+                                            start_job_id,
+                                            job_id)
 
         status, spec = await asyncio.gather(
             read_file_from_gcs(log_store.read_status_file, batch_id, job_id, attempt_id),
@@ -187,8 +187,7 @@ LIMIT 1;
         status = record['status']
         spec = record['spec']
 
-    if spec:
-        spec = json.loads(spec)
+    spec = json.loads(spec)
 
     attributes = spec.pop('attributes', None)
 
