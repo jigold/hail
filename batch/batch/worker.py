@@ -667,11 +667,13 @@ class Worker:
             job_spec['attempt_id'] = addtl_spec['attempt_id']
             job_spec['secrets'] = addtl_spec['secrets']
 
-            env = job_spec.get('env')
-            if not env:
-                env = []
-                job_spec['env'] = env
-            env.extend(addtl_spec['env'])
+            addtl_env = addtl_spec.get('env')
+            if addtl_env:
+                env = job_spec.get('env')
+                if not env:
+                    env = []
+                    job_spec['env'] = env
+                env.extend(addtl_env)
         else:
             job_spec = body['job_spec']
 
