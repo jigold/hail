@@ -80,7 +80,8 @@ class LogStore:
 
     async def write_spec_file(self, batch_id, token, data_bytes, offsets_bytes):
         idx_path = self.specs_index_path(batch_id, token)
-        write1 = self.gcs.write_gs_file(idx_path, offsets_bytes)
+        write1 = self.gcs.write_gs_file(idx_path, offsets_bytes,
+                                        content_type='application/octet-stream')
 
         specs_path = self.specs_path(batch_id, token)
         write2 = self.gcs.write_gs_file(specs_path, data_bytes)

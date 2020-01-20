@@ -28,8 +28,8 @@ class GCS:
         self._wrapped_delete_gs_file = self._wrap_network_call(GCS._delete_gs_file)
         self._wrapped_delete_gs_files = self._wrap_network_call(GCS._delete_gs_files)
 
-    async def write_gs_file(self, uri, string):
-        return await self._wrapped_write_gs_file(self, uri, string)
+    async def write_gs_file(self, uri, string, *args, **kwargs):
+        return await self._wrapped_write_gs_file(self, uri, string, *args, **kwargs)
 
     async def read_gs_file(self, uri, *args, **kwargs):
         return await self._wrapped_read_gs_file(self, uri, *args, **kwargs)
@@ -49,12 +49,12 @@ class GCS:
         wrapped.__name__ = fun.__name__
         return wrapped
 
-    def _write_gs_file(self, uri, string):
+    def _write_gs_file(self, uri, string, *args, **kwargs):
         bucket, path = GCS._parse_uri(uri)
         bucket = self.gcs_client.bucket(bucket)
         f = bucket.blob(path)
         f.metadata = {'Cache-Control': 'no-cache'}
-        f.upload_from_string(string)
+        f.upload_from_string(string, *args, **kwargs)
 
     def _read_gs_file(self, uri, *args, **kwargs):
         bucket, path = GCS._parse_uri(uri)

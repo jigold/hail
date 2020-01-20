@@ -21,7 +21,7 @@ class SpecWriter:
     @staticmethod
     def read_spec_file_offsets(offsets):
         assert len(offsets) == 2 * SpecWriter.bytes_per_offset
-        offsets = bytearray(offsets)
+        # offsets = bytearray(offsets, encoding='utf-8')  # NOT working if bad byte in there
         spec_start = int.from_bytes(offsets[:8], byteorder=SpecWriter.byteorder, signed=SpecWriter.signed)
         spec_end = int.from_bytes(offsets[8:], byteorder=SpecWriter.byteorder, signed=SpecWriter.signed)
         return (spec_start, spec_end)
