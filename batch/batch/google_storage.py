@@ -25,6 +25,7 @@ class GCS:
                 credentials=credentials)
         self._wrapped_write_gs_file = self._wrap_network_call(GCS._write_gs_file)
         self._wrapped_read_gs_file = self._wrap_network_call(GCS._read_gs_file)
+        self._wrapped_read_binary_gs_file = self._wrap_network_call(GCS._read_binary_gs_file)
         self._wrapped_delete_gs_file = self._wrap_network_call(GCS._delete_gs_file)
         self._wrapped_delete_gs_files = self._wrap_network_call(GCS._delete_gs_files)
 
@@ -33,6 +34,9 @@ class GCS:
 
     async def read_gs_file(self, uri, *args, **kwargs):
         return await self._wrapped_read_gs_file(self, uri, *args, **kwargs)
+
+    async def read_binary_gs_file(self, uri, *args, **kwargs):
+        return await self._wrapped_read_binary_gs_file(self, uri, *args, **kwargs)
 
     async def delete_gs_file(self, uri):
         return await self._wrapped_delete_gs_file(self, uri)
@@ -63,6 +67,14 @@ class GCS:
         f.metadata = {'Cache-Control': 'no-cache'}
         content = f.download_as_string(*args, **kwargs)
         return content.decode('utf-8')
+
+    def _read_binary_gs_file(self, uri, *args, **kwargs):
+        bucket, path = GCS._parse_uri(uri)
+        bucket = self.gcs_client.bucket(bucket)
+        f = bucket.blob(path)
+        f.metadata = {'Cache-Control': 'no-cache'}
+        content = f.download_as_string(*args, **kwargs)
+        return content
 
     def _delete_gs_files(self, uri_prefix):
         bucket, prefix = GCS._parse_uri(uri_prefix)
