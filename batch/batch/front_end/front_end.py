@@ -150,7 +150,8 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT * FROM jobs
+SELECT *, format_version FROM jobs
+INNER JOIN batches ON jobs.batch_id = batches.id
 WHERE {' AND '.join(where_conditions)}
 ORDER BY batch_id, job_id ASC
 LIMIT 50;
@@ -240,7 +241,7 @@ async def _get_job_log(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT jobs.state, jobs.spec, ip_address, format_version, attempt_id
+SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
