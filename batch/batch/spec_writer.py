@@ -41,9 +41,9 @@ class SpecWriter:
             self._data_bytes.append(ord(','))
 
         data_bytes = data.encode('utf-8')
-        start = len(data_bytes)
+        start = len(self._data_bytes)
         self._data_bytes.extend(data_bytes)
-        end = len(data_bytes) - 1
+        end = len(self._data_bytes) - 1
 
         self._offsets_bytes.extend(start.to_bytes(8, byteorder=SpecWriter.byteorder, signed=SpecWriter.signed))
         self._offsets_bytes.extend(end.to_bytes(8, byteorder=SpecWriter.byteorder, signed=SpecWriter.signed))
