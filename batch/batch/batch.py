@@ -204,9 +204,11 @@ LIMIT 1;
 
     if status:
         status = json.loads(status)
+        log.info(f'status after loading json: {status}')
     else:
         status = running_status
     if status:
+        log.info(f'status in result: {status}')
         result['status'] = status
 
     msec_mcpu = record['msec_mcpu']
