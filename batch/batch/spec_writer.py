@@ -1,5 +1,8 @@
 import json
 import secrets
+import logging
+
+log = logging.getLogger('batch.spec_writer')
 
 
 class SpecWriter:
@@ -39,7 +42,7 @@ class SpecWriter:
 
         data_bytes = data.encode('utf-8')
         start = len(data_bytes)
-        self._data_bytes.extend(self._data_bytes)
+        self._data_bytes.extend(data_bytes)
         end = len(data_bytes) - 1
 
         self._offsets_bytes.extend(start.to_bytes(8, byteorder=SpecWriter.byteorder, signed=SpecWriter.signed))
