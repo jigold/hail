@@ -64,18 +64,12 @@ class LogStore:
         return f'{self.specs_dir(batch_id, token)}/specs.idx'
 
     async def read_spec_file(self, batch_id, token, start_job_id, job_id):
-        log.info(f'reading spec for batch_id={batch_id}, token={token}, start_job_id={start_job_id}, job_id={job_id}')
         idx_path = self.specs_index_path(batch_id, token)
-        log.info(f'index path: {idx_path}')
         idx_start, idx_end = SpecWriter.get_index_file_offsets(job_id, start_job_id)
-        log.info(f'index_start: {idx_start}, index_end: {idx_end}')
         offsets = await self.gcs.read_binary_gs_file(idx_path, start=idx_start, end=idx_end)
-        log.info(f'offsets: {offsets}')
 
         spec_path = self.specs_path(batch_id, token)
-        log.info(f'spec path: {spec_path}')
         spec_start, spec_end = SpecWriter.read_spec_file_offsets(offsets)
-        log.info(f'spec_start: {spec_start}, spec_end: {spec_end}')
         return await self.gcs.read_gs_file(spec_path, start=spec_start, end=spec_end)
 
     async def write_spec_file(self, batch_id, token, data_bytes, offsets_bytes):
