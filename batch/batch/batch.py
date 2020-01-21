@@ -183,7 +183,7 @@ LIMIT 1;
         status, spec = await asyncio.gather(
             read_file_from_gcs(log_store.read_status_file, batch_id, job_id, attempt_id),
             read_spec_file_from_gcs())
-        log.info(f'downloaded status for {(batch_id, job_id)}: {status}')
+        log.info(f'downloaded status for {(batch_id, job_id)} with state {record["state"]}: {status}')
     else:
         status = record['status']
         spec = record['spec']
@@ -208,7 +208,7 @@ LIMIT 1;
     else:
         status = running_status
     if status:
-        log.info(f'status in result for {(batch_id, job_id)}: {status}')
+        log.info(f'status in result for {(batch_id, job_id)} with state {record["state"]}: {status}')
         result['status'] = status
 
     msec_mcpu = record['msec_mcpu']
