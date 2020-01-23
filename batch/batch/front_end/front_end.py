@@ -906,8 +906,7 @@ WHERE batch_id = %s AND job_id = %s
         'job_id': job_id,
         'job_log': await _get_job_log(app, batch_id, job_id, user),
         'attempts': attempts,
-        'job_status': json.dumps(job_status, indent=2),
-        'job_spec': json.dumps(job_spec, indent=2)
+        'job_status': json.dumps(job_status, indent=2)
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
 

@@ -13,7 +13,6 @@ from gear import Database, setup_aiohttp_session, web_authenticated_developers_o
     check_csrf_token
 from hailtop.config import get_deploy_config
 from hailtop.utils import time_msecs
-from hailtop import batch_client
 from hailtop.batch_client.aioclient import Job
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message

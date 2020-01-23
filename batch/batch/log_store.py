@@ -24,8 +24,8 @@ class LogStore:
     def log_path(self, format_version, batch_id, job_id, attempt_id, task):
         if format_version == 1:
             return f'{self.batch_log_dir(batch_id)}/{job_id}/{task}/log'
-        else:
-            return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/{task}/log'
+
+        return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/{task}/log'
 
     async def read_log_file(self, format_version, batch_id, job_id, attempt_id, task):
         path = self.log_path(format_version, batch_id, job_id, attempt_id, task)
