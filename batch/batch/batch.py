@@ -224,6 +224,9 @@ async def job_record_to_dict(app, record, include_spec_status=True):
     if status:
         status = json.loads(status)
         if format_version == 1:
+            status = {
+                'status': status
+            }
             exit_code = Job.exit_code(status)
             duration = humanize_timedelta_msecs(Job.total_duration_msecs(status))
         else:
