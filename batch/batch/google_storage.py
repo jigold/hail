@@ -1,7 +1,11 @@
+import logging
 import google.api_core.exceptions
 import google.oauth2.service_account
 import google.cloud.storage
 from hailtop.utils import blocking_to_async
+
+
+logging.getLogger("google.cloud.storage").setLevel(logging.WARNING)
 
 
 class GCS:
