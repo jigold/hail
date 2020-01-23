@@ -1085,6 +1085,19 @@ steps:
     - base_image
     - setup_pipeline
     - test_pipeline
+ - kind: runImage
+   name: test_pipeline_docs
+   image:
+     valueFrom: hail_base_image.image
+   script: |
+     set -ex
+     cd /hail/python/hailtop/pipeline
+     python3 -m pytest --instafail \
+       --doctest-modules \
+       --doctest-glob='*.rst' \
+       --ignore=docs/conf.py
+   dependsOn:
+    - hail_base_image
  - kind: deploy
    name: deploy_scheduler
    namespace:
