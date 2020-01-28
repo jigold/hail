@@ -59,9 +59,7 @@ log.info(f'PROJECT {PROJECT}')
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
-session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5),
-                                connector=aiohttp.UnixConnector('/var/run/docker.sock'))
-docker = aiodocker.Docker(session=session)
+docker = None
 
 port_allocator = None
 
@@ -905,7 +903,11 @@ class Worker:
 
 
 async def async_main():
-    global port_allocator, worker
+    global port_allocator, worker, docker
+
+    session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5),
+                                    connector=aiohttp.UnixConnector('/var/run/docker.sock'))
+    docker = aiodocker.Docker(session=session)
 
     port_allocator = PortAllocator()
     worker = Worker()
