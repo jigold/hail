@@ -59,7 +59,8 @@ log.info(f'PROJECT {PROJECT}')
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
-docker = aiodocker.Docker()
+session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
+docker = aiodocker.Docker(session=session)
 
 port_allocator = None
 
@@ -865,12 +866,16 @@ class Worker:
             'status': status
         }
 
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            await request_retry_transient_errors(
-                session, 'POST',
-                deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
-                json=body, headers=self.headers)
+        try:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                await request_retry_transient_errors(
+                    session, 'POST',
+                    deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
+                    json=body, headers=self.headers)
+        except Exception:
+            id = (full_status['batch_id'], full_status['job_id'])
+            log.exception(f'error while posting job {id} started')
 
     async def activate(self):
         async with aiohttp.ClientSession(
