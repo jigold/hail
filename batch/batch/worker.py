@@ -815,7 +815,7 @@ class Worker:
         while True:
             try:
                 async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
                         json=body, headers=self.headers)
@@ -866,7 +866,7 @@ class Worker:
         }
 
         async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
@@ -907,9 +907,7 @@ class Worker:
 async def async_main():
     global port_allocator, worker, docker
 
-    session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5),
-                                    connector=aiohttp.UnixConnector('/var/run/docker.sock'))
-    docker = aiodocker.Docker(session=session)
+    docker = aiodocker.Docker()
 
     port_allocator = PortAllocator()
     worker = Worker()
