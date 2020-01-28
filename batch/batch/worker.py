@@ -59,7 +59,8 @@ log.info(f'PROJECT {PROJECT}')
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
-session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
+session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5),
+                                connector=aiohttp.UnixConnector('/var/run/docker.sock'))
 docker = aiodocker.Docker(session=session)
 
 port_allocator = None
