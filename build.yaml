@@ -834,6 +834,8 @@ steps:
       script: /io/sql/improve-cancel.sql
     - name: store-specs-in-gcs
       script: /io/sql/store-specs-in-gcs.sql
+    - name: testing
+      script: /io/sql/testing.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
@@ -874,7 +876,7 @@ steps:
     - batch_image
     - batch_worker_image
     - batch_database
-    - deploy_auth
+#    - deploy_auth
  - kind: runImage
    name: test_batch
    image:
