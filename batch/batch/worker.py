@@ -851,7 +851,7 @@ class Worker:
                 del self.jobs[job.id]
                 self.last_updated = time_msecs()
 
-    async def post_job_started(self, job):
+    async def post_job_started_1(self, job):
         full_status = await job.status()
 
         status = {
@@ -865,16 +865,18 @@ class Worker:
             'status': status
         }
 
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            await request_retry_transient_errors(
+                session, 'POST',
+                deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
+                json=body, headers=self.headers)
+
+    async def post_job_started(self, job):
         try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                await request_retry_transient_errors(
-                    session, 'POST',
-                    deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
-                    json=body, headers=self.headers)
+            await self.post_job_started_1(job)
         except Exception:
-            id = (full_status['batch_id'], full_status['job_id'])
-            log.exception(f'error while posting job {id} started')
+            log.exception(f'error while posting {job} started')
 
     async def activate(self):
         async with aiohttp.ClientSession(
