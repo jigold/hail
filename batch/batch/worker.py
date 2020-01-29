@@ -115,8 +115,7 @@ async def docker_call_retry(f, timeout, *args, **kwargs):
             else:
                 raise
         except asyncio.TimeoutError:
-            f_name = f.__name__
-            log.exception(f'in docker call {f_name}, retrying')
+            log.exception(f'in docker call, retrying', stack_info=True)
         # exponentially back off, up to (expected) max of 30s
         t = delay * random.random()
         await asyncio.sleep(t)
