@@ -115,7 +115,8 @@ async def docker_call_retry(f, timeout, *args, **kwargs):
             else:
                 raise
         except asyncio.TimeoutError:
-            log.exception('in docker call, retrying')
+            f_name = f.__name__
+            log.exception(f'in docker call {f_name}, retrying')
         # exponentially back off, up to (expected) max of 30s
         t = delay * random.random()
         await asyncio.sleep(t)
@@ -273,7 +274,7 @@ class Container:
                 else:
                     # this caches public images
                     try:
-                        await docker_call_retry(docker.images.get, 300, self.image)
+                        await docker_call_retry(docker.images.get, 5, self.image)
                     except DockerError as e:
                         if e.status == 404:
                             await docker_call_retry(docker.images.pull, 300, self.image)
