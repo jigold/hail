@@ -5,6 +5,8 @@ UPDATE globals SET worker_cores = 16;
 
 ALTER TABLE batches ADD COLUMN time_closed BIGINT;
 
+DELIMITER $$
+
 CREATE PROCEDURE close_batch(
   IN in_batch_id BIGINT,
   IN in_timestamp BIGINT
@@ -64,3 +66,5 @@ BEGIN
     END IF;
   END IF;
 END $$
+
+DELIMITER ;
