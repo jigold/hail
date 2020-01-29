@@ -543,7 +543,7 @@ async def on_startup(app):
     app['scheduler'] = scheduler
 
     # asyncio.ensure_future(check_incremental_loop(db))
-    # asyncio.ensure_future(profile_loop())
+    asyncio.ensure_future(profile_loop())
 
 
 async def on_cleanup(app):
