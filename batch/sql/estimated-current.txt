@@ -554,10 +554,10 @@ BEGIN
 
     IF staging_n_jobs = expected_n_jobs THEN
       IF expected_n_jobs = 0 THEN
-        UPDATE batches SET `state` = 'complete', time_completed = in_timestamp
+        UPDATE batches SET `state` = 'complete', time_completed = in_timestamp, time_closed = in_timestamp
           WHERE id = in_batch_id;
       ELSE
-        UPDATE batches SET `state` = 'running'
+        UPDATE batches SET `state` = 'running', time_closed = in_timestamp
           WHERE id = in_batch_id;
       END IF;
 

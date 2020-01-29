@@ -112,10 +112,13 @@ async def docker_call_retry(f, timeout, *args, **kwargs):
             elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
                                       re.match("error creating overlay mount.*device or resource busy", e.message)):
                 log.exception('in docker call, retrying')
+            elif e.status == 500 and "You have to remove (or rename) that container to be able to reuse that name." in e.message:
+                return
             else:
                 raise
         except asyncio.TimeoutError:
-            log.exception(f'in docker call, retrying', stack_info=True)
+            f_name = f.__name__
+            log.exception(f'in docker call {f_name}, retrying', stack_info=True)
         # exponentially back off, up to (expected) max of 30s
         t = delay * random.random()
         await asyncio.sleep(t)
@@ -286,7 +289,7 @@ class Container:
                 config = self.container_config()
                 log.info(f'starting {self} config {config}')
                 self.container = await docker_call_retry(
-                    docker.containers.create, 5,
+                    docker.containers.create, 15,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
             async with cpu_sem(self.cpu_in_mcpu, f'{self}'):
@@ -295,7 +298,7 @@ class Container:
                         asyncio.ensure_future(worker.post_job_started(self.job))
 
                     async with self.step('starting'):
-                        await docker_call_retry(self.container.start, 5)
+                        await docker_call_retry(self.container.start, 15)
 
                     async with self.step('running'):
                         await docker_call_retry(self.container.wait, 300)
