@@ -298,10 +298,13 @@ class Container:
                         asyncio.ensure_future(worker.post_job_started(self.job))
 
                     async with self.step('starting'):
-                        await docker_call_retry(self.container.start, 15)
+                        await asyncio.sleep(0.1)
+                        # await docker_call_retry(self.container.start, 15)
 
                     async with self.step('running'):
-                        await docker_call_retry(self.container.wait, 300)
+                        sleep_time = random.uniform(9, 11)
+                        await asyncio.sleep(sleep_time)
+                        # await docker_call_retry(self.container.wait, 300)
 
             self.container_status = await self.get_container_status()
             log.info(f'{self}: container status {self.container_status}')
