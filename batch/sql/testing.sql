@@ -7,6 +7,7 @@ ALTER TABLE batches ADD COLUMN time_closed BIGINT;
 
 DELIMITER $$
 
+DROP PROCEDURE IF EXISTS close_batch;
 CREATE PROCEDURE close_batch(
   IN in_batch_id BIGINT,
   IN in_timestamp BIGINT
