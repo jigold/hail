@@ -22,7 +22,7 @@ help:
 
 .PHONY: clean
 clean:
-        rm -rf $(BUILDDIR)
+	rm -rf $(BUILDDIR)
 
 .PHONY: check-python
 check-python:
