@@ -208,7 +208,7 @@ class BatchBackend(Backend):
     Examples
     --------
 
-    >>> batch_backend = BatchBackend('hail')
+    >>> batch_backend = BatchBackend('test')
     >>> p = Pipeline(backend=batch_backend)
     >>> p.run() # doctest: +SKIP
     >>> batch_backend.close()
