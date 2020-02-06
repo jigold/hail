@@ -96,6 +96,8 @@ steps:
        to: /repo/pipeline/
      - from: /io/repo/notebook/sql
        to: /repo/notebook/
+     - from: /io/repo/hail/python/hailtop
+       to: /repo/hailtop/
    dependsOn:
      - base_image
  - kind: runImage
@@ -1088,16 +1090,20 @@ steps:
  - kind: runImage
    name: test_pipeline_docs
    image:
-     valueFrom: hail_base_image.image
+     valueFrom: base_image.image
    script: |
      set -ex
-     cd /hail/python/hailtop/pipeline
+     cd /io/hailtop/pipeline
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
        --ignore=docs/conf.py
    dependsOn:
-    - hail_base_image
+    - base_image
+    - build_hailtop
+   inputs:
+    - from: /repo/hailtop
+      to: /io/hailtop
  - kind: deploy
    name: deploy_scheduler
    namespace:
