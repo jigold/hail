@@ -1103,7 +1103,7 @@ steps:
     - copy_files
    inputs:
     - from: /repo/hailtop
-      to: /io/hailtop
+      to: /io/
  - kind: deploy
    name: deploy_scheduler
    namespace:
