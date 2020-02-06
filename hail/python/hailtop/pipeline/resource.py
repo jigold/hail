@@ -208,7 +208,7 @@ class ResourceGroup(Resource):
 
     Execute the pipeline:
 
-    >>> p.run()
+    >>> p.run() # doctest: +SKIP
 
     Notes
     -----

@@ -348,13 +348,6 @@ steps:
    dependsOn:
      - base_image
  - kind: buildImage
-   name: pipeline_test_image
-   dockerFile: pipeline/Dockerfile.test
-   contextPath: pipeline
-   publishAs: pipeline-test
-   dependsOn:
-     - service_base_image
- - kind: buildImage
    name: scorecard_image
    dockerFile: scorecard/Dockerfile
    contextPath: .
@@ -1050,7 +1043,7 @@ steps:
  - kind: runImage
    name: test_pipeline
    image:
-     valueFrom: pipeline_test_image.image
+     valueFrom: base_image.image
    script: |
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export SCRATCH=gs://hail-test-dmk9z/{{ setup_pipeline.token }}/pipeline
@@ -1071,7 +1064,7 @@ steps:
     - default_ns
     - batch_pods_ns
     - copy_files
-    - pipeline_test_image
+    - base_image
     - deploy_batch
     - setup_pipeline
  - kind: runImage
@@ -1097,7 +1090,7 @@ steps:
  - kind: runImage
    name: test_pipeline_docs
    image:
-     valueFrom: pipeline_test_image.image
+     valueFrom: base_image.image
    script: |
      set -ex
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json     
@@ -1118,11 +1111,38 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns    
+    - base_image
+    - copy_files
+    - deploy_batch
+   inputs:
+    - from: /repo/hailtop
+      to: /io/
+ - kind: runImage
+   name: build_pipeline_docs
+   image:
+     valueFrom: pipeline_test_image.image
+   script: |
+     set -ex
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json     
+     cd /io/hailtop/hailtop/pipeline/docs
+     make clean html
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+   dependsOn:
+    - default_ns
+    - batch_pods_ns    
     - pipeline_test_image
     - copy_files
    inputs:
     - from: /repo/hailtop
-      to: /io/
+      to: /io/  
  - kind: deploy
    name: deploy_scheduler
    namespace:
