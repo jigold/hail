@@ -1093,7 +1093,7 @@ steps:
      valueFrom: base_image.image
    script: |
      set -ex
-     cd /io/hailtop/pipeline
+     cd /io/hailtop/hailtop/pipeline
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
