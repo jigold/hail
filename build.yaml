@@ -1100,7 +1100,7 @@ steps:
        --ignore=docs/conf.py
    dependsOn:
     - base_image
-    - build_hailtop
+    - copy_files
    inputs:
     - from: /repo/hailtop
       to: /io/hailtop
