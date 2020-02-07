@@ -1,6 +1,6 @@
 FROM {{ service_base_image.image }}
 
-COPY /io/pipeline/docs /batch/docs
+COPY /io/docs /batch/docs
 
 COPY batch/setup.py batch/MANIFEST.in /batch/
 COPY batch/batch /batch/batch/

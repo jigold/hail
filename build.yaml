@@ -424,7 +424,7 @@ steps:
      - build_pipeline_docs
    inputs:
     - from: /pipeline/docs
-      to: /io/pipeline/docs
+      to: /io/
  - kind: buildImage
    name: batch_worker_image
    dockerFile: batch/Dockerfile.worker
