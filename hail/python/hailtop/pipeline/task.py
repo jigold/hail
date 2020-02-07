@@ -123,7 +123,7 @@ class Task:
         >>> t.command(f'plink --bfile {input} --make-bed --out {t.tmp1}')
         >>> p.run()
 
-        Caution
+        Warning
         -------
         Be careful when specifying the expressions for each file as this is Python
         code that is executed with `eval`!
