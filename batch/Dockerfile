@@ -1,5 +1,7 @@
 FROM {{ service_base_image.image }}
 
+COPY /io/pipeline/docs /batch/docs
+
 COPY batch/setup.py batch/MANIFEST.in /batch/
 COPY batch/batch /batch/batch/
 RUN pip3 install --no-cache-dir /batch && \

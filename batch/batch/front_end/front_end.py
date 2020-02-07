@@ -1272,8 +1272,9 @@ def run():
 
     setup_aiohttp_jinja2(app, 'batch.front_end')
     setup_common_static_routes(routes)
+    routes.static('/docs', '/batch/docs')
     app.add_routes(routes)
-    app.router.add_get("/metrics", server_stats)
+    app.router.add_get('/metrics', server_stats)
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)

@@ -423,8 +423,8 @@ steps:
      - service_base_image
      - build_pipeline_docs
    inputs:
-    - from: /pipeline/www
-      to: /io/pipeline/www
+    - from: /pipeline/docs
+      to: /io/pipeline/docs
  - kind: buildImage
    name: batch_worker_image
    dockerFile: batch/Dockerfile.worker
