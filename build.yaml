@@ -403,7 +403,7 @@ steps:
      set -ex
      cd /io/hailtop/hailtop/pipeline/docs
      make clean html
-     tar czf pipeline-docs.tar.gz -C _build/html html
+     tar czf pipeline-docs.tar.gz -C _build html
    dependsOn:
     - default_ns
     - batch_pods_ns

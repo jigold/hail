@@ -3,6 +3,7 @@ FROM {{ service_base_image.image }}
 COPY pipeline-docs.tar.gz /batch/
 RUN cd /batch/ && \
   tar xvf pipeline-docs.tar.gz && \
+  mv html/ docs/ && \
   rm pipeline-docs.tar.gz
 
 COPY batch/setup.py batch/MANIFEST.in /batch/
