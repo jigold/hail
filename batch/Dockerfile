@@ -1,9 +1,9 @@
 FROM {{ service_base_image.image }}
 
 COPY pipeline-docs.tar.gz /batch/
-RUN cd /batch/docs && \
+RUN cd /batch/ && \
   tar xvf pipeline-docs.tar.gz && \
-  rm -rf /batch/pipeline-docs.tar.gz
+  rm pipeline-docs.tar.gz
 
 COPY batch/setup.py batch/MANIFEST.in /batch/
 COPY batch/batch /batch/batch/
