@@ -20,12 +20,12 @@
       <a href="{{ batch_base_url }}" class="header-dropdown-link">Batch</a>
       <div class="header-dropdown-menu">
 	<div class="batch-caret header-dropdown-menu-caret"></div>
-	<a class="header-dropdown-menu-link" href="{{ batch_base_url }}/docs">Docs</a>
 	{% if userdata['is_developer'] == 1 %}
 	  <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}">Driver</a>
 	  <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
 	  <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}/user_resources">User Resources</a>
 	{% endif %}
+	<a class="header-dropdown-menu-link" href="{{ batch_base_url }}/docs">Docs</a>	  
       </div>
     </div>
   </div>
