@@ -403,6 +403,7 @@ steps:
      set -ex
      cd /io/hailtop/hailtop/pipeline/docs
      make clean html
+     tar czf pipeline-docs.tar.gz -C _build/html html
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -412,8 +413,8 @@ steps:
     - from: /repo/hailtop
       to: /io/
    outputs:
-    - from: /io/hailtop/hailtop/pipeline/docs/_build/html
-      to: /pipeline/docs
+    - from: /io/hailtop/hailtop/pipeline/docs/pipeline-docs.tar.gz
+      to: /pipeline/pipeline-docs.tar.gz
  - kind: buildImage
    name: batch_image
    dockerFile: batch/Dockerfile
@@ -423,8 +424,8 @@ steps:
      - service_base_image
      - build_pipeline_docs
    inputs:
-    - from: /pipeline/docs
-      to: /docs
+    - from: /pipeline/pipeline-docs.tar.gz
+      to: /pipeline-docs.tar.gz
  - kind: buildImage
    name: batch_worker_image
    dockerFile: batch/Dockerfile.worker
