@@ -915,36 +915,6 @@ steps:
     - ci_utils_image
     - deploy_batch
  - kind: runImage
-   name: test_batch_docs
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -ex
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     cd /io/hailtop/hailtop/pipeline
-     python3 -m pytest --instafail \
-       --doctest-modules \
-       --doctest-glob='*.rst' \
-       --ignore=docs/conf.py
-   secrets:
-    - name: gce-deploy-config
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /deploy-config
-    - name: test-tokens
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /user-tokens
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
-    - base_image
-    - copy_files
-    - deploy_batch
-   inputs:
-    - from: /repo/hailtop
-      to: /io/
- - kind: runImage
    name: create_ci_test_repo
    image:
      valueFrom: base_image.image
@@ -1099,6 +1069,36 @@ steps:
     - service_base_image
     - deploy_batch
     - setup_pipeline
+ - kind: runImage
+   name: test_pipeline_docs
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+     cd /io/hailtop/hailtop/pipeline
+     python3 -m pytest --instafail \
+       --doctest-modules \
+       --doctest-glob='*.rst' \
+       --ignore=docs/conf.py
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - base_image
+    - copy_files
+    - deploy_batch
+   inputs:
+    - from: /repo/hailtop
+      to: /io/
  - kind: runImage
    name: cleanup_pipeline
    image:

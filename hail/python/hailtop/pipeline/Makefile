@@ -1,5 +1,3 @@
-
-
 .PHONY: doctest
 doctest:
 	pytest \
