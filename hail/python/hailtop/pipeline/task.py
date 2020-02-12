@@ -121,7 +121,7 @@ class Task:
         ...                                'fam': '{root}.fam',
         ...                                'log': '{root}.log'})
         >>> t.command(f'plink --bfile {input} --make-bed --out {t.tmp1}')
-        >>> p.run()
+        >>> p.run()  # doctest: +SKIP
 
         Warning
         -------
@@ -406,7 +406,7 @@ class Task:
         >>> t = p.new_task()
         >>> (t.image('ubuntu:18.04')
         ...   .command(f'echo "hello"'))
-        >>> p.run()
+        >>> p.run()  # doctest: +SKIP
 
         Parameters
         ----------

@@ -346,7 +346,7 @@ steps:
    contextPath: hail
    publishAs: hail-run
    dependsOn:
-     - base_image
+     - service_base_image
  - kind: buildImage
    name: scorecard_image
    dockerFile: scorecard/Dockerfile
