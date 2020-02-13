@@ -15,6 +15,7 @@ from users and then executes jobs in Docker containers on Google Compute Engine 
 that are shared amongst all Batch users. A UI is available at `batch.hail.is` that allows a
 user to see job progress and access logs.
 
+
 .. _file-localization:
 
 File Localization

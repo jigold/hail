@@ -36,4 +36,4 @@ To try Pipeline out, open iPython or a Jupyter notebook and run:
     >>> p.run()
 
 You're now all set to run the
-`tutorials <https://hail.is/docs/pipeline/tutorials.html>`__ locally!
+`tutorial <https://hail.is/docs/pipeline/tutorial.html>`__ locally!
