@@ -10,9 +10,6 @@ Installation
 Installing Pipeline on Mac OS X or GNU/Linux with pip
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you have Mac OS X, this is the recommended installation method for running
-Hail locally (i.e. not on a cluster).
-
 Create a `conda enviroment
 <https://conda.io/docs/user-guide/concepts.html#conda-environments>`__ named
 ``hail`` and install the Hail python library in that environment. If ``conda activate`` doesn't work, `please read these instructions <https://conda.io/projects/conda/en/latest/user-guide/install/macos.html#install-macos-silent>`_
@@ -38,7 +35,7 @@ You're now all set to run the
 `tutorials <https://hail.is/docs/pipeline/tutorials.html>`__ locally!
 
 
-Configuring Pipeline to execute with Batch
+Configuring the BatchBackend
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Need to be added as a user.
