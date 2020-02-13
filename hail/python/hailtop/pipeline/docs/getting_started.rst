@@ -4,6 +4,10 @@
 Getting Started
 ===============
 
+Pipeline is a Python module available inside the Hail Python package located
+at `hailtop.pipeline`.
+
+
 Installation
 ------------
 
@@ -35,9 +39,10 @@ You're now all set to run the
 `tutorials <https://hail.is/docs/pipeline/tutorials.html>`__ locally!
 
 
-Configuring the BatchBackend
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Configuring the BatchBackend with hailctl
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Pipelines can be executed as above with the :class:`.Local
 Need to be added as a user.
 
 Billing project needed .. link to billing page.
@@ -49,7 +54,7 @@ Billing project needed .. link to billing page.
 .. code-block:: python
 
     >>> import hailtop.pipeline as hp
-    >>> backend = hp.BatchBackend(billing_project='test')  # replace test with your actual billing project
+    >>> backend = hp.BatchBackend(billing_project='test')  # replace 'test' with your actual billing project
     >>> p = hp.Pipeline(backend=backend)
     >>> t = p.new_task(name='hello')
     >>> t.command('echo "hello world"')
