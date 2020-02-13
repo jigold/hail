@@ -4,12 +4,12 @@
 Getting Started
 ===============
 
+Installation
+------------
+
 Pipeline is a Python module available inside the Hail Python package located
 at `hailtop.pipeline`.
 
-
-Installation
-------------
 
 Installing Pipeline on Mac OS X or GNU/Linux with pip
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -37,26 +37,3 @@ To try Pipeline out, open iPython or a Jupyter notebook and run:
 
 You're now all set to run the
 `tutorials <https://hail.is/docs/pipeline/tutorials.html>`__ locally!
-
-
-Configuring the BatchBackend with hailctl
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Pipelines can be executed as above with the :class:`.Local
-Need to be added as a user.
-
-Billing project needed .. link to billing page.
-
-.. code-block:: sh
-
-    hailctl auth login
-
-.. code-block:: python
-
-    >>> import hailtop.pipeline as hp
-    >>> backend = hp.BatchBackend(billing_project='test')  # replace 'test' with your actual billing project
-    >>> p = hp.Pipeline(backend=backend)
-    >>> t = p.new_task(name='hello')
-    >>> t.command('echo "hello world"')
-    >>> p.run()
-

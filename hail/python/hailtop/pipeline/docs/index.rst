@@ -10,7 +10,8 @@ Contents
    :maxdepth: 2
 
    Getting Started <getting_started>
-   Tutorials <tutorials>
+   Tutorial <tutorial>
+   Batch Service <batch_service>
    Reference (Python API) <api>
 
 
