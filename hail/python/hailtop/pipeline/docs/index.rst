@@ -12,6 +12,7 @@ Contents
    Getting Started <getting_started>
    Tutorial <tutorial>
    Batch Service <batch_service>
+   Docker Resources <docker_resources>
    Reference (Python API) <api>
 
 
