@@ -4,11 +4,13 @@
 Tutorial
 ========
 
-This tutorial assumes you have already installed Pipeline following the
-directions in the :ref:`Getting Started <sec-getting_started>` section.
+This tutorial goes through the basic concepts of Pipeline with examples.
 
 Import
 ------
+
+Pipeline is located inside the `hailtop` module, which can be installed
+as described in the :ref:`Getting Started <sec-getting_started>` section.
 
 .. code-block:: python
 
@@ -18,11 +20,45 @@ Import
 f-strings
 ---------
 
-https://www.datacamp.com/community/tutorials/f-string-formatting-in-python
+f-strings were added to Python in version 3.6 and are denoted by the 'f' character
+before a string literal. When creating the string, Python evaluates any expressions
+in single curly braces `{...}` using the current variable scope. When Python compiles
+the example below, the string 'Alice' is substituted for `{name}` because `name` is set
+to 'Alice'.
 
+.. code-block:: python
+
+    >>> name = 'Alice'
+    >>> print(f'hello {name}')
+    'hello Alice'
+
+You can put any arbitrary Python code inside the curly braces and Python will evaluate
+the expression correctly. For example, below we evaluate `x + 1` first before compiling
+the string. Therefore, we get 'x = 6' as the resulting string.
+
+.. code-block:: python
+
+    >>> x = 5
+    >>> print(f'x = {x + 1}')
+    'x = 6'
+
+To use an f-string and output a single curly brace in the output string, escape the curly
+brace by duplicating the character. For example, `{` becomes `{{` in the string definition,
+but will print as `{`. Likewise, `}` becomes `}}`, but will print as `}`.
+
+.. code-block:: python
+
+    >>> x = 5
+    >>> print(f'x = {{x + 1}} plus {x}')
+    'x = {{x + 1}} plus 5'
+
+To learn more about f-strings, check out this `tutorial <https://www.datacamp.com/community/tutorials/f-string-formatting-in-python>`_.
 
 Hello World
 -----------
+
+We start by defining what is a Pipeline.
+
 
 Single Task
 ~~~~~~~~~~~
@@ -182,8 +218,3 @@ Resource Groups
     ...                                      'fam': '{root}.fam'}
     >>> create.command(f'plink --dummy 10 100 --make-bed --out {create.bfile}')
     >>> p.run()
-
-
-QC Example
-----------
-
