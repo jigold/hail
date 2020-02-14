@@ -17,16 +17,17 @@ Two task pipeline
 Explain what a TaskResourceFile is
 how this works. Emphasize temporary file
 
+Scatter / Gather
+----------------
+
+
 Input / Output
 --------------
 - read_input
 - write_output
 
-Scatter / Gather
-----------------
+
 
 PLINK Example
 -------------
-
-SAIGE Example
--------------
+- Run QC
