@@ -7,17 +7,6 @@ Tutorial
 This tutorial goes through the basic concepts of Pipeline with examples.
 
 
-Overview
---------
-
-A :class:`.Pipeline` consists of a set of :class:`.Task`s to execute. There can be
-an arbitrary number of tasks in the pipeline that are executed in order of their dependencies.
-A dependency between two tasks states that the dependent task should not run until
-the previous task completes. Thus, under the covers a pipeline is a directed acyclic graph (DAG)
-of tasks.
-
-# Image here of an example of a DAG
-
 Import
 ------
 
@@ -70,6 +59,14 @@ To learn more about f-strings, check out this `tutorial <https://www.datacamp.co
 
 Hello World
 -----------
+
+A :class:`.Pipeline` consists of a set of :class:`.Task`s to execute. There can be
+an arbitrary number of tasks in the pipeline that are executed in order of their dependencies.
+A dependency between two tasks states that the dependent task should not run until
+the previous task completes. Thus, under the covers a pipeline is a directed acyclic graph (DAG)
+of tasks.
+
+# Image here of an example of a DAG
 
 In the example below, we have defined a :class:`.Pipeline` `p` with the name 'hello'.
 We use the method :meth:`.Pipeline.new_task` to create a task object which we call `t` and then
@@ -297,6 +294,7 @@ to wait for the per user tasks to be done before completing the pipeline.
     >>> final_sink.depends_on(*user_sinks)
     >>> p.run()
 
+.. _input-files:
 
 Input Files
 -----------
@@ -390,6 +388,16 @@ We can then refer to `create.bfile` in commands which gets interpolated with the
     >>> p.run()
 
 
+As described previously for :ref:`input files <input-files>`, we need a
+separate mechanism for creating a resource group from a set of input files
+using the method :meth:`.Pipeline.read_input_group`. The constructor takes
+key word arguments that define the name of the file such as `bed` to the path
+where that file is located. The resource group is then a dictionary of the name
+of the attribute to an :class:`.InputResourceFile`.
+
+In the example below, we created an input resource group `bfile` with three files.
+The group's common root file path can be referred to with `bfile` in a command or
+you can reference a specific input file such as `bfile.fam`.
 
 .. code-block:: python
 
@@ -404,4 +412,10 @@ We can then refer to `create.bfile` in commands which gets interpolated with the
     >>> p.run()
 
 
+If your tool requires a specific extension for the input files to have such
+as the file is gzipped, then you'd need to create the resource group as follows:
 
+.. code-block:: python
+
+    >>> rg = p.read_input_group(**{'txt.gz': 'data/hello.txt.gz'})
+    >>> rg['txt.gz']
