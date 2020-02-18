@@ -25,8 +25,8 @@ f-strings
 f-strings were added to Python in version 3.6 and are denoted by the 'f' character
 before a string literal. When creating the string, Python evaluates any expressions
 in single curly braces `{...}` using the current variable scope. When Python compiles
-the example below, the string 'Alice' is substituted for `{name}` because `name` is set
-to 'Alice'.
+the example below, the string 'Alice' is substituted for `{name}` because the variable
+`name` is set to 'Alice' in the line above.
 
 .. code-block:: python
 
@@ -64,6 +64,8 @@ an arbitrary number of tasks in the pipeline that are executed in order of their
 A dependency between two tasks states that the dependent task should not run until
 the previous task completes. Thus, under the covers a pipeline is a directed acyclic graph (DAG)
 of tasks.
+
+# Image here of an example of a DAG
 
 In the example below, we have defined a :class:`.Pipeline` `p` with the name 'hello-single'.
 We use the method :meth:`.Pipeline.new_task` to create a task object which we call `t1` and then
