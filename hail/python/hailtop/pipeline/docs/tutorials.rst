@@ -352,6 +352,45 @@ the :class:`.BatchBackend`.
 Resource Groups
 ---------------
 
+Many bioinformatics tools treat files as a group with a common file
+path and specific file extensions. For example, `PLINK <https://www.cog-genomics.org/plink/>`_
+stores genetic data in three files: `*.bed` has the genotype data,
+`*.bim` has the variant information, and `*.fam` has the sample information.
+PLINK can take as an input the path to the files expecting there will be three
+files with the appropriate extensions. It also writes files with a common file root and
+specific file extensions including when writing out a new dataset or outputting summary statistics.
+
+To enable Pipeline to work with file groups, we added a :class:`.ResourceGroup` object
+that is essentially a dictionary from file extension name to file path. When creating
+a :class:`.ResourceGroup` in a :class:`.Task` (equivalent to a :class:`.TaskResourceFile`),
+you first need to use the method :meth:`.Task.declare_resource_group` to declare the files
+in the resource group explicitly before referring to the resource group in a command.
+This is because the default when referring to an attribute on a task that has not been defined
+before is to create a :class:`.TaskResourceFile` and not a resource group.
+
+In the example below, we first declare that `create.bfile` will be a resource group with three files.
+The attribute name comes from the name of the key word argument `bfile`. The constructor expects
+a dictionary as the value for the key word argument. The dictionary defines the names of each of the files
+and the file path where they should be located. In this example, the file paths contain
+`{root}` which is the common temporary file path that will get substituted in to create the
+final file path. Do not use f-strings here as we substitute a value for `{root}` when creating
+the resource group!
+
+We can then refer to `create.bfile` in commands which gets interpolated with the common temporary file root path
+(equivalent to `{root}`) or we can refer to a specific file in the resource group such as `create.bfile.fam`.
+
+.. code-block:: python
+
+    >>> p = hp.Pipeline(name='resource-groups')
+    >>> create = p.new_task(name='create-dummy')
+    >>> create.declare_resource_group(bfile={'bed': '{root}.bed',
+    ...                                      'bim': '{root}.bim',
+    ...                                      'fam': '{root}.fam'}
+    >>> create.command(f'plink --dummy 10 100 --make-bed --out {create.bfile}')
+    >>> p.run()
+
+
+
 .. code-block:: python
 
     >>> p = hp.Pipeline(name='resource-groups')
@@ -365,12 +404,4 @@ Resource Groups
     >>> p.run()
 
 
-.. code-block:: python
 
-    >>> p = hp.Pipeline(name='resource-groups')
-    >>> create = p.new_task(name='create-dummy')
-    >>> create.declare_resource_group(bfile={'bed': '{root}.bed',
-    ...                                      'bim': '{root}.bim',
-    ...                                      'fam': '{root}.fam'}
-    >>> create.command(f'plink --dummy 10 100 --make-bed --out {create.bfile}')
-    >>> p.run()
