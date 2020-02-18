@@ -71,8 +71,9 @@ Building Images
 ---------------
 
 To create a Docker image, we use a series of commands to build the image from a Dockerfile by specifying
-the context directory (in this case the current directory `.`) and a name for the image. The `-f` option
-specifies what Dockerfile to read from. More in depth information can be found `here <https://docs.docker.com/engine/reference/commandline/build/>`_.
+the context directory (in this case the current directory `.`). The `-f` option
+specifies what Dockerfile to read from. The `-t` option is the name of the image.
+More in depth information can be found `here <https://docs.docker.com/engine/reference/commandline/build/>`_.
 
 .. code-block:: sh
 
