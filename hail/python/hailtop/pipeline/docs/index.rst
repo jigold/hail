@@ -1,7 +1,11 @@
 Pipeline
 ========
 
-TBD
+Pipeline is a Python module for creating and executing tasks. A task consists of a bash
+command to run as well as a specification of the resources required and some metadata.
+Pipeline allows you to easily build complicated pipelines with many tasks and numerous
+dependencies. Tasks can either be executed locally or with the :ref:`Batch Service <batch-service>`.
+
 
 Contents
 ========
