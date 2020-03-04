@@ -344,7 +344,7 @@ class Container:
                 self.container = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                     create_container, config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with cpu_sem(self.cpu_in_mcpu, f'{self}'):
+            async with cpu_sem(self.cpu_in_mcpu):
                 async with self.step('runtime', state=None):
                     if self.name == 'main':
                         asyncio.ensure_future(worker.post_job_started(self.job))

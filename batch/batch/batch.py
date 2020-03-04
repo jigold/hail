@@ -135,8 +135,6 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
 
     id = (batch_id, job_id)
 
-    log.info(f'mark job {id} started')
-
     try:
         rv = await db.execute_and_fetchone(
             '''
@@ -206,8 +204,6 @@ async def unschedule_job(app, record):
         log.exception(f'error while unscheduling job {id} on instance {instance_name}')
         raise
 
-    log.info(f'unschedule job {id}: updated database {rv}')
-
     # job that was running is now ready to be cancelled
     cancel_ready_state_changed.set()
 
@@ -245,8 +241,6 @@ async def unschedule_job(app, record):
                 else:
                     raise
         delay = await sleep_and_backoff(delay)
-
-    log.info(f'unschedule job {id}, attempt {attempt_id}: called delete job')
 
 
 async def job_config(app, record, attempt_id):
@@ -396,8 +390,6 @@ async def schedule_job(app, record, instance):
                                     'Error', db_status, None, None, 'error')
             raise
 
-        log.info(f'schedule job {id} on {instance}: made job config')
-
         try:
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
@@ -414,8 +406,6 @@ async def schedule_job(app, record, instance):
             await instance.incr_failed_request_count()
             raise
 
-        log.info(f'schedule job {id} on {instance}: called create job')
-
         rv = await db.execute_and_fetchone(
             '''
 CALL schedule_job(%s, %s, %s, %s);
@@ -429,8 +419,6 @@ CALL schedule_job(%s, %s, %s, %s);
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
-
-    log.info(f'schedule job {id} on {instance}: updated database')
 
     if rv['rc'] != 0:
         log.info(f'could not schedule job {id}, attempt {attempt_id} on {instance}, {rv}')
