@@ -15,9 +15,13 @@ log = logging.getLogger('hailtop.utils')
 
 
 RETRY_FUNCTION_SCRIPT = """function retry() {
-    "$@" ||
-        (sleep 2 && "$@") ||
-        (sleep 5 && "$@")
+    "$@"
+    if [ "$?" -ne 0 ]; then
+        sleep 2 && "$@"
+        if [ "$?" -ne 0 ]; then
+            sleep 5 && "@"
+        fi
+    fi
 }"""
 
 
