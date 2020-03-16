@@ -113,8 +113,9 @@ class AsyncWorkerPool:
     def __init__(self, parallelism, queue_size=1000):
         self._queue = asyncio.Queue(maxsize=queue_size)
 
+        self._workers = []
         for _ in range(parallelism):
-            asyncio.ensure_future(self._worker())
+            self._workers.append(asyncio.ensure_future(self._worker()))
 
     async def _worker(self):
         while True:
@@ -124,19 +125,25 @@ class AsyncWorkerPool:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
-                log.exception(f'worker pool caught exception')
+                log.exception(f'worker pool caught exception', stack_info=True)
 
     async def call(self, f, *args, **kwargs):
         await self._queue.put((f, args, kwargs))
 
+    async def cancel(self):
+        for worker in self._workers:
+            worker.cancel()
+
 
 class WaitableSharedPool:
-    def __init__(self, worker_pool):
+    def __init__(self, worker_pool, ignore_errors=True):
         self._worker_pool = worker_pool
         self._n_submitted = 0
         self._n_complete = 0
         self._waiting = False
         self._done = asyncio.Event()
+        self._errors = []
+        self._ignore_errors = ignore_errors
 
     async def call(self, f, *args, **kwargs):
         assert not self._waiting
@@ -145,6 +152,10 @@ class WaitableSharedPool:
         async def invoke():
             try:
                 await f(*args, **kwargs)
+            except Exception as err:  # pylint: disable=broad-except
+                if not self._ignore_errors:
+                    self._errors.append(err)
+                    self._done.set()
             finally:
                 self._n_complete += 1
                 if self._waiting and (self._n_complete == self._n_submitted):
@@ -157,7 +168,13 @@ class WaitableSharedPool:
         self._waiting = True
         if self._n_complete == self._n_submitted:
             self._done.set()
+        if not self._ignore_errors and self._errors:
+            self._done.set()
+
         await self._done.wait()
+
+        if self._errors:
+            raise self._errors[0]
 
 
 def is_transient_error(e):
@@ -204,6 +221,8 @@ def is_transient_error(e):
     # google.auth.exceptions.TransportError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
     #
     # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host batch.pr-6925-default-s24o4bgat8e8:80 ssl:None [Connect call failed ('10.36.7.86', 80)]
+    #
+    # requests.exceptions.ChunkedEncodingError: ("Connection broken: ConnectionResetError(104, 'Connection reset by peer')", ConnectionResetError(104, 'Connection reset by peer'))
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in (408, 500, 502, 503, 504)):
         # nginx returns 502 if it cannot connect to the upstream server
@@ -236,6 +255,8 @@ def is_transient_error(e):
         return True
     if isinstance(e, requests.exceptions.ConnectionError):
         return True
+    if isinstance(e, requests.exceptions.ChunkedEncodingError):
+        return is_transient_error(e.__cause__)
     if isinstance(e, socket.timeout):
         return True
     if isinstance(e, ConnectionResetError):
