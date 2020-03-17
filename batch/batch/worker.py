@@ -18,7 +18,7 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import time_msecs, request_retry_transient_errors, RETRY_FUNCTION_SCRIPT, \
+from hailtop.utils import time_msecs, request_retry_transient_errors, \
     sleep_and_backoff, retry_all_errors
 
 # import uvloop
@@ -473,7 +473,7 @@ def copy(files):
     assert files
     copies = '\n'.join([copy_command(f['from'], f['to']) for f in files])
     return f'''
-cat | python3 /batch/copy_files.py <<EOF
+cat | python3 /batch/copy_files.py --key-file /gsa-key/key.json --project {PROJECT} --parallelism 10 <<EOF
 {copies}
 EOF
 '''
