@@ -100,9 +100,7 @@ async def copies(copy_pool, src, dest):
             else:
                 paths = [(file, dest)]
         else:
-            if not dest.endswith('/'):
-                raise NotADirectoryError(dest)
-            paths = [get_dest_path(src_path, src) for src_path in src_paths]
+            paths = [(src_path, get_dest_path(src_path, src)) for src_path in src_paths]
     else:
         src = os.path.abspath(src)
         src_roots = glob.glob(src, recursive=True)
@@ -113,8 +111,7 @@ async def copies(copy_pool, src, dest):
             else:
                 paths = [(file, dest)]
         elif src_roots:
-            if not dest.endswith('/'):
-                raise NotADirectoryError(dest)
+            dest = dest.rstrip('/') + '/'
             paths = flatten([listdir(src_root, dest) for src_root in src_roots])
         else:
             raise FileNotFoundError(src)
