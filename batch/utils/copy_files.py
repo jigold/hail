@@ -153,8 +153,10 @@ async def main():
         coros.append(copies(copy_pool, src, dest))
 
     await asyncio.gather(*coros)
-    await copy_pool.wait()
-    await worker_pool.cancel()
+    try:
+        await copy_pool.wait()
+    finally:
+        await worker_pool.cancel()
 
 
 loop = asyncio.get_event_loop()
