@@ -117,7 +117,7 @@ async def copies(copy_pool, src, dest):
             else:
                 paths = [(file, dest)]
         elif src_paths:
-            dest = dest.rstrip('/') + '/'
+            dest = dest.rstrip('/')
             paths = flatten([listdir(src_path, dest) for src_path in src_paths])
         else:
             raise FileNotFoundError(src)
@@ -152,13 +152,12 @@ async def main():
     worker_pool = AsyncWorkerPool(args.parallelism)
     copy_pool = WaitableSharedPool(worker_pool, ignore_errors=False)
 
-    coros = []
-    for line in sys.stdin:
-        src, dest = shlex.split(line.rstrip())
-        coros.append(copies(copy_pool, src, dest))
-
-    await asyncio.gather(*coros)
     try:
+        coros = []
+        for line in sys.stdin:
+            src, dest = shlex.split(line.rstrip())
+            coros.append(copies(copy_pool, src, dest))
+        await asyncio.gather(*coros)
         await copy_pool.wait()
     finally:
         await worker_pool.cancel()
