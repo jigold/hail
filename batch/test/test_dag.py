@@ -2,6 +2,7 @@ import os
 import time
 import re
 import pytest
+import uuid
 import aiohttp
 from flask import Response
 from hailtop.batch_client.client import BatchClient, Job
@@ -174,12 +175,14 @@ def test_no_parents_allowed_in_other_batches(client):
 def test_input_dependency(client):
     user = get_userinfo()
     batch = client.create_batch()
+    token = uuid.uuid4().hex[:6]
+    print(f'token={token}')
     head = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-                            output_files=[('/io/data*', f'gs://{user["bucket_name"]}')])
+                            output_files=[('/io/data*', f'gs://{user["bucket_name"]}/{token}')])
     tail = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/data*', '/io/')],
+                            input_files=[(f'gs://{user["bucket_name"]}/{token}/data*', '/io/')],
                             parents=[head])
     batch.submit()
     tail.wait()

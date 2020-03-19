@@ -89,10 +89,12 @@ async def copy_local_files(src, dest):
 
 async def copies(copy_pool, src, dest):
     if is_gcs_path(src):
+        print(f'src={src}')
         src_prefix = re.split('\\*|\\[\\?', src)[0]
+        print(f'src_prefix = {src_prefix}')
         src_paths = [path for path, _ in await gcs_client.list_gs_files(src_prefix)
                      if fnmatch.fnmatchcase(path, src)]
-
+        print(f'src_paths={src_paths}')
         if len(src_paths) == 1:
             file = src_paths[0]
             if dest.endswith('/'):
@@ -105,7 +107,9 @@ async def copies(copy_pool, src, dest):
             raise FileNotFoundError(src)
     else:
         src = os.path.abspath(src)
+        print(f'src={src}')
         src_paths = glob.glob(src, recursive=True)
+        print(f'src_paths={src_paths}')
         if len(src_paths) == 1 and os.path.isfile(src_paths[0]):
             file = src_paths[0]
             if dest.endswith('/'):
@@ -118,6 +122,7 @@ async def copies(copy_pool, src, dest):
         else:
             raise FileNotFoundError(src)
 
+    print(f'paths={paths}')
     for src_path, dest_path in paths:
         if is_gcs_path(src_path) and is_gcs_path(dest_path):
             await copy_pool.call(copy_file_within_gcs, src_path, dest_path)
