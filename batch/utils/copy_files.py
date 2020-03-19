@@ -104,7 +104,8 @@ async def copies(copy_pool, src, dest):
             else:
                 paths = [(file, dest)]
         elif src_paths:
-            paths = [(src_path, get_dest_path(src_path, src)) for src_path in src_paths]
+            dest = dest.rstrip('/') + '/'
+            paths = [(src_path, dest + get_dest_path(src_path, src)) for src_path in src_paths]
         else:
             raise FileNotFoundError(src)
     else:
