@@ -173,8 +173,6 @@ class WaitableSharedPool:
 
         await self._done.wait()
 
-        await self._worker_pool.cancel()
-
         if self._errors:
             raise self._errors[0]
 
