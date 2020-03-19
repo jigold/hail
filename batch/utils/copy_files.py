@@ -79,12 +79,14 @@ async def write_file_to_gcs(src, dest):
 
 async def read_file_from_gcs(src, dest):
     async with CopyFileTimer(src, dest):
+        dest = os.path.abspath(dest)
         await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
         await gcs_client.read_gs_file_to_filename(src, dest)
 
 
 async def copy_local_files(src, dest):
     async with CopyFileTimer(src, dest):
+        dest = os.path.abspath(dest)
         await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
         await blocking_to_async(thread_pool, shutil.copy, src, dest)
 
