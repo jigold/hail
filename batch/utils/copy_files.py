@@ -144,7 +144,7 @@ async def main():
     thread_pool = concurrent.futures.ThreadPoolExecutor()
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(args.key_file)
     gcs_client = batch.google_storage.GCS(thread_pool, project=args.project, credentials=credentials)
-    worker_pool =  AsyncWorkerPool(args.parallelism)
+    worker_pool = AsyncWorkerPool(args.parallelism)
     copy_pool = WaitableSharedPool(worker_pool, ignore_errors=False)
 
     coros = []
