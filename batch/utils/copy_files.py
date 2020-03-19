@@ -37,9 +37,9 @@ class CopyFileTimer:
         finish_time = time.time()
         total = finish_time - self.start_time
         if exc_type is None:
-            log.info(f'copied {self.src} to {self.dest} in {total:.3f}s')
+            print(f'copied {self.src} to {self.dest} in {total:.3f}s')
         else:
-            log.info(f'failed to copy {self.src} to {self.dest} in {total:.3f}s due to {exc_type} {exc!r}')
+            print(f'failed to copy {self.src} to {self.dest} in {total:.3f}s due to {exc_type} {exc!r}')
 
 
 def is_gcs_path(file):
