@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import asyncio
 import shutil
 import argparse
@@ -58,9 +59,10 @@ def listdir(path, dest):
 
 
 def get_dest_path(file, template):
-    x = file.split('/')
-    y = template.split('/')
-    while
+    file = file.split('/')
+    template = template.rstrip('/').split('/')
+    start = len(template)
+    return '/'.join(file[start:])
 
 
 async def copy_file_within_gcs(src, dest):
@@ -86,9 +88,8 @@ async def copy_local_files(src, dest):
 
 
 async def copies(copy_pool, src, dest):
-    src_prefix = src.split('*')[0]
-
     if is_gcs_path(src):
+        src_prefix = re.split('\\*|\\[\\?', src)[0]
         src_paths = [path for path in await gcs_client.list_gs_files(src_prefix)
                      if fnmatch.fnmatchcase(path, src)]
         if len(src_paths) == 1:
@@ -100,7 +101,7 @@ async def copies(copy_pool, src, dest):
         else:
             if not dest.endswith('/'):
                 raise NotADirectoryError(dest)
-            paths.append((src_path, dest))
+            paths = [get_dest_path(src_path, src) for src_path in src_paths]
     else:
         src = os.path.abspath(src)
         src_roots = glob.glob(src, recursive=True)
