@@ -149,4 +149,4 @@ class GCS:
         bucket, prefix = GCS._parse_uri(uri_prefix)
         bucket = self.gcs_client.bucket(bucket)
         for blob in self.gcs_client.list_blobs(bucket, prefix=prefix):
-            yield blob.path
+            yield (blob.public_url.replace('https://storage.googleapis.com/', 'gs://'), blob.size)

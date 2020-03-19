@@ -39,7 +39,7 @@ class CopyFileTimer:
         if exc_type is None:
             log.info(f'copied {self.src} to {self.dest} in {total:.3f}s')
         else:
-            log.info(f'failed to copy {self.src} to {self.dest} in {total:.3f}s')
+            log.info(f'failed to copy {self.src} to {self.dest} in {total:.3f}s due to {exc_type} {exc!r}')
 
 
 def is_gcs_path(file):
@@ -90,8 +90,9 @@ async def copy_local_files(src, dest):
 async def copies(copy_pool, src, dest):
     if is_gcs_path(src):
         src_prefix = re.split('\\*|\\[\\?', src)[0]
-        src_paths = [path for path in await gcs_client.list_gs_files(src_prefix)
+        src_paths = [path for path, _ in await gcs_client.list_gs_files(src_prefix)
                      if fnmatch.fnmatchcase(path, src)]
+
         if len(src_paths) == 1:
             file = src_paths[0]
             if dest.endswith('/'):
@@ -111,10 +112,12 @@ async def copies(copy_pool, src, dest):
                 paths = [(file, f'{dest}{os.path.basename(file)}')]
             else:
                 paths = [(file, dest)]
-        else:
+        elif src_roots:
             if not dest.endswith('/'):
                 raise NotADirectoryError(dest)
             paths = flatten([listdir(src_root, dest) for src_root in src_roots])
+        else:
+            raise FileNotFoundError(src)
 
     for src_path, dest_path in paths:
         if is_gcs_path(src_path) and is_gcs_path(dest_path):
