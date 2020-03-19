@@ -94,7 +94,7 @@ class GCS:
         bucket = self.gcs_client.bucket(bucket)
         f = bucket.blob(path)
         f.metadata = {'Cache-Control': 'no-cache'}
-        f.upload_from_file(filename, *args, **kwargs)
+        f.upload_from_filename(filename, *args, **kwargs)
 
     def _read_gs_file(self, uri, *args, **kwargs):
         bucket, path = GCS._parse_uri(uri)
