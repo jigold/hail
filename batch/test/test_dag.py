@@ -193,12 +193,14 @@ def test_input_dependency(client):
 def test_input_dependency_directory(client):
     user = get_userinfo()
     batch = client.create_batch()
+    token = uuid.uuid4().hex[:6]
+    print(f'token={token}')
     head = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                            output_files=[('/io/test/', f'gs://{user["bucket_name"]}')])
+                            output_files=[('/io/test/', f'gs://{user["bucket_name"]}/{token}')])
     tail = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/test', '/io/')],
+                            input_files=[(f'gs://{user["bucket_name"]}/{token}/test', '/io/')],
                             parents=[head])
     batch.submit()
     tail.wait()

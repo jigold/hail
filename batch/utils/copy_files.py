@@ -50,12 +50,12 @@ def flatten(its):
     return [x for it in its for x in it]
 
 
-def listdir(path, dest):
+def listdir(path):
     if not os.path.exists(path):
         raise FileNotFoundError(path)
     if os.path.isfile(path):
-        return [(path, f'{dest}/{os.path.basename(path)}')]
-    return flatten([listdir(path + '/' + f, f'{dest}/{f}') for f in os.listdir(path)])
+        return [path]
+    return flatten([listdir(path.rstrip('/') + '/' + f) for f in os.listdir(path)])
 
 
 def get_dest_path(file, template):
@@ -92,40 +92,28 @@ async def copy_local_files(src, dest):
 
 
 async def copies(copy_pool, src, dest):
+    print(f'src={src}, dest={dest}')
     if is_gcs_path(src):
-        print(f'src={src}')
         src_prefix = re.split('\\*|\\[\\?', src)[0]
         print(f'src_prefix = {src_prefix}')
         src_paths = [path for path, _ in await gcs_client.list_gs_files(src_prefix)
                      if fnmatch.fnmatchcase(path, src)]
-        print(f'src_paths={src_paths}')
-        if len(src_paths) == 1:
-            file = src_paths[0]
-            if dest.endswith('/'):
-                paths = [(file, f'{dest}{os.path.basename(file)}')]
-            else:
-                paths = [(file, dest)]
-        elif src_paths:
-            dest = dest.rstrip('/') + '/'
-            paths = [(src_path, dest + get_dest_path(src_path, src)) for src_path in src_paths]
-        else:
-            raise FileNotFoundError(src)
     else:
         src = os.path.abspath(src)
-        print(f'src={src}')
         src_paths = glob.glob(src, recursive=True)
-        print(f'src_paths={src_paths}')
-        if len(src_paths) == 1 and os.path.isfile(src_paths[0]):
-            file = src_paths[0]
-            if dest.endswith('/'):
-                paths = [(file, f'{dest}{os.path.basename(file)}')]
-            else:
-                paths = [(file, dest)]
-        elif src_paths:
-            dest = dest.rstrip('/')
-            paths = flatten([listdir(src_path, dest) for src_path in src_paths])
+        src_paths = flatten([listdir(src_path) for src_path in src_paths])
+
+    if len(src_paths) == 1:
+        file = src_paths[0]
+        if dest.endswith('/'):
+            paths = [(file, f'{dest}{os.path.basename(file)}')]
         else:
-            raise FileNotFoundError(src)
+            paths = [(file, dest)]
+    elif src_paths:
+        dest = dest.rstrip('/') + '/'
+        paths = [(src_path, dest + get_dest_path(src_path, src)) for src_path in src_paths]
+    else:
+        raise FileNotFoundError(src)
 
     print(f'paths={paths}')
     for src_path, dest_path in paths:
