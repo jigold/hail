@@ -61,8 +61,10 @@ def listdir(path, dest):
 def get_dest_path(file, template):
     file = file.split('/')
     template = template.rstrip('/').split('/')
-    start = len(template)
-    return '/'.join(file[start:])
+    template_length = len(template)
+    if template_length == len(file):
+        return file[-1]
+    return '/'.join(file[template_length:])
 
 
 async def copy_file_within_gcs(src, dest):
