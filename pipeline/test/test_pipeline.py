@@ -306,7 +306,7 @@ class BatchTests(unittest.TestCase):
         t = p.new_task()
         t.command('echo hello')
         batch = p.run()
-        assert batch.status()['state'] == 'Success'
+        assert batch.status()['state'] == 'success'
 
     def test_single_task_input(self):
         p = self.pipeline()
@@ -314,7 +314,7 @@ class BatchTests(unittest.TestCase):
         t = p.new_task()
         t.command(f'cat {input}')
         batch = p.run()
-        assert batch.status()['state'] == 'Success'
+        assert batch.status()['state'] == 'success'
         
     def test_single_task_input_resource_group(self):
         p = self.pipeline()
@@ -323,14 +323,14 @@ class BatchTests(unittest.TestCase):
         t.storage('0.25Gi')
         t.command(f'cat {input.foo}')
         batch = p.run()
-        assert batch.status()['state'] == 'Success'
+        assert batch.status()['state'] == 'success'
 
     def test_single_task_output(self):
         p = self.pipeline()
         t = p.new_task(attributes={'a': 'bar', 'b': 'foo'})
         t.command(f'echo hello > {t.ofile}')
         batch = p.run()
-        assert batch.status()['state'] == 'Success'        
+        assert batch.status()['state'] == 'success'        
 
     def test_single_task_write_output(self):
         p = self.pipeline()
@@ -338,7 +338,7 @@ class BatchTests(unittest.TestCase):
         t.command(f'echo hello > {t.ofile}')
         p.write_output(t.ofile, f'{gcs_output_dir}/test_single_task_output.txt')
         batch = p.run()
-        assert batch.status()['state'] == 'Success'        
+        assert batch.status()['state'] == 'success'        
 
     def test_single_task_resource_group(self):
         p = self.pipeline()
@@ -346,7 +346,7 @@ class BatchTests(unittest.TestCase):
         t.declare_resource_group(output={'foo': '{root}.foo'})
         t.command(f'echo "hello" > {t.output.foo}')
         batch = p.run()
-        assert batch.status()['state'] == 'Success'
+        assert batch.status()['state'] == 'success'
         
     def test_single_task_write_resource_group(self):
         p = self.pipeline()
@@ -356,7 +356,7 @@ class BatchTests(unittest.TestCase):
         p.write_output(t.output, f'{gcs_output_dir}/test_single_task_write_resource_group')
         p.write_output(t.output.foo, f'{gcs_output_dir}/test_single_task_write_resource_group_file.txt')
         batch = p.run()
-        assert batch.status()['state'] == 'Success'
+        assert batch.status()['state'] == 'success'
 
     def test_multiple_dependent_tasks(self):
         output_file = f'{gcs_output_dir}/test_multiple_dependent_tasks.txt'
@@ -372,7 +372,7 @@ class BatchTests(unittest.TestCase):
 
         p.write_output(t.ofile, output_file)
         batch = p.run()
-        assert batch.status()['state'] == 'Success'
+        assert batch.status()['state'] == 'success'
 
     def test_specify_cpu(self):
         p = self.pipeline()
@@ -380,7 +380,7 @@ class BatchTests(unittest.TestCase):
         t.cpu('0.5')
         t.command(f'echo "hello" > {t.ofile}')
         batch = p.run()
-        assert batch.status()['state'] == 'Success'
+        assert batch.status()['state'] == 'success'
         
     def test_specify_memory(self):
         p = self.pipeline()
@@ -388,7 +388,7 @@ class BatchTests(unittest.TestCase):
         t.memory('100M')
         t.command(f'echo "hello" > {t.ofile}')
         batch = p.run()
-        assert batch.status()['state'] == 'Success'        
+        assert batch.status()['state'] == 'success'        
 
     def test_scatter_gather(self):
         p = self.pipeline()
@@ -404,7 +404,7 @@ class BatchTests(unittest.TestCase):
                                                       ofile=merger.ofile))
 
         batch = p.run()
-        assert batch.status()['state'] == 'Success'        
+        assert batch.status()['state'] == 'success'        
 
     def test_file_name_space(self):
         p = self.pipeline()
@@ -413,7 +413,7 @@ class BatchTests(unittest.TestCase):
         t.command(f'cat {input} > {t.ofile}')
         p.write_output(t.ofile, f'{gcs_output_dir}/hello (foo) spaces.txt')
         batch = p.run()
-        assert batch.status()['state'] == 'Success'        
+        assert batch.status()['state'] == 'success'        
 
     def test_dry_run(self):
         p = self.pipeline()
@@ -429,7 +429,7 @@ class BatchTests(unittest.TestCase):
         t.command(f'cat {input}')
         p.write_output(input, f'{gcs_output_dir}/hello.txt')
         batch = p.run(verbose=True)
-        assert batch.status()['state'] == 'Success'
+        assert batch.status()['state'] == 'success'
 
     def test_benchmark_lookalike_workflow(self):
         p = self.pipeline()

@@ -148,5 +148,5 @@ class GCS:
     def _list_gs_files(self, uri_prefix):
         bucket, prefix = GCS._parse_uri(uri_prefix)
         bucket = self.gcs_client.bucket(bucket)
-        for blob in bucket.list_blobs(prefix=prefix):
+        for blob in self.gcs_client.list_blobs(bucket, prefix=prefix):
             yield blob.path
