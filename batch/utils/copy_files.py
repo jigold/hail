@@ -55,6 +55,7 @@ def listdir(path):
         raise FileNotFoundError(path)
     if os.path.isfile(path):
         return [path]
+    # gsutil doesn't copy empty directories
     return flatten([listdir(path.rstrip('/') + '/' + f) for f in os.listdir(path)])
 
 
@@ -98,10 +99,16 @@ async def copy_local_files(src, dest):
 async def copies(copy_pool, src, dest):
     print(f'src={src}, dest={dest}')
     if is_gcs_path(src):
-        src_prefix = re.split('\\*|\\[\\?', src)[0]
+        src_prefix = re.split('\\*|\\[\\?', src)[0].rstrip('/')
         print(f'src_prefix = {src_prefix}')
-        src_paths = [path for path, _ in await gcs_client.list_gs_files(src_prefix)
-                     if fnmatch.fnmatchcase(path, src)]
+        maybe_src_paths = [path for path, _ in await gcs_client.list_gs_files(src_prefix)]
+        non_recursive_matches = [path for path in maybe_src_paths if fnmatch.fnmatchcase(path, src)]
+        if not src.endswith('/') and non_recursive_matches:
+            src_paths = non_recursive_matches
+        else:
+            src_paths = [path for path in maybe_src_paths
+                         if fnmatch.fnmatchcase(path, src.rstrip('/') + '/*') or
+                         fnmatch.fnmatchcase(path, src.rstrip('/'))]
     else:
         src = os.path.abspath(src)
         src_paths = glob.glob(src, recursive=True)

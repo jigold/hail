@@ -19,8 +19,8 @@ check:
 .PHONY: build-test-worker
 build-test-worker:
 	-docker pull python:3.6-slim-stretch
-	-docker pull $(BATCH_WORKER_LATEST)
-	docker build -t batch-worker -f Dockerfile.worker --cache-from batch-worker,$(BATCH_WORKER_LATEST),python:3.6-slim-stretch ..
+#	-docker pull $(BATCH_WORKER_LATEST)
+	docker build -t batch-worker -f Dockerfile.worker --cache-from batch-worker,python:3.6-slim-stretch ..
 
 .PHONY: build
 build:
