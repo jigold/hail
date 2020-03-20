@@ -70,9 +70,9 @@ class GCS:
         return await retry_transient_errors(self._wrapped_copy_gs_file,
                                             self, src, dest, *args, **kwargs)
 
-    async def list_gs_files(self, uri_prefix):
+    async def list_gs_files(self, uri_prefix, max_results=None):
         return await retry_transient_errors(self._wrapped_list_gs_files,
-                                            self, uri_prefix)
+                                            self, uri_prefix, max_results=max_results)
 
     def _wrap_network_call(self, fun):
         async def wrapped(*args, **kwargs):
@@ -146,11 +146,11 @@ class GCS:
         src_f = src_bucket.blob(src_path)
         src_bucket.copy_blob(src_f, dest_bucket, new_name=dest_path, *args, **kwargs)
 
-    def _list_gs_files(self, uri_prefix):
+    def _list_gs_files(self, uri_prefix, max_results=None):
         bucket_name, prefix = GCS._parse_uri(uri_prefix)
         if '*' in bucket_name:
             bucket_prefix = bucket_name.split('*')[0]
-            buckets = [bucket for bucket in self.gcs_client.list_buckets(prefix=bucket_prefix)
+            buckets = [bucket for bucket in self.gcs_client.list_buckets(prefix=bucket_prefix, max_results=max_results)
                        if fnmatch.fnmatch(bucket.path.replace('https://storage.googleapis.com/', 'gs://'), bucket_name)]
         else:
             buckets = [self.gcs_client.bucket(bucket_name)]

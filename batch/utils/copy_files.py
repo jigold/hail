@@ -58,12 +58,15 @@ def listdir(path):
     return flatten([listdir(path.rstrip('/') + '/' + f) for f in os.listdir(path)])
 
 
-def get_dest_path(file, src):
+def get_dest_path(file, src, dest_dir_exists):
     src = src.rstrip('/').split('/')
     file = file.split('/')
     if len(src) == len(file):
         return file[-1]
-    recurse_point = len(src) - 1
+    if dest_dir_exists:
+        recurse_point = len(src)
+    else:
+        recurse_point = len(src) - 1
     return '/'.join(file[recurse_point:])
 
 
@@ -111,7 +114,11 @@ async def copies(copy_pool, src, dest):
             paths = [(file, dest)]
     elif src_paths:
         dest = dest.rstrip('/') + '/'
-        paths = [(src_path, dest + get_dest_path(src_path, src)) for src_path in src_paths]
+        if is_gcs_path(dest):
+            dest_dir_exists = len(await gcs_client.list_gs_files(dest)) != 0
+        else:
+            dest_dir_exists = False
+        paths = [(src_path, dest + get_dest_path(src_path, src, dest_dir_exists)) for src_path in src_paths]
     else:
         raise FileNotFoundError(src)
 
