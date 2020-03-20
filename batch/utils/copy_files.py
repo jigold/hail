@@ -64,6 +64,8 @@ def get_dest_path(file, src, include_recurse_dir):
     file = file.split('/')
     if len(src) == len(file):
         return file[-1]
+
+    # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed_1
     if include_recurse_dir:
         recurse_point = len(src) - 1
     else:
