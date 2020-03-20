@@ -1,4 +1,5 @@
 import logging
+import fnmatch
 import google.api_core.exceptions
 import google.oauth2.service_account
 import google.cloud.storage
@@ -146,7 +147,14 @@ class GCS:
         src_bucket.copy_blob(src_f, dest_bucket, new_name=dest_path, *args, **kwargs)
 
     def _list_gs_files(self, uri_prefix):
-        bucket, prefix = GCS._parse_uri(uri_prefix)
-        bucket = self.gcs_client.bucket(bucket)
-        for blob in bucket.list_blobs(prefix=prefix):
-            yield (blob.public_url.replace('https://storage.googleapis.com/', 'gs://'), blob.size)
+        bucket_name, prefix = GCS._parse_uri(uri_prefix)
+        if '*' in bucket_name:
+            bucket_prefix = bucket_name.split('*')[0]
+            buckets = [bucket for bucket in self.gcs_client.list_buckets(prefix=bucket_prefix)
+                       if fnmatch.fnmatch(bucket.path.replace('https://storage.googleapis.com/', 'gs://'), bucket_name)]
+        else:
+            buckets = [self.gcs_client.bucket(bucket_name)]
+
+        for bucket in buckets:
+            for blob in bucket.list_blobs(prefix=prefix):
+                yield (blob.public_url.replace('https://storage.googleapis.com/', 'gs://'), blob.size)

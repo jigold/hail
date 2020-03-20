@@ -58,13 +58,13 @@ def listdir(path):
     return flatten([listdir(path.rstrip('/') + '/' + f) for f in os.listdir(path)])
 
 
-def get_dest_path(file, template):
+def get_dest_path(file, src):
+    src = src.rstrip('/').split('/')
     file = file.split('/')
-    template = template.rstrip('/').split('/')
-    template_length = len(template)
-    if template_length == len(file):
+    if len(src) == len(file):
         return file[-1]
-    return '/'.join(file[template_length:])
+    recurse_point = len(src) - 1
+    return '/'.join(file[recurse_point:])
 
 
 async def copy_file_within_gcs(src, dest):
@@ -149,6 +149,8 @@ async def main():
         coros = []
         for line in sys.stdin:
             src, dest = shlex.split(line.rstrip())
+            if '**' in src:
+                raise NotImplementedError(f'** not supported in {src}')
             coros.append(copies(copy_pool, src, dest))
         await asyncio.gather(*coros)
         await copy_pool.wait()
