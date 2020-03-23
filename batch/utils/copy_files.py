@@ -87,7 +87,7 @@ async def write_file_to_gcs(src, dest, size):
         size = end - start
         token = uuid.uuid4().hex[:8]
         tmp_dest = dest + f'/tmp/_{token}'
-        with open(src, 'r') as src_file:
+        with open(src, 'rb') as src_file:
             src_file.seek(start)
             await gcs_client.write_gs_file_from_file(tmp_dest, src_file, size=size)
 
@@ -103,7 +103,7 @@ async def write_file_to_gcs(src, dest, size):
 
 async def read_file_from_gcs(src, dest, size):
     async def _read(start, end):
-        with open(dest, 'w') as dest_file:
+        with open(dest, 'wb') as dest_file:
             dest_file.seek(start)
             await gcs_client.read_gs_file_to_file(src, dest_file, start=start, end=end)
 
