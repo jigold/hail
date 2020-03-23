@@ -30,13 +30,16 @@ class GCS:
                 credentials=credentials)
         self._wrapped_write_gs_file_from_string = self._wrap_network_call(GCS._write_gs_file_from_string)
         self._wrapped_write_gs_file_from_filename = self._wrap_network_call(GCS._write_gs_file_from_filename)
+        self._wrapped_write_gs_file_from_file = self._wrap_network_call(GCS._write_gs_file_from_file)
         self._wrapped_read_gs_file = self._wrap_network_call(GCS._read_gs_file)
         self._wrapped_read_binary_gs_file = self._wrap_network_call(GCS._read_binary_gs_file)
         self._wrapped_read_gs_file_to_filename = self._wrap_network_call(GCS._read_gs_file_to_filename)
+        self._wrapped_read_gs_file_to_file = self._wrap_network_call(GCS._read_gs_file_to_file)
         self._wrapped_delete_gs_file = self._wrap_network_call(GCS._delete_gs_file)
         self._wrapped_delete_gs_files = self._wrap_network_call(GCS._delete_gs_files)
         self._wrapped_copy_gs_file = self._wrap_network_call(GCS._copy_gs_file)
         self._wrapped_list_gs_files = self._wrap_network_call(GCS._list_gs_files)
+        self._wrapped_compose_gs_file = self._wrap_network_call(GCS._compose_gs_file)
 
     async def write_gs_file_from_string(self, uri, string, *args, **kwargs):
         return await retry_transient_errors(self._wrapped_write_gs_file_from_string,
@@ -45,6 +48,10 @@ class GCS:
     async def write_gs_file_from_filename(self, uri, filename, *args, **kwargs):
         return await retry_transient_errors(self._wrapped_write_gs_file_from_filename,
                                             self, uri, filename, *args, **kwargs)
+
+    async def write_gs_file_from_file(self, uri, file, *args, **kwargs):
+        return await retry_transient_errors(self._wrapped_write_gs_file_from_file,
+                                            self, uri, file, *args, **kwargs)
 
     async def read_gs_file(self, uri, *args, **kwargs):
         return await retry_transient_errors(self._wrapped_read_gs_file,
@@ -57,6 +64,10 @@ class GCS:
     async def read_gs_file_to_filename(self, uri, filename, *args, **kwargs):
         return await retry_transient_errors(self._wrapped_read_gs_file_to_filename,
                                             self, uri, filename, *args, **kwargs)
+
+    async def read_gs_file_to_file(self, uri, file, *args, **kwargs):
+        return await retry_transient_errors(self._wrapped_read_gs_file_to_file,
+                                            self, uri, file, *args, **kwargs)
 
     async def delete_gs_file(self, uri):
         return await retry_transient_errors(self._wrapped_delete_gs_file,
@@ -73,6 +84,10 @@ class GCS:
     async def list_gs_files(self, uri_prefix, max_results=None):
         return await retry_transient_errors(self._wrapped_list_gs_files,
                                             self, uri_prefix, max_results=max_results)
+
+    async def compose_gs_file(self, sources, dest, *args, **kwargs):
+        return await retry_transient_errors(self._wrapped_compose_gs_file,
+                                            self, sources, dest, *args, **kwargs)
 
     def _wrap_network_call(self, fun):
         async def wrapped(*args, **kwargs):
@@ -97,6 +112,13 @@ class GCS:
         f.metadata = {'Cache-Control': 'no-cache'}
         f.upload_from_filename(filename, *args, **kwargs)
 
+    def _write_gs_file_from_file(self, uri, file, *args, **kwargs):
+        bucket, path = GCS._parse_uri(uri)
+        bucket = self.gcs_client.bucket(bucket)
+        f = bucket.blob(path)
+        f.metadata = {'Cache-Control': 'no-cache'}
+        f.upload_from_file(file, *args, **kwargs)
+
     def _read_gs_file(self, uri, *args, **kwargs):
         bucket, path = GCS._parse_uri(uri)
         bucket = self.gcs_client.bucket(bucket)
@@ -119,6 +141,13 @@ class GCS:
         f = bucket.blob(path)
         f.metadata = {'Cache-Control': 'no-cache'}
         f.download_to_filename(filename, *args, **kwargs)
+
+    def _read_gs_file_to_file(self, uri, file, *args, **kwargs):
+        bucket, path = GCS._parse_uri(uri)
+        bucket = self.gcs_client.bucket(bucket)
+        f = bucket.blob(path)
+        f.metadata = {'Cache-Control': 'no-cache'}
+        f.download_to_file(file, *args, **kwargs)
 
     def _delete_gs_files(self, uri_prefix):
         bucket, prefix = GCS._parse_uri(uri_prefix)
@@ -158,3 +187,18 @@ class GCS:
         for bucket in buckets:
             for blob in bucket.list_blobs(prefix=prefix):
                 yield (blob.public_url.replace('https://storage.googleapis.com/', 'gs://'), blob.size)
+
+    def _compose_gs_file(self, sources, dest, *args, **kwargs):
+        def _get_blob(src):
+            src_bucket, src_path = GCS._parse_uri(src)
+            src_bucket = self.gcs_client.bucket(src_bucket)
+            src = src_bucket.blob(src_path)
+            return src
+
+        sources = [_get_blob(src) for src in sources]
+
+        dest_bucket, dest_path = GCS._parse_uri(dest)
+        dest_bucket = self.gcs_client.bucket(dest_bucket)
+        dest = dest_bucket.blob(dest_path)
+
+        dest.compose(sources, *args, **kwargs)
