@@ -83,10 +83,8 @@ async def copy_file_within_gcs(src, dest):
 
 
 async def write_file_to_gcs(src, dest, size):
-    async def _write(start, end):
+    async def _write(tmp_dest, start, end):
         size = end - start
-        token = uuid.uuid4().hex[:8]
-        tmp_dest = dest + f'/tmp/_{token}'
         with open(src, 'rb') as src_file:
             src_file.seek(start)
             await gcs_client.write_gs_file_from_file(tmp_dest, src_file, size=size)
@@ -95,8 +93,10 @@ async def write_file_to_gcs(src, dest, size):
         try:
             starts = [i for i in range(0, size, BLOCK_SIZE)]
             starts.append(size)
+            tmp_dests = [dest + f'/tmp/_{uuid.uuid4().hex[:8]}' for _ in range(len(starts) - 1)]
             work = [functools.partial(_write, starts[i], starts[i+1]) for i in range(len(starts) - 1)]
             await bounded_gather(*work, parallelism=5)
+            await gcs_client.compose_gs_file(tmp_dests, dest)
         finally:
             await gcs_client.delete_gs_files(dest + '/tmp/')
 
