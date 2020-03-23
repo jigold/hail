@@ -147,7 +147,7 @@ def test_input_dependency_directory_with_file_same_name(client):
     batch.submit()
     j3.wait()
     input_log = j3.log()['input']
-    assert re.match(input_log, 'IsADirectoryError') or re.match(input_log, 'FileExistsError'), j3.log()
+    assert 'IsADirectoryError' in input_log or 'FileExistsError' in input_log, input_log
 
 
 def test_copy_input_within_gcs(client):

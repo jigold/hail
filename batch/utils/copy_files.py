@@ -103,7 +103,7 @@ async def copies(copy_pool, src, dest):
     if is_gcs_path(src):
         src_prefix = re.split('\\*|\\[\\?', src)[0].rstrip('/')
         print(f'src_prefix = {src_prefix}')
-        maybe_src_paths = [path for path, _ in await gcs_client.list_gs_files(src_prefix)]
+        maybe_src_paths = [path.replace('%20', ' ') for path, _ in await gcs_client.list_gs_files(src_prefix)]
         print(f'maybe_src_paths={maybe_src_paths}')
         non_recursive_matches = [path for path in maybe_src_paths if fnmatch.fnmatchcase(path, src)]
         print(f'non_recursive_matches = {non_recursive_matches}')
