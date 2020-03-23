@@ -31,7 +31,7 @@ def test_copy_input_to_filename(client):
     batch.submit()
     tail.wait()
     assert head._get_exit_code(head.status(), 'main') == 0, head._status
-    assert tail.log()['main'] == 'head1', tail.status()
+    assert tail.log()['main'] == 'head1\n', tail.status()
 
 
 def test_copy_input_with_spaces_file_name(client):
