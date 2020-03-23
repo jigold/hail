@@ -1,5 +1,6 @@
 import logging
 import fnmatch
+import urllib.parse
 import google.api_core.exceptions
 import google.oauth2.service_account
 import google.cloud.storage
@@ -186,7 +187,7 @@ class GCS:
 
         for bucket in buckets:
             for blob in bucket.list_blobs(prefix=prefix):
-                yield (blob.public_url.replace('https://storage.googleapis.com/', 'gs://'), blob.size)
+                yield (urllib.parse.unquote(blob.public_url.replace('https://storage.googleapis.com/', 'gs://')), blob.size)
 
     def _compose_gs_file(self, sources, dest, *args, **kwargs):
         def _get_blob(src):

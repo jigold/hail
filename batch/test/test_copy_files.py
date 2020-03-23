@@ -40,11 +40,11 @@ def test_copy_input_with_spaces_file_name(client):
     token = uuid.uuid4().hex[:6]
     print(f'global_token={global_token} token={token}')
     head = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'echo head1 > /io/data\ with\ spaces.txt'],
-                            output_files=[('/io/data\ with\ spaces.txt', f'gs://{user["bucket_name"]}/{global_token}/{token}/')])
+                            command=['/bin/sh', '-c', 'echo head1 > "/io/data with spaces.txt"'],
+                            output_files=[('/io/data with spaces.txt', f'gs://{user["bucket_name"]}/{global_token}/{token}/')])
     tail = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'cat /io/data\ with\ spaces.txt'],
-                            input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token}/data\ with\ spaces.txt', '/io/')],
+                            command=['/bin/sh', '-c', 'cat "/io/data with spaces.txt"'],
+                            input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token}/data with spaces.txt', '/io/')],
                             parents=[head])
     batch.submit()
     tail.wait()

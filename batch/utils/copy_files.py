@@ -21,6 +21,7 @@ log = logging.getLogger('copy_files')
 thread_pool = None
 gcs_client = None
 copy_failure = False
+BLOCK_SIZE = 64 * 1024 * 1024
 
 
 class CopyFileTimer:
@@ -54,7 +55,7 @@ def listdir(path):
     if not os.path.exists(path):
         raise FileNotFoundError(path)
     if os.path.isfile(path):
-        return [path]
+        return [(path, os.path.getsize(path))]
     # gsutil doesn't copy empty directories
     return flatten([listdir(path.rstrip('/') + '/' + f) for f in os.listdir(path)])
 
@@ -79,12 +80,12 @@ async def copy_file_within_gcs(src, dest):
         await gcs_client.copy_gs_file(src, dest)
 
 
-async def write_file_to_gcs(src, dest):
+async def write_file_to_gcs(src, dest, size):
     async with CopyFileTimer(src, dest):
         await gcs_client.write_gs_file_from_filename(dest, src)
 
 
-async def read_file_from_gcs(src, dest):
+async def read_file_from_gcs(src, dest, size):
     async with CopyFileTimer(src, dest):
         dest = os.path.abspath(dest)
         await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
@@ -103,14 +104,14 @@ async def copies(copy_pool, src, dest):
     if is_gcs_path(src):
         src_prefix = re.split('\\*|\\[\\?', src)[0].rstrip('/')
         print(f'src_prefix = {src_prefix}')
-        maybe_src_paths = [path.replace('%20', ' ') for path, _ in await gcs_client.list_gs_files(src_prefix)]
+        maybe_src_paths = [(path, size) for path, size in await gcs_client.list_gs_files(src_prefix)]
         print(f'maybe_src_paths={maybe_src_paths}')
-        non_recursive_matches = [path for path in maybe_src_paths if fnmatch.fnmatchcase(path, src)]
+        non_recursive_matches = [(path, size) for path, size in maybe_src_paths if fnmatch.fnmatchcase(path, src)]
         print(f'non_recursive_matches = {non_recursive_matches}')
         if not src.endswith('/') and non_recursive_matches:
             src_paths = non_recursive_matches
         else:
-            src_paths = [path for path in maybe_src_paths
+            src_paths = [(path, size) for path, size in maybe_src_paths
                          if fnmatch.fnmatchcase(path, src.rstrip('/') + '/*') or
                          fnmatch.fnmatchcase(path, src.rstrip('/'))]
     else:
@@ -119,29 +120,29 @@ async def copies(copy_pool, src, dest):
         src_paths = flatten([listdir(src_path) for src_path in src_paths])
 
     if len(src_paths) == 1:
-        file = src_paths[0]
+        file, size = src_paths[0]
         if dest.endswith('/'):
-            paths = [(file, f'{dest}{os.path.basename(file)}')]
+            paths = [(file, f'{dest}{os.path.basename(file)}', size)]
         else:
-            paths = [(file, dest)]
+            paths = [(file, dest, size)]
     elif src_paths:
         if is_gcs_path(dest):
             include_recurse_dir = dest.endswith('/') or next(await gcs_client.list_gs_files(dest, max_results=1), None) is not None
         else:
             include_recurse_dir = True
         dest = dest.rstrip('/') + '/'
-        paths = [(src_path, dest + get_dest_path(src_path, src, include_recurse_dir)) for src_path in src_paths]
+        paths = [(src_path, dest + get_dest_path(src_path, src, include_recurse_dir), size) for src_path, size in src_paths]
     else:
         raise FileNotFoundError(src)
 
     print(f'paths={paths}')
-    for src_path, dest_path in paths:
+    for src_path, dest_path, size in paths:
         if is_gcs_path(src_path) and is_gcs_path(dest_path):
             await copy_pool.call(copy_file_within_gcs, src_path, dest_path)
         elif is_gcs_path(src_path) and not is_gcs_path(dest_path):
-            await copy_pool.call(read_file_from_gcs, src_path, dest_path)
+            await copy_pool.call(read_file_from_gcs, src_path, dest_path, size)
         elif not is_gcs_path(src_path) and is_gcs_path(dest_path):
-            await copy_pool.call(write_file_to_gcs, src_path, dest_path)
+            await copy_pool.call(write_file_to_gcs, src_path, dest_path, size)
         else:
             assert not is_gcs_path(src_path) and not is_gcs_path(dest_path)
             await copy_pool.call(copy_local_files, src_path, dest_path)
