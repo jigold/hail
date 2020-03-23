@@ -7,13 +7,15 @@ import argparse
 import time
 import logging
 import shlex
+import functools
 import glob
 import fnmatch
 import concurrent
+import uuid
 import google.oauth2.service_account
 
 import batch.google_storage
-from hailtop.utils import AsyncWorkerPool, WaitableSharedPool, blocking_to_async
+from hailtop.utils import AsyncWorkerPool, WaitableSharedPool, blocking_to_async, bounded_gather
 
 
 log = logging.getLogger('copy_files')
@@ -81,15 +83,44 @@ async def copy_file_within_gcs(src, dest):
 
 
 async def write_file_to_gcs(src, dest, size):
+    async def _write(start, end):
+        size = end - start
+        token = uuid.uuid4().hex[:8]
+        tmp_dest = dest + f'/tmp/_{token}'
+        with open(src, 'r') as src_file:
+            src_file.seek(start)
+            await gcs_client.write_gs_file_from_file(tmp_dest, src_file, size=size)
+
     async with CopyFileTimer(src, dest):
-        await gcs_client.write_gs_file_from_filename(dest, src)
+        try:
+            starts = [i for i in range(0, size, BLOCK_SIZE)]
+            starts.append(size)
+            work = [functools.partial(_write, starts[i], starts[i+1]) for i in range(len(starts) - 1)]
+            await bounded_gather(*work, parallelism=5)
+        finally:
+            await gcs_client.delete_gs_files(dest + '/tmp/')
 
 
 async def read_file_from_gcs(src, dest, size):
+    async def _read(start, end):
+        with open(dest, 'w') as dest_file:
+            dest_file.seek(start)
+            await gcs_client.read_gs_file_to_file(src, dest_file, start=start, end=end)
+
     async with CopyFileTimer(src, dest):
-        dest = os.path.abspath(dest)
-        await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
-        await gcs_client.read_gs_file_to_filename(src, dest)
+        try:
+            dest = os.path.abspath(dest)
+            await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
+
+            starts = [i for i in range(0, size, BLOCK_SIZE)]
+            starts.append(size)
+
+            work = [functools.partial(_read, starts[i], starts[i+1]) for i in range(len(starts) - 1)]
+            await bounded_gather(*work, parallelism=5)
+        except Exception:
+            if os.path.exists(dest):
+                os.remove(dest)
+            raise
 
 
 async def copy_local_files(src, dest):
@@ -100,14 +131,10 @@ async def copy_local_files(src, dest):
 
 
 async def copies(copy_pool, src, dest):
-    print(f'src={src}, dest={dest}')
     if is_gcs_path(src):
         src_prefix = re.split('\\*|\\[\\?', src)[0].rstrip('/')
-        print(f'src_prefix = {src_prefix}')
         maybe_src_paths = [(path, size) for path, size in await gcs_client.list_gs_files(src_prefix)]
-        print(f'maybe_src_paths={maybe_src_paths}')
         non_recursive_matches = [(path, size) for path, size in maybe_src_paths if fnmatch.fnmatchcase(path, src)]
-        print(f'non_recursive_matches = {non_recursive_matches}')
         if not src.endswith('/') and non_recursive_matches:
             src_paths = non_recursive_matches
         else:
@@ -135,7 +162,6 @@ async def copies(copy_pool, src, dest):
     else:
         raise FileNotFoundError(src)
 
-    print(f'paths={paths}')
     for src_path, dest_path, size in paths:
         if is_gcs_path(src_path) and is_gcs_path(dest_path):
             await copy_pool.call(copy_file_within_gcs, src_path, dest_path)
