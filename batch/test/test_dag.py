@@ -190,6 +190,23 @@ def test_input_dependency(client):
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
+def test_input_dependency_space_file_name(client):
+    user = get_userinfo()
+    batch = client.create_batch()
+    token = uuid.uuid4().hex[:6]
+    print(f'token={token}')
+    head = batch.create_job('ubuntu:18.04',
+                            command=['/bin/sh', '-c', 'echo head > /io/data\ with\ spaces.txt'],
+                            output_files=[('/io/data\ with\ spaces.txt', f'gs://{user["bucket_name"]}/{token}/')])
+    tail = batch.create_job('ubuntu:18.04',
+                            command=['/bin/sh', '-c', 'cat /io/data\ with\ spaces.txt'],
+                            input_files=[(f'gs://{user["bucket_name"]}/{token}/data\ with\ spaces.txt', '/io/')],
+                            parents=[head])
+    batch.submit()
+    tail.wait()
+    assert head._get_exit_code(head.status(), 'main') == 0, head._status
+
+
 def test_input_dependency_directory(client):
     user = get_userinfo()
     batch = client.create_batch()
@@ -206,6 +223,27 @@ def test_input_dependency_directory(client):
     tail.wait()
     assert head._get_exit_code(head.status(), 'main') == 0, head._status
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
+
+
+def test_input_dependency_directory_with_file_same_name(client):
+    user = get_userinfo()
+    batch = client.create_batch()
+    token = uuid.uuid4().hex[:6]
+    print(f'token={token}')
+    j1 = batch.create_job('ubuntu:18.04',
+                          command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
+                          output_files=[('/io/test/', f'gs://{user["bucket_name"]}/{token}/')])
+    j2 = batch.create_job('ubuntu:18.04',
+                          command=['/bin/sh', '-c', 'touch /io/test/test'],
+                          output_files=[('/io/test/test', f'gs://{user["bucket_name"]}/{token}/test')])
+    j3 = batch.create_job('ubuntu:18.04',
+                          command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
+                          input_files=[(f'gs://{user["bucket_name"]}/{token}/*', '/io/')],
+                          parents=[j1, j2])
+    batch.submit()
+    j3.wait()
+    input_log = j3.log()['input']
+    assert re.match(input_log, 'IsADirectoryError') or re.match(input_log, 'FileExistsError'), j3.log()
 
 
 def test_always_run_cancel(client):
