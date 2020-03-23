@@ -41,15 +41,15 @@ def test_copy_input_with_spaces_file_name(client):
     print(f'global_token={global_token} token={token}')
     head = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data\ with\ spaces.txt'],
-                            output_files=[('/io/data\ with\ spaces.txt', f'gs://{user["bucket_name"]}/{token}/')])
+                            output_files=[('/io/data\ with\ spaces.txt', f'gs://{user["bucket_name"]}/{global_token}/{token}/')])
     tail = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'cat /io/data\ with\ spaces.txt'],
-                            input_files=[(f'gs://{user["bucket_name"]}/{token}/data\ with\ spaces.txt', '/io/')],
+                            input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token}/data\ with\ spaces.txt', '/io/')],
                             parents=[head])
     batch.submit()
     tail.wait()
     assert head._get_exit_code(head.status(), 'main') == 0, head._status
-    assert tail.log()['main'] == 'head1', tail.status()
+    assert tail.log()['main'] == 'head1\n', tail.status()
 
 
 def test_copy_input_to_directory(client):
@@ -59,15 +59,15 @@ def test_copy_input_to_directory(client):
     print(f'global_token={global_token} token={token}')
     head = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1'],
-                            output_files=[('/io/data1', f'gs://{user["bucket_name"]}/{token}/')])
+                            output_files=[('/io/data1', f'gs://{user["bucket_name"]}/{global_token}/{token}/')])
     tail = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'cat /io/data1'],
-                            input_files=[(f'gs://{user["bucket_name"]}/{token}/data1', '/io/')],
+                            input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token}/data1', '/io/')],
                             parents=[head])
     batch.submit()
     tail.wait()
     assert head._get_exit_code(head.status(), 'main') == 0, head._status
-    assert tail.log()['main'] == 'head1', tail.status()
+    assert tail.log()['main'] == 'head1\n', tail.status()
 
 
 def test_copy_input_to_directory_with_wildcard(client):
@@ -77,10 +77,10 @@ def test_copy_input_to_directory_with_wildcard(client):
     print(f'global_token={global_token} token={token}')
     head = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-                            output_files=[('/io/data*', f'gs://{user["bucket_name"]}/{token}/')])
+                            output_files=[('/io/data*', f'gs://{user["bucket_name"]}/{global_token}/{token}/')])
     tail = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/{token}/data*', '/io/')],
+                            input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token}/data*', '/io/')],
                             parents=[head])
     batch.submit()
     tail.wait()
@@ -95,10 +95,10 @@ def test_copy_input_directory_where_subdir_not_exist(client):
     print(f'global_token={global_token} token={token}')
     head = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                            output_files=[('/io/test/', f'gs://{user["bucket_name"]}/{token}/')])
+                            output_files=[('/io/test/', f'gs://{user["bucket_name"]}/{global_token}/{token}/')])
     tail = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/{token}', f'/io/{token}')],
+                            input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token}/test/', f'/io/')],
                             parents=[head])
     batch.submit()
     tail.wait()
@@ -113,14 +113,14 @@ def test_copy_input_directory_where_subdir_exists(client):
     print(f'global_token={global_token} token={token}')
     head1 = batch.create_job('ubuntu:18.04',
                              command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                             output_files=[('/io/test/', f'gs://{user["bucket_name"]}/{token}/')])
+                             output_files=[('/io/test/', f'gs://{user["bucket_name"]}/{global_token}/{token}/')])
     head2 = batch.create_job('ubuntu:18.04',
                              command=['/bin/sh', '-c', 'mkdir -p /io/test2/; echo head3 > /io/test2/data3 ; echo head4 > /io/test2/data4'],
-                             output_files=[('/io/test2/', f'gs://{user["bucket_name"]}/{token}/')],
+                             output_files=[('/io/test2/', f'gs://{user["bucket_name"]}/{global_token}/{token}/')],
                              parents=[head1])
     tail = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'cat /io/test2/data3 ; cat /io/test2/data4'],
-                            input_files=[(f'gs://{user["bucket_name"]}/{token}/test2', '/io/')],
+                            input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token}/test2', '/io/')],
                             parents=[head2])
     batch.submit()
     tail.wait()
@@ -136,13 +136,13 @@ def test_input_dependency_directory_with_file_same_name(client):
     print(f'global_token={global_token} token={token}')
     j1 = batch.create_job('ubuntu:18.04',
                           command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                          output_files=[('/io/test/', f'gs://{user["bucket_name"]}/{token}/')])
+                          output_files=[('/io/test/', f'gs://{user["bucket_name"]}/{global_token}/{token}/')])
     j2 = batch.create_job('ubuntu:18.04',
-                          command=['/bin/sh', '-c', 'touch /io/test/test'],
-                          output_files=[('/io/test/test', f'gs://{user["bucket_name"]}/{token}/test')])
+                          command=['/bin/sh', '-c', 'mkdir -p /io/test2/; touch /io/test2/test'],
+                          output_files=[('/io/test2/test', f'gs://{user["bucket_name"]}/{global_token}/{token}/test')])
     j3 = batch.create_job('ubuntu:18.04',
                           command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
-                          input_files=[(f'gs://{user["bucket_name"]}/{token}/*', '/io/')],
+                          input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token}/*', '/io/')],
                           parents=[j1, j2])
     batch.submit()
     j3.wait()
@@ -166,7 +166,7 @@ def test_copy_input_within_gcs(client):
     batch.submit()
     tail.wait()
     assert head._get_exit_code(head.status(), 'main') == 0, head._status
-    assert tail.log()['main'] == 'hello', tail.status()
+    assert tail.log()['main'] == 'hello\n', tail.status()
 
 
 def test_copy_directory_within_gcs(client):
@@ -177,15 +177,15 @@ def test_copy_directory_within_gcs(client):
     print(f'global_token={global_token} token1={token1} token2={token2}')
     head1 = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-                            output_files=[('/io/data*', f'gs://{user["bucket_name"]}/{token1}/')])
+                            output_files=[('/io/data*', f'gs://{user["bucket_name"]}/{global_token}/{token1}/')])
     head2 = batch.create_job('ubuntu:18.04',
                              command=['/bin/sh', '-c', 'echo hello'],
-                             input_files=[(f'gs://{user["bucket_name"]}/{token1}/',
-                                           f'gs://{user["bucket_name"]}/{token2}/')],
+                             input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token1}/',
+                                           f'gs://{user["bucket_name"]}/{global_token}/{token2}/')],
                              parents=[head1])
     tail = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/{token2}/data*', '/io/')],
+                            input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token2}/{token1}/data*', '/io/')],
                             parents=[head2])
     batch.submit()
     tail.wait()

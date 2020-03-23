@@ -101,7 +101,6 @@ async def copy_local_files(src, dest):
 async def copies(copy_pool, src, dest):
     print(f'src={src}, dest={dest}')
     if is_gcs_path(src):
-        src = src.replace(' ', '\ ')
         src_prefix = re.split('\\*|\\[\\?', src)[0].rstrip('/')
         print(f'src_prefix = {src_prefix}')
         maybe_src_paths = [path for path, _ in await gcs_client.list_gs_files(src_prefix)]
@@ -170,7 +169,7 @@ async def main():
         for line in sys.stdin:
             src, dest = shlex.split(line.rstrip())
             if '**' in src:
-                raise NotImplementedError(f'** not supported in {src}')
+                raise NotImplementedError(f'** not supported; got {src}')
             coros.append(copies(copy_pool, src, dest))
         await asyncio.gather(*coros)
         await copy_pool.wait()

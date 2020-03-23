@@ -151,11 +151,10 @@ class GCS:
         if '*' in bucket_name:
             bucket_prefix = bucket_name.split('*')[0]
             buckets = [bucket for bucket in self.gcs_client.list_buckets(prefix=bucket_prefix, max_results=max_results)
-                       if fnmatch.fnmatch(bucket.path.replace('https://storage.googleapis.com/', 'gs://'), bucket_name)]
+                       if fnmatch.fnmatch(bucket.path.replace('/b/', 'gs://'), bucket_name)]
         else:
             buckets = [self.gcs_client.bucket(bucket_name)]
 
         for bucket in buckets:
-            print(bucket.path)
             for blob in bucket.list_blobs(prefix=prefix):
                 yield (blob.public_url.replace('https://storage.googleapis.com/', 'gs://'), blob.size)
