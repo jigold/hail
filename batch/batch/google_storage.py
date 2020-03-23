@@ -156,5 +156,6 @@ class GCS:
             buckets = [self.gcs_client.bucket(bucket_name)]
 
         for bucket in buckets:
+            print(bucket.path)
             for blob in bucket.list_blobs(prefix=prefix):
                 yield (blob.public_url.replace('https://storage.googleapis.com/', 'gs://'), blob.size)
