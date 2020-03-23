@@ -92,8 +92,12 @@ async def write_file_to_gcs(src, dest, size):
     async with CopyFileTimer(src, dest):
         try:
             starts = [i for i in range(0, size, BLOCK_SIZE)]
+            if not starts:
+                starts = [0]
             starts.append(size)
+
             tmp_dests = [dest + f'/tmp/_{uuid.uuid4().hex[:8]}' for _ in range(len(starts) - 1)]
+            
             work = [functools.partial(_write, tmp_dests[i], starts[i], starts[i+1]) for i in range(len(starts) - 1)]
             await bounded_gather(*work, parallelism=5)
             await gcs_client.compose_gs_file(tmp_dests, dest)
@@ -113,6 +117,8 @@ async def read_file_from_gcs(src, dest, size):
             await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
 
             starts = [i for i in range(0, size, BLOCK_SIZE)]
+            if not starts:
+                starts = [0]
             starts.append(size)
 
             work = [functools.partial(_read, starts[i], starts[i+1]) for i in range(len(starts) - 1)]
