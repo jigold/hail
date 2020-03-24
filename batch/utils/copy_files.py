@@ -1,6 +1,7 @@
 import sys
 import os
 import re
+import io
 import asyncio
 import shutil
 import argparse
@@ -12,7 +13,9 @@ import glob
 import fnmatch
 import concurrent
 import uuid
+import json
 import google.oauth2.service_account
+from google.resumable_media._upload import get_total_bytes, _CONTENT_TYPE_HEADER, _POST
 
 import batch.google_storage
 from hailtop.utils import AsyncWorkerPool, WaitableSharedPool, blocking_to_async, bounded_gather
@@ -43,6 +46,63 @@ class CopyFileTimer:
             print(f'copied {self.src} to {self.dest} in {total:.3f}s')
         else:
             print(f'failed to copy {self.src} to {self.dest} in {total:.3f}s due to {exc_type} {exc!r}')
+
+
+# # ResumableUpload
+# def _prepare_initiate_request(self, stream, metadata, content_type, total_bytes=None, stream_final=True):
+#     if self.resumable_url is not None:
+#         raise ValueError(u"This upload has already been initiated.")
+#     self._stream = stream
+#     self._content_type = content_type
+#     headers = {
+#         _CONTENT_TYPE_HEADER: u"application/json; charset=UTF-8",
+#         u"x-upload-content-type": content_type,
+#     }
+#     # Set the total bytes if possible.
+#     if total_bytes is not None:
+#         self._total_bytes = total_bytes
+#     elif stream_final:
+#         self._total_bytes = get_total_bytes(stream)
+#     print(f'total_bytes={self._total_bytes}')
+#
+#     # Add the total bytes to the headers if set.
+#     if self._total_bytes is not None:
+#         content_length = u"{:d}".format(self._total_bytes)
+#         headers[u"x-upload-content-length"] = content_length
+#     headers.update(self._headers)
+#     payload = json.dumps(metadata).encode(u"utf-8")
+#     return _POST, self.upload_url, payload, headers
+#
+#
+# google.resumable_media._upload.ResumableUpload._prepare_initiate_request = _prepare_initiate_request
+
+
+# class FileShard(io.RawIOBase):
+# #     def __init__(self, f, start, end):
+# #         self.f = f
+# #         self.start = start
+# #         self.end = end
+# #
+# #         self.f.seek(start)
+# #        super(io.RawIOBase, self).__init__()
+#
+#
+#     #
+#     # def read(self, size=-1):
+#     #     return self.f.read(size)
+#     #
+#     # def readall(self):
+#     #     return self.f.readall()
+#     #
+#     # def readinto(self, b):
+#     #     return self.f.readinto(b)
+#     #
+#     # def write(self, b):
+#     #     return self.f.write(b)
+
+
+class FileShard(io.FileIO):
+    pass
 
 
 def is_gcs_path(file):
@@ -85,6 +145,7 @@ async def copy_file_within_gcs(src, dest):
 async def write_file_to_gcs(src, dest, size):
     async def _write(tmp_dest, start, end):
         size = end - start
+        print(f'src={src} dest={dest} start={start} end={end} size={size}')
         with open(src, 'rb') as src_file:
             src_file.seek(start)
             await gcs_client.write_gs_file_from_file(tmp_dest, src_file, size=size)
@@ -97,7 +158,7 @@ async def write_file_to_gcs(src, dest, size):
             starts.append(size)
 
             tmp_dests = [dest + f'/tmp/_{uuid.uuid4().hex[:8]}' for _ in range(len(starts) - 1)]
-            
+
             work = [functools.partial(_write, tmp_dests[i], starts[i], starts[i+1]) for i in range(len(starts) - 1)]
             await bounded_gather(*work, parallelism=5)
             await gcs_client.compose_gs_file(tmp_dests, dest)
@@ -109,6 +170,7 @@ async def read_file_from_gcs(src, dest, size):
     async def _read(start, end):
         with open(dest, 'wb') as dest_file:
             dest_file.seek(start)
+            print(f'reading from {src} to {dest} for bytes {start}-{end} starting at dest {dest_file.tell()}')
             await gcs_client.read_gs_file_to_file(src, dest_file, start=start, end=end)
 
     async with CopyFileTimer(src, dest):
