@@ -57,7 +57,7 @@ class FilePart(io.IOBase):
         self._fp.seek(self._start)
 
     def __enter__(self):
-        pass
+        return self
 
     def __exit__(self, type, value, traceback):
         self.close()
@@ -167,7 +167,7 @@ def get_partition_starts(file_size):
 
 async def write_file_to_gcs(src, dest, size):
     async def _write(tmp_dest, start, end):
-        print(f'reading from {src} to {dest} for bytes {start}-{end}')
+        print(f'writing from {src} to {dest} for bytes {start}-{end}')
         part_size = end - start
         with FilePart(src, start, part_size) as fp:
             await gcs_client.write_gs_file_from_file(tmp_dest, fp, size=part_size)
