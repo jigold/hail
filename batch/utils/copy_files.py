@@ -13,9 +13,7 @@ import glob
 import fnmatch
 import concurrent
 import uuid
-import json
 import google.oauth2.service_account
-from google.resumable_media._upload import get_total_bytes, _CONTENT_TYPE_HEADER, _POST
 
 import batch.google_storage
 from hailtop.utils import AsyncWorkerPool, WaitableSharedPool, blocking_to_async, bounded_gather
@@ -26,7 +24,7 @@ log = logging.getLogger('copy_files')
 thread_pool = None
 gcs_client = None
 copy_failure = False
-BLOCK_SIZE = 64 * 1024 * 1024
+BLOCK_SIZE = 128 * 1024 * 1024
 
 
 class CopyFileTimer:
@@ -48,61 +46,70 @@ class CopyFileTimer:
             print(f'failed to copy {self.src} to {self.dest} in {total:.3f}s due to {exc_type} {exc!r}')
 
 
-# # ResumableUpload
-# def _prepare_initiate_request(self, stream, metadata, content_type, total_bytes=None, stream_final=True):
-#     if self.resumable_url is not None:
-#         raise ValueError(u"This upload has already been initiated.")
-#     self._stream = stream
-#     self._content_type = content_type
-#     headers = {
-#         _CONTENT_TYPE_HEADER: u"application/json; charset=UTF-8",
-#         u"x-upload-content-type": content_type,
-#     }
-#     # Set the total bytes if possible.
-#     if total_bytes is not None:
-#         self._total_bytes = total_bytes
-#     elif stream_final:
-#         self._total_bytes = get_total_bytes(stream)
-#     print(f'total_bytes={self._total_bytes}')
-#
-#     # Add the total bytes to the headers if set.
-#     if self._total_bytes is not None:
-#         content_length = u"{:d}".format(self._total_bytes)
-#         headers[u"x-upload-content-length"] = content_length
-#     headers.update(self._headers)
-#     payload = json.dumps(metadata).encode(u"utf-8")
-#     return _POST, self.upload_url, payload, headers
-#
-#
-# google.resumable_media._upload.ResumableUpload._prepare_initiate_request = _prepare_initiate_request
+class FilePart(io.IOBase):
+    def __init__(self, filename, offset, length):
+        self._fp = open(filename, 'rb')
+        self.length = length
+        self._start = offset
+        self._end = self._start + self.length
+        self._fp.seek(self._start)
 
+    def __enter__(self):
+        pass
 
-# class FileShard(io.RawIOBase):
-# #     def __init__(self, f, start, end):
-# #         self.f = f
-# #         self.start = start
-# #         self.end = end
-# #
-# #         self.f.seek(start)
-# #        super(io.RawIOBase, self).__init__()
-#
-#
-#     #
-#     # def read(self, size=-1):
-#     #     return self.f.read(size)
-#     #
-#     # def readall(self):
-#     #     return self.f.readall()
-#     #
-#     # def readinto(self, b):
-#     #     return self.f.readinto(b)
-#     #
-#     # def write(self, b):
-#     #     return self.f.write(b)
+    def __exit__(self, type, value, traceback):
+        self.close()
 
+    def tell(self):
+        return self._fp.tell() - self._start
 
-class FileShard(io.FileIO):
-    pass
+    def read(self, size=-1):
+        if size < 0:
+            size = self.length
+        size = min(size, self._end - self._fp.tell())
+        return self._fp.read(max(0, size))
+
+    def seek(self, offset, whence=os.SEEK_SET):
+        if whence == os.SEEK_END:
+            return self._fp.seek(offset + self._end)
+        elif whence == os.SEEK_CUR:
+            return self._fp.seek(offset, whence)
+        else:
+            assert whence == os.SEEK_SET
+            return self._fp.seek(self._start + offset)
+
+    def close(self):
+        self._fp.close()
+
+    def flush(self, size=None):
+        raise NotImplementedError('flush is not implemented in FilePart.')
+
+    def fileno(self, size=None):
+        raise NotImplementedError('fileno is not implemented in FilePart.')
+
+    def isatty(self, size=None):
+        raise NotImplementedError('isatty is not implemented in FilePart.')
+
+    def next(self, size=None):
+        raise NotImplementedError('next is not implemented in FilePart.')
+
+    def readline(self, size=None):
+        raise NotImplementedError('readline is not implemented in FilePart.')
+
+    def readlines(self, size=None):
+        raise NotImplementedError('readlines is not implemented in FilePart.')
+
+    def xreadlines(self, size=None):
+        raise NotImplementedError('xreadlines is not implemented in FilePart.')
+
+    def truncate(self, size=None):
+        raise NotImplementedError('truncate is not implemented in FilePart.')
+
+    def write(self, size=None):
+        raise NotImplementedError('write is not implemented in FilePart.')
+
+    def writelines(self, size=None):
+        raise NotImplementedError('writelines is not implemented in FilePart.')
 
 
 def is_gcs_path(file):
@@ -144,26 +151,25 @@ async def copy_file_within_gcs(src, dest):
 
 async def write_file_to_gcs(src, dest, size):
     async def _write(tmp_dest, start, end):
-        size = end - start
-        print(f'src={src} dest={dest} start={start} end={end} size={size}')
-        with open(src, 'rb') as src_file:
-            src_file.seek(start)
-            await gcs_client.write_gs_file_from_file(tmp_dest, src_file, size=size)
+        print(f'src={src} dest={dest} start={start} end={end} size={end - start}')
+        await gcs_client.write_gs_file_from_file(tmp_dest, FilePart(src, start, end - start), size=size)
 
     async with CopyFileTimer(src, dest):
+        token = uuid.uuid4().hex[:8]
+
         try:
             starts = [i for i in range(0, size, BLOCK_SIZE)]
             if not starts:
                 starts = [0]
             starts.append(size)
 
-            tmp_dests = [dest + f'/tmp/_{uuid.uuid4().hex[:8]}' for _ in range(len(starts) - 1)]
+            tmp_dests = [dest + f'/{token}/{uuid.uuid4().hex[:8]}' for _ in range(len(starts) - 1)]
 
             work = [functools.partial(_write, tmp_dests[i], starts[i], starts[i+1]) for i in range(len(starts) - 1)]
             await bounded_gather(*work, parallelism=5)
             await gcs_client.compose_gs_file(tmp_dests, dest)
         finally:
-            await gcs_client.delete_gs_files(dest + '/tmp/')
+            await gcs_client.delete_gs_files(dest + f'/{token}/')
 
 
 async def read_file_from_gcs(src, dest, size):
