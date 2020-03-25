@@ -167,10 +167,10 @@ def get_partition_starts(file_size):
 
 async def write_file_to_gcs(src, dest, size):
     async def _write(tmp_dest, start, end):
+        print(f'reading from {src} to {dest} for bytes {start}-{end}')
         part_size = end - start
-        print(f'src={src} dest={dest} start={start} end={end} size={part_size}')
-        file = FilePart(src, start, part_size)
-        await gcs_client.write_gs_file_from_file(tmp_dest, file, size=part_size)
+        with FilePart(src, start, part_size) as fp:
+            await gcs_client.write_gs_file_from_file(tmp_dest, fp, size=part_size)
 
     async with CopyFileTimer(src, dest):
         token = uuid.uuid4().hex[:8]
