@@ -24,7 +24,9 @@ log = logging.getLogger('copy_files')
 thread_pool = None
 gcs_client = None
 copy_failure = False
-BLOCK_SIZE = 128 * 1024 * 1024
+
+MIN_PARTITION_SIZE = 256 * 1024 * 1024
+MAX_PARTITIONS = 32
 
 
 class CopyFileTimer:
@@ -149,23 +151,34 @@ async def copy_file_within_gcs(src, dest):
         await gcs_client.copy_gs_file(src, dest)
 
 
+def get_partition_starts(file_size):
+    if file_size == 0:
+        return [0]
+
+    if file_size / MIN_PARTITION_SIZE > MAX_PARTITIONS:
+        partition_size = (file_size + MAX_PARTITIONS - 1) // MAX_PARTITIONS
+    else:
+        partition_size = MIN_PARTITION_SIZE
+
+    partition_starts = [i for i in range(0, file_size, partition_size)]
+    partition_starts.append(file_size)
+    return partition_starts
+
+
 async def write_file_to_gcs(src, dest, size):
     async def _write(tmp_dest, start, end):
-        print(f'src={src} dest={dest} start={start} end={end} size={end - start}')
-        await gcs_client.write_gs_file_from_file(tmp_dest, FilePart(src, start, end - start), size=size)
+        part_size = end - start
+        print(f'src={src} dest={dest} start={start} end={end} size={part_size}')
+        file = FilePart(src, start, part_size)
+        await gcs_client.write_gs_file_from_file(tmp_dest, file, size=part_size)
 
     async with CopyFileTimer(src, dest):
         token = uuid.uuid4().hex[:8]
-
         try:
-            starts = [i for i in range(0, size, BLOCK_SIZE)]
-            if not starts:
-                starts = [0]
-            starts.append(size)
-
+            starts = get_partition_starts(size)
             tmp_dests = [dest + f'/{token}/{uuid.uuid4().hex[:8]}' for _ in range(len(starts) - 1)]
 
-            work = [functools.partial(_write, tmp_dests[i], starts[i], starts[i+1]) for i in range(len(starts) - 1)]
+            work = [functools.partial(_write, tmp_dests[i], starts[i], starts[i+1] - 1) for i in range(len(starts) - 1)]
             await bounded_gather(*work, parallelism=5)
             await gcs_client.compose_gs_file(tmp_dests, dest)
         finally:
@@ -174,22 +187,24 @@ async def write_file_to_gcs(src, dest, size):
 
 async def read_file_from_gcs(src, dest, size):
     async def _read(start, end):
-        with open(dest, 'wb') as dest_file:
-            dest_file.seek(start)
-            print(f'reading from {src} to {dest} for bytes {start}-{end} starting at dest {dest_file.tell()}')
-            await gcs_client.read_gs_file_to_file(src, dest_file, start=start, end=end)
+        with open(dest, 'r+b') as dest_file:
+            print(f'reading from {src} to {dest} for bytes {start}-{end}')
+            await gcs_client.read_gs_file_to_file(src, dest_file, offset=start, start=start, end=end)
 
     async with CopyFileTimer(src, dest):
         try:
             dest = os.path.abspath(dest)
             await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
 
-            starts = [i for i in range(0, size, BLOCK_SIZE)]
-            if not starts:
-                starts = [0]
-            starts.append(size)
+            if os.path.exists(dest):
+                os.remove(dest)
 
-            work = [functools.partial(_read, starts[i], starts[i+1]) for i in range(len(starts) - 1)]
+            with open(dest, 'ab') as fp:
+                fp.truncate(size)
+
+            starts = get_partition_starts(size)
+
+            work = [functools.partial(_read, starts[i], starts[i+1] - 1) for i in range(len(starts) - 1)]
             await bounded_gather(*work, parallelism=5)
         except Exception:
             if os.path.exists(dest):

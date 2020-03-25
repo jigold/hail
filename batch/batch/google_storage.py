@@ -66,9 +66,9 @@ class GCS:
         return await retry_transient_errors(self._wrapped_read_gs_file_to_filename,
                                             self, uri, filename, *args, **kwargs)
 
-    async def read_gs_file_to_file(self, uri, file, *args, **kwargs):
+    async def read_gs_file_to_file(self, uri, file, offset, *args, **kwargs):
         return await retry_transient_errors(self._wrapped_read_gs_file_to_file,
-                                            self, uri, file, *args, **kwargs)
+                                            self, uri, file, offset, *args, **kwargs)
 
     async def delete_gs_file(self, uri):
         return await retry_transient_errors(self._wrapped_delete_gs_file,
@@ -114,6 +114,7 @@ class GCS:
         f.upload_from_filename(filename, *args, **kwargs)
 
     def _write_gs_file_from_file(self, uri, file, *args, **kwargs):
+        file.seek(0)
         bucket, path = GCS._parse_uri(uri)
         bucket = self.gcs_client.bucket(bucket)
         f = bucket.blob(path)
@@ -143,7 +144,8 @@ class GCS:
         f.metadata = {'Cache-Control': 'no-cache'}
         f.download_to_filename(filename, *args, **kwargs)
 
-    def _read_gs_file_to_file(self, uri, file, *args, **kwargs):
+    def _read_gs_file_to_file(self, uri, file, offset, *args, **kwargs):
+        file.seek(offset)
         bucket, path = GCS._parse_uri(uri)
         bucket = self.gcs_client.bucket(bucket)
         f = bucket.blob(path)
