@@ -45,7 +45,7 @@ class CopyFileTimer:
         if exc_type is None:
             print(f'copied {self.src} to {self.dest} in {total:.3f}s')
         else:
-            print(f'failed to copy {self.src} to {self.dest} in {total:.3f}s due to {exc_type} {exc!r}')
+            print(f'failed to copy {self.src} to {self.dest} in {total:.3f}s due to {exc!r}')
 
 
 class FilePart(io.IOBase):
@@ -167,10 +167,10 @@ def get_partition_starts(file_size):
 
 async def write_file_to_gcs(src, dest, size):
     async def _write(tmp_dest, start, end):
-        print(f'writing from {src} to {dest} for bytes {start}-{end}')
+        print(f'writing from {src} to {dest} for bytes {start}-{end - 1}')
         part_size = end - start
         with FilePart(src, start, part_size) as fp:
-            await gcs_client.write_gs_file_from_file(tmp_dest, fp, size=part_size)
+            await gcs_client.write_gs_file_from_file(tmp_dest, fp)
 
     async with CopyFileTimer(src, dest):
         token = uuid.uuid4().hex[:8]
@@ -178,7 +178,7 @@ async def write_file_to_gcs(src, dest, size):
             starts = get_partition_starts(size)
             tmp_dests = [dest + f'/{token}/{uuid.uuid4().hex[:8]}' for _ in range(len(starts) - 1)]
 
-            work = [functools.partial(_write, tmp_dests[i], starts[i], starts[i+1] - 1) for i in range(len(starts) - 1)]
+            work = [functools.partial(_write, tmp_dests[i], starts[i], starts[i+1]) for i in range(len(starts) - 1)]
             await bounded_gather(*work, parallelism=5)
             await gcs_client.compose_gs_file(tmp_dests, dest)
         finally:

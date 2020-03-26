@@ -219,6 +219,8 @@ def is_transient_error(e):
     # ConnectionResetError: [Errno 104] Connection reset by peer
     #
     # google.auth.exceptions.TransportError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
+    #
+    # requests.exceptions.ChunkedEncodingError: ("Connection broken: ConnectionResetError(104, 'Connection reset by peer')", ConnectionResetError(104, 'Connection reset by peer'))
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in (408, 500, 502, 503, 504)):
         # nginx returns 502 if it cannot connect to the upstream server
@@ -249,6 +251,8 @@ def is_transient_error(e):
         return True
     if isinstance(e, requests.exceptions.ConnectionError):
         return True
+    if isinstance(e, requests.exceptions.ChunkedEncodingError):
+        return is_transient_error(e.__cause__)
     if isinstance(e, socket.timeout):
         return True
     if isinstance(e, ConnectionResetError):

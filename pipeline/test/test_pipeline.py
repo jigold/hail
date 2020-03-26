@@ -431,6 +431,25 @@ class BatchTests(unittest.TestCase):
         batch = p.run(verbose=True)
         assert batch.status()['state'] == 'success'
 
+    def test_io(self):
+        file = 'gs://hail-1kg/HapMap_GSA-24v1-0_A1.vcf.bgz'  # 484 MB
+        md5 = '7b2307866fe4263a45b237b842a5e979'
+        p = self.pipeline()
+        input = p.read_input(file)
+        head = p.new_task()
+        head.command(f'''
+acutal_md5=$(md5sum {input} | awk '{{ print $1 }}')
+test $actual_md5 = '{md5}' || exit 1
+cp {input} {head.out}
+''')
+        tail = p.new_task()
+        tail.command(f'''
+actual_md5=$(md5sum {head.out} | awk '{{ print $1 }}')
+test $actual_md5 = '{md5}' || exit 1
+''')
+        batch = p.run()
+        assert batch.status()['state'] == 'success'
+
     def test_benchmark_lookalike_workflow(self):
         p = self.pipeline()
 
