@@ -440,13 +440,15 @@ class BatchTests(unittest.TestCase):
         head = p.new_task()
         head.command(f'''
 acutal_md5=$(md5sum {input} | awk '{{ print $1 }}')
-test $actual_md5 = '{md5}' || exit 1
+echo $actual_md5
+test "$actual_md5" = "{md5}" || exit 1
 cp {input} {head.out}
 ''')
         tail = p.new_task()
         tail.command(f'''
 actual_md5=$(md5sum {head.out} | awk '{{ print $1 }}')
-test $actual_md5 = '{md5}' || exit 1
+echo $actual_md5
+test "$actual_md5" = "{md5}" || exit 1
 ''')
 
         batch = p.run()
