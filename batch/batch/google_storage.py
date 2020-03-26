@@ -192,6 +192,8 @@ class GCS:
                 yield (urllib.parse.unquote(blob.public_url.replace('https://storage.googleapis.com/', 'gs://')), blob.size)
 
     def _compose_gs_file(self, sources, dest, *args, **kwargs):
+        assert sources
+
         def _get_blob(src):
             src_bucket, src_path = GCS._parse_uri(src)
             src_bucket = self.gcs_client.bucket(src_bucket)

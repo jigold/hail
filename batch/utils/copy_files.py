@@ -189,7 +189,7 @@ def get_dest_path(file, src, include_recurse_dir):
 
 def get_partition_starts(file_size):
     if file_size == 0:
-        return [0]
+        return [0, 0]
 
     if file_size / MIN_PARTITION_SIZE > MAX_PARTITIONS:
         partition_size = (file_size + MAX_PARTITIONS - 1) // MAX_PARTITIONS
