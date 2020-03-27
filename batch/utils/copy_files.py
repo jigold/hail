@@ -274,7 +274,7 @@ async def read_file_from_gcs(copy_pool, src, dest, size, max_partitions, min_par
                     await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
 
                     if os.path.exists(dest):
-                        os.remove(dest)
+                        os.unlink(dest)
 
                     with open(dest, 'ab') as fp:
                         fp.truncate(size)

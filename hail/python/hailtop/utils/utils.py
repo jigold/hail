@@ -317,9 +317,9 @@ def is_transient_error(e):
     if isinstance(e, requests.exceptions.ConnectionError):
         return True
     if isinstance(e, requests.exceptions.ChunkedEncodingError):
-        return is_transient_error(e.__cause__)
+        return is_transient_error(e.args[0])
     if isinstance(e, urllib3.exceptions.ProtocolError):
-        return True
+        return is_transient_error(e.args[1])
     if isinstance(e, socket.timeout):
         return True
     if isinstance(e, ConnectionResetError):
