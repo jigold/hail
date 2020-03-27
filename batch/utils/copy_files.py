@@ -108,7 +108,7 @@ class CopyFileTimer:
                 msg += '\n  ' + '\n  '.join([f'{k}: {v:.3f}s' for k, v in self.timing.items()])
             print(msg)
         else:
-            print(f'failed to copy {self.src} to {self.dest} of size {self.size} in {total:.3f}s due to {exc!r}')
+            print(f'failed to copy {self.src} to {self.dest} of size {self.size} in {total:.3f}s due to {exc!r} {tb}')
 
 
 class FilePart(io.IOBase):
@@ -209,7 +209,7 @@ def get_dest_path(file, src, include_recurse_dir):
     return '/'.join(file[recurse_point:])
 
 
-def get_partition_starts(file_size, min_partition_size, max_partitions):
+def get_partition_starts(file_size, max_partitions, min_partition_size):
     if file_size == 0:
         return [0, 0]
 
