@@ -28,9 +28,6 @@ gcs_client = None
 copy_failure = False
 file_lock_store = None
 
-MIN_PARTITION_SIZE = None
-MAX_PARTITIONS = None
-
 
 class FileLock:
     def __init__(self, lock_store, file, lock):
@@ -212,14 +209,14 @@ def get_dest_path(file, src, include_recurse_dir):
     return '/'.join(file[recurse_point:])
 
 
-def get_partition_starts(file_size):
+def get_partition_starts(file_size, min_partition_size, max_partitions):
     if file_size == 0:
         return [0, 0]
 
-    if file_size / MIN_PARTITION_SIZE > MAX_PARTITIONS:
-        partition_size = (file_size + MAX_PARTITIONS - 1) // MAX_PARTITIONS
+    if file_size / min_partition_size > max_partitions:
+        partition_size = (file_size + max_partitions - 1) // max_partitions
     else:
-        partition_size = MIN_PARTITION_SIZE
+        partition_size = min_partition_size
 
     partition_starts = [i for i in range(0, file_size, partition_size)]
     partition_starts.append(file_size)
@@ -237,7 +234,7 @@ async def copy_file_within_gcs(copy_pool, src, dest, size):
     await copy_pool.wait(copy_token)
 
 
-async def write_file_to_gcs(copy_pool, src, dest, size):
+async def write_file_to_gcs(copy_pool, src, dest, size, max_partitions, min_partition_size):
     async def _write(timer, tmp_dest, start, end):
         async with timer.step(f'upload {start}-{end - 1}'):
             part_size = end - start
@@ -248,7 +245,7 @@ async def write_file_to_gcs(copy_pool, src, dest, size):
         async with CopyFileTimer(src, dest, size) as timer:
             token = uuid.uuid4().hex[:8]
             try:
-                starts = get_partition_starts(size)
+                starts = get_partition_starts(size, max_partitions, min_partition_size)
                 tmp_dests = [dest + f'/{token}/{uuid.uuid4().hex[:8]}' for _ in range(len(starts) - 1)]
 
                 copy_token = uuid.uuid4().hex[:5]
@@ -263,7 +260,7 @@ async def write_file_to_gcs(copy_pool, src, dest, size):
                     await gcs_client.delete_gs_files(dest + f'/{token}/')
 
 
-async def read_file_from_gcs(copy_pool, src, dest, size):
+async def read_file_from_gcs(copy_pool, src, dest, size, max_partitions, min_partition_size):
     async def _read(timer, start, end):
         async with timer.step(f'download {start}-{end}'):
             with open(dest, 'r+b') as dest_file:
@@ -282,7 +279,7 @@ async def read_file_from_gcs(copy_pool, src, dest, size):
                     with open(dest, 'ab') as fp:
                         fp.truncate(size)
 
-                starts = get_partition_starts(size)
+                starts = get_partition_starts(size, max_partitions, min_partition_size)
 
                 copy_token = uuid.uuid4().hex[:5]
                 for i in range(len(starts) - 1):
@@ -307,7 +304,7 @@ async def copy_local_files(copy_pool, src, dest, size):
     await copy_pool.wait(copy_token)
 
 
-async def copies(file_pool, copy_pool, src, dest):
+async def copies(file_pool, copy_pool, src, dest, max_partitions, min_partition_size):
     if is_gcs_path(src):
         src_prefix = re.split('\\*|\\[\\?', src)[0].rstrip('/')
         maybe_src_paths = [(path, size) for path, size in await gcs_client.list_gs_files(src_prefix)]
@@ -343,9 +340,11 @@ async def copies(file_pool, copy_pool, src, dest):
         if is_gcs_path(src_path) and is_gcs_path(dest_path):
             await file_pool.call(copy_file_within_gcs, copy_pool, src_path, dest_path, size)
         elif is_gcs_path(src_path) and not is_gcs_path(dest_path):
-            await file_pool.call(read_file_from_gcs, copy_pool, src_path, dest_path, size)
+            await file_pool.call(read_file_from_gcs, copy_pool,
+                                 src_path, dest_path, size, max_partitions, min_partition_size)
         elif not is_gcs_path(src_path) and is_gcs_path(dest_path):
-            await file_pool.call(write_file_to_gcs, copy_pool, src_path, dest_path, size)
+            await file_pool.call(write_file_to_gcs, copy_pool,
+                                 src_path, dest_path, size, max_partitions, min_partition_size)
         else:
             assert not is_gcs_path(src_path) and not is_gcs_path(dest_path)
             await file_pool.call(copy_local_files, copy_pool, src_path, dest_path, size)
@@ -363,10 +362,7 @@ async def main():
 
     args = parser.parse_args()
 
-    global thread_pool, gcs_client, file_lock_store, MAX_PARTITIONS, MIN_PARTITION_SIZE
-
-    MAX_PARTITIONS = args.max_partitions
-    MIN_PARTITION_SIZE = parse_memory_in_bytes(args.min_partition_size)
+    global thread_pool, gcs_client, file_lock_store
 
     thread_pool = concurrent.futures.ThreadPoolExecutor()
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(args.key_file)
@@ -386,7 +382,8 @@ async def main():
             src, dest = shlex.split(line.rstrip())
             if '**' in src:
                 raise NotImplementedError(f'** not supported; got {src}')
-            coros.append(copies(file_pool, copy_pool, src, dest))
+            coros.append(copies(file_pool, copy_pool, src, dest, args.max_partitions,
+                                parse_memory_in_bytes(args.min_partition_size)))
         await asyncio.gather(*coros)
         await file_pool.wait()
     finally:
