@@ -8,7 +8,7 @@ import argparse
 import time
 import logging
 import shlex
-import functools
+import humanize
 import glob
 import fnmatch
 import concurrent
@@ -16,7 +16,8 @@ import uuid
 import google.oauth2.service_account
 
 import batch.google_storage
-from hailtop.utils import AsyncWorkerPool, WaitableSharedPool, blocking_to_async, bounded_gather
+from hailtop.utils import AsyncWorkerPool, MultiWaitableSharedPool, blocking_to_async, \
+    bounded_gather, WaitableSharedPool
 
 
 log = logging.getLogger('copy_files')
@@ -70,13 +71,33 @@ class FileLockStore:
             del self.locks[file]
 
 
-class CopyFileTimer:
-    def __init__(self, src, dest):
-        self.src = src
-        self.dest = dest
+class CopyFileTimerStep:
+    def __init__(self, timer, name):
+        self.timer = timer
+        self.name = name
         self.start_time = None
 
     async def __aenter__(self):
+        self.start_time = time.time()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        finish_time = time.time()
+        self.timer.timing[self.name] = finish_time - self.start_time
+
+
+class CopyFileTimer:
+    def __init__(self, src, dest, size):
+        self.src = src
+        self.dest = dest
+        self.size = humanize.naturalsize(size)
+        self.start_time = None
+        self.timing = {}
+
+    def step(self, name):
+        return CopyFileTimerStep(self, name)
+
+    async def __aenter__(self):
+        print(f'copying {self.src} to {self.dest} of size {self.size}...')
         self.start_time = time.time()
         return self
 
@@ -84,9 +105,12 @@ class CopyFileTimer:
         finish_time = time.time()
         total = finish_time - self.start_time
         if exc_type is None:
-            print(f'copied {self.src} to {self.dest} in {total:.3f}s')
+            msg = f'copied {self.src} to {self.dest} of size {self.size} in {total:.3f}s'
+            if self.timing:
+                msg += '\n  ' + '\n  '.join([f'{k}: {v:.3f}s' for k, v in self.timing.items()])
+            print(msg)
         else:
-            print(f'failed to copy {self.src} to {self.dest} in {total:.3f}s due to {exc!r}')
+            print(f'failed to copy {self.src} to {self.dest} of size {self.size} in {total:.3f}s due to {exc!r}')
 
 
 class FilePart(io.IOBase):
@@ -201,68 +225,88 @@ def get_partition_starts(file_size):
     return partition_starts
 
 
-async def copy_file_within_gcs(src, dest):
+async def copy_file_within_gcs(copy_pool, src, dest, size):
+    async def _copy(src, dest):
+        async with file_lock_store.get_lock(dest):
+            async with CopyFileTimer(src, dest, size):
+                await gcs_client.copy_gs_file(src, dest)
+
+    copy_token = uuid.uuid4().hex[:5]
+    await copy_pool.call(copy_token, _copy, src, dest)
+    await copy_pool.wait(copy_token)
+
+
+async def write_file_to_gcs(copy_pool, src, dest, size):
+    async def _write(timer, tmp_dest, start, end):
+        async with timer.step(f'upload {start}-{end - 1}'):
+            part_size = end - start
+            with FilePart(src, start, part_size) as fp:
+                await gcs_client.write_gs_file_from_file(tmp_dest, fp)
+
     async with file_lock_store.get_lock(dest):
-        async with CopyFileTimer(src, dest):
-            await gcs_client.copy_gs_file(src, dest)
-
-
-async def write_file_to_gcs(src, dest, size):
-    async def _write(tmp_dest, start, end):
-        part_size = end - start
-        with FilePart(src, start, part_size) as fp:
-            await gcs_client.write_gs_file_from_file(tmp_dest, fp)
-
-    async with file_lock_store.get_lock(dest):
-        async with CopyFileTimer(src, dest):
+        async with CopyFileTimer(src, dest, size) as timer:
             token = uuid.uuid4().hex[:8]
             try:
                 starts = get_partition_starts(size)
                 tmp_dests = [dest + f'/{token}/{uuid.uuid4().hex[:8]}' for _ in range(len(starts) - 1)]
 
-                work = [functools.partial(_write, tmp_dests[i], starts[i], starts[i+1]) for i in range(len(starts) - 1)]
-                await bounded_gather(*work, parallelism=5)
-                await gcs_client.compose_gs_file(tmp_dests, dest)
+                copy_token = uuid.uuid4().hex[:5]
+                for i in range(len(starts) - 1):
+                    await copy_pool.call(copy_token, _write, timer, tmp_dests[i], starts[i], starts[i+1])
+                await copy_pool.wait(copy_token)
+
+                async with timer.step('compose'):
+                    await gcs_client.compose_gs_file(tmp_dests, dest)
             finally:
-                await gcs_client.delete_gs_files(dest + f'/{token}/')
+                async with timer.step('delete temp files'):
+                    await gcs_client.delete_gs_files(dest + f'/{token}/')
 
 
-async def read_file_from_gcs(src, dest, size):
-    async def _read(start, end):
-        with open(dest, 'r+b') as dest_file:
-            await gcs_client.read_gs_file_to_file(src, dest_file, offset=start, start=start, end=end)
+async def read_file_from_gcs(copy_pool, src, dest, size):
+    async def _read(timer, start, end):
+        async with timer.step(f'download {start}-{end}'):
+            with open(dest, 'r+b') as dest_file:
+                await gcs_client.read_gs_file_to_file(src, dest_file, offset=start, start=start, end=end)
 
     async with file_lock_store.get_lock(dest):
-        async with CopyFileTimer(src, dest):
+        async with CopyFileTimer(src, dest, size) as timer:
             try:
-                dest = os.path.abspath(dest)
-                await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
+                async with timer.step('setup'):
+                    dest = os.path.abspath(dest)
+                    await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
 
-                if os.path.exists(dest):
-                    os.remove(dest)
+                    if os.path.exists(dest):
+                        os.remove(dest)
 
-                with open(dest, 'ab') as fp:
-                    fp.truncate(size)
+                    with open(dest, 'ab') as fp:
+                        fp.truncate(size)
 
                 starts = get_partition_starts(size)
 
-                work = [functools.partial(_read, starts[i], starts[i+1] - 1) for i in range(len(starts) - 1)]
-                await bounded_gather(*work, parallelism=5)
+                copy_token = uuid.uuid4().hex[:5]
+                for i in range(len(starts) - 1):
+                    await copy_pool.call(copy_token, _read, timer, starts[i], starts[i+1] - 1)
+                await copy_pool.wait(copy_token)
             except Exception:
                 if os.path.exists(dest):
                     os.remove(dest)
                 raise
 
 
-async def copy_local_files(src, dest):
-    async with file_lock_store.get_lock(dest):
-        async with CopyFileTimer(src, dest):
-            dest = os.path.abspath(dest)
-            await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
-            await blocking_to_async(thread_pool, shutil.copy, src, dest)
+async def copy_local_files(copy_pool, src, dest, size):
+    async def _copy(src, dest):
+        async with file_lock_store.get_lock(dest):
+            async with CopyFileTimer(src, dest, size):
+                dest = os.path.abspath(dest)
+                await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
+                await blocking_to_async(thread_pool, shutil.copy, src, dest)
+
+    copy_token = uuid.uuid4().hex[:5]
+    await copy_pool.call(copy_token, _copy, src, dest)
+    await copy_pool.wait(copy_token)
 
 
-async def copies(copy_pool, src, dest):
+async def copies(file_pool, copy_pool, src, dest):
     if is_gcs_path(src):
         src_prefix = re.split('\\*|\\[\\?', src)[0].rstrip('/')
         maybe_src_paths = [(path, size) for path, size in await gcs_client.list_gs_files(src_prefix)]
@@ -296,14 +340,14 @@ async def copies(copy_pool, src, dest):
 
     for src_path, dest_path, size in paths:
         if is_gcs_path(src_path) and is_gcs_path(dest_path):
-            await copy_pool.call(copy_file_within_gcs, src_path, dest_path)
+            await file_pool.call(copy_file_within_gcs, copy_pool, src_path, dest_path, size)
         elif is_gcs_path(src_path) and not is_gcs_path(dest_path):
-            await copy_pool.call(read_file_from_gcs, src_path, dest_path, size)
+            await file_pool.call(read_file_from_gcs, copy_pool, src_path, dest_path, size)
         elif not is_gcs_path(src_path) and is_gcs_path(dest_path):
-            await copy_pool.call(write_file_to_gcs, src_path, dest_path, size)
+            await file_pool.call(write_file_to_gcs, copy_pool, src_path, dest_path, size)
         else:
             assert not is_gcs_path(src_path) and not is_gcs_path(dest_path)
-            await copy_pool.call(copy_local_files, src_path, dest_path)
+            await file_pool.call(copy_local_files, copy_pool, src_path, dest_path, size)
 
 
 async def main():
@@ -312,6 +356,7 @@ async def main():
     parser.add_argument('--key-file', type=str, required=True)
     parser.add_argument('--project', type=str, required=True)
     parser.add_argument('--parallelism', type=int, default=10)
+    parser.add_argument('--concurrent-downloads', type=int, default=3)
 
     args = parser.parse_args()
 
@@ -320,8 +365,13 @@ async def main():
     thread_pool = concurrent.futures.ThreadPoolExecutor()
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(args.key_file)
     gcs_client = batch.google_storage.GCS(thread_pool, project=args.project, credentials=credentials)
-    worker_pool = AsyncWorkerPool(args.parallelism)
-    copy_pool = WaitableSharedPool(worker_pool, ignore_errors=False)
+
+    file_worker_pool = AsyncWorkerPool(args.concurrent_downloads)
+    file_pool = WaitableSharedPool(file_worker_pool)
+
+    copy_worker_pool = AsyncWorkerPool(args.parallelism)
+    copy_pool = MultiWaitableSharedPool(copy_worker_pool)
+
     file_lock_store = FileLockStore()
 
     try:
@@ -330,11 +380,12 @@ async def main():
             src, dest = shlex.split(line.rstrip())
             if '**' in src:
                 raise NotImplementedError(f'** not supported; got {src}')
-            coros.append(copies(copy_pool, src, dest))
+            coros.append(copies(file_pool, copy_pool, src, dest))
         await asyncio.gather(*coros)
-        await copy_pool.wait()
+        await file_pool.wait()
     finally:
-        await worker_pool.cancel()
+        await copy_worker_pool.cancel()
+        await file_worker_pool.cancel()
 
 
 loop = asyncio.get_event_loop()

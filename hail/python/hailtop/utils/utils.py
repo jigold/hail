@@ -177,6 +177,65 @@ class WaitableSharedPool:
             raise self._errors[0]
 
 
+class WaitableBunch:
+    def __init__(self, shared_pool, token):
+        self.shared_pool = shared_pool
+        self.token = token
+        self._errors = []
+        self._done = asyncio.Event()
+        self._waiting = False
+        self._n_submitted = 0
+        self._n_complete = 0
+
+    async def call(self, f, *args, **kwargs):
+        assert not self._waiting
+        self._n_submitted += 1
+
+        async def invoke():
+            try:
+                await f(*args, **kwargs)
+            except Exception as err:  # pylint: disable=broad-except
+                self._errors.append(err)
+                self._done.set()
+            finally:
+                self._n_complete += 1
+                if self._waiting and (self._n_complete == self._n_submitted):
+                    self._done.set()
+
+        await self.shared_pool._worker_pool.call(invoke)
+
+    async def wait(self):
+        assert not self._waiting
+        self._waiting = True
+        if self._n_complete == self._n_submitted:
+            self._done.set()
+        if self._errors:
+            self._done.set()
+
+        await self._done.wait()
+
+        if self._errors:
+            raise self._errors[0]
+
+
+class MultiWaitableSharedPool:
+    def __init__(self, worker_pool):
+        self._worker_pool = worker_pool
+        self._bunches = {}
+
+    async def call(self, token, f, *args, **kwargs):
+        bunch = self._bunches.get(token)
+        if not bunch:
+            bunch = WaitableBunch(self, token)
+            self._bunches[token] = bunch
+        await bunch.call(f, *args, **kwargs)
+
+    async def wait(self, token):
+        bunch = self._bunches.get(token)
+        assert bunch
+        await bunch.wait()
+
+
 def is_transient_error(e):
     # observed exceptions:
     #
