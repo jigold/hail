@@ -108,7 +108,7 @@ class CopyFileTimer:
                 msg += '\n  ' + '\n  '.join([f'{k}: {v:.3f}s' for k, v in self.timing.items()])
             print(msg)
         else:
-            print(f'failed to copy {self.src} to {self.dest} of size {self.size} in {total:.3f}s due to {exc!r} {tb}')
+            print(f'failed to copy {self.src} to {self.dest} of size {self.size} in {total:.3f}s due to {exc!r} {tb!r}')
 
 
 class FilePart(io.IOBase):

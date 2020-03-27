@@ -282,6 +282,8 @@ def is_transient_error(e):
     # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host batch.pr-6925-default-s24o4bgat8e8:80 ssl:None [Connect call failed ('10.36.7.86', 80)]
     #
     # requests.exceptions.ChunkedEncodingError: ("Connection broken: ConnectionResetError(104, 'Connection reset by peer')", ConnectionResetError(104, 'Connection reset by peer'))
+    #
+    # ChunkedEncodingError(ProtocolError("Connection broken: ConnectionResetError(104, 'Connection reset by peer')", ConnectionResetError(104, 'Connection reset by peer')),)
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in (408, 500, 502, 503, 504)):
         # nginx returns 502 if it cannot connect to the upstream server
@@ -316,6 +318,8 @@ def is_transient_error(e):
         return True
     if isinstance(e, requests.exceptions.ChunkedEncodingError):
         return is_transient_error(e.__cause__)
+    if isinstance(e, urllib3.exceptions.ProtocolError):
+        return True
     if isinstance(e, socket.timeout):
         return True
     if isinstance(e, ConnectionResetError):
