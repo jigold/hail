@@ -16,6 +16,7 @@ import uuid
 import google.oauth2.service_account
 
 import batch.google_storage
+from batch.utils import parse_memory_in_bytes
 from hailtop.utils import AsyncWorkerPool, MultiWaitableSharedPool, blocking_to_async, \
     bounded_gather, WaitableSharedPool
 
@@ -27,8 +28,8 @@ gcs_client = None
 copy_failure = False
 file_lock_store = None
 
-MIN_PARTITION_SIZE = 256 * 1024 * 1024
-MAX_PARTITIONS = 32
+MIN_PARTITION_SIZE = None
+MAX_PARTITIONS = None
 
 
 class FileLock:
@@ -357,10 +358,15 @@ async def main():
     parser.add_argument('--project', type=str, required=True)
     parser.add_argument('--parallelism', type=int, default=10)
     parser.add_argument('--concurrent-downloads', type=int, default=3)
+    parser.add_argument('--max-partitions', type=int, default=32)
+    parser.add_argument('--min-partition-size', type=str, default='256Mi')
 
     args = parser.parse_args()
 
-    global thread_pool, gcs_client, file_lock_store
+    global thread_pool, gcs_client, file_lock_store, MAX_PARTITIONS, MIN_PARTITION_SIZE
+
+    MAX_PARTITIONS = args.max_partitions
+    MIN_PARTITION_SIZE = parse_memory_in_bytes(args.min_partition_size)
 
     thread_pool = concurrent.futures.ThreadPoolExecutor()
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(args.key_file)
