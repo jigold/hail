@@ -10,6 +10,19 @@ from hailtop.utils import blocking_to_async, retry_transient_errors
 logging.getLogger("google").setLevel(logging.WARNING)
 
 
+def _read_gs_file_to_file(project, key_file, uri, dest, offset, *args, **kwargs):
+    credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
+    gcs_client = google.cloud.storage.Client(
+        project=project, credentials=credentials)
+    with open(dest, 'r+b') as file:
+        file.seek(offset)
+        bucket, path = GCS._parse_uri(uri)
+        bucket = gcs_client.bucket(bucket)
+        f = bucket.blob(path)
+        f.metadata = {'Cache-Control': 'no-cache'}
+        f.download_to_file(file, *args, **kwargs)
+
+
 class GCS:
     @staticmethod
     def _parse_uri(uri):
@@ -19,7 +32,9 @@ class GCS:
         path = '/'.join(uri[1:])
         return bucket, path
 
-    def __init__(self, blocking_pool, *, project=None, credentials=None):
+    def __init__(self, blocking_pool, *, project=None, credentials=None, key_file=None):
+        self.project = project
+        self.key_file = key_file
         self.blocking_pool = blocking_pool
         # project=None doesn't mean default, it means no project:
         # https://github.com/googleapis/google-cloud-python/blob/master/storage/google/cloud/storage/client.py#L86
@@ -67,8 +82,16 @@ class GCS:
                                             self, uri, filename, *args, **kwargs)
 
     async def read_gs_file_to_file(self, uri, file, offset, *args, **kwargs):
-        return await retry_transient_errors(self._wrapped_read_gs_file_to_file,
-                                            self, uri, file, offset, *args, **kwargs)
+        print(self.project)
+        print(self.key_file)
+        print(uri)
+        print(file)
+        print(offset)
+        print(args)
+        print(kwargs)
+        return await blocking_to_async(self.blocking_pool, _read_gs_file_to_file, self.project, self.key_file, uri, file, offset, *args, **kwargs)
+        # return await retry_transient_errors(self._wrapped_read_gs_file_to_file,
+        #                                     self, uri, file, offset, *args, **kwargs)
 
     async def delete_gs_file(self, uri):
         return await retry_transient_errors(self._wrapped_delete_gs_file,
@@ -83,8 +106,10 @@ class GCS:
                                             self, src, dest, *args, **kwargs)
 
     async def list_gs_files(self, uri_prefix, max_results=None):
-        return await retry_transient_errors(self._wrapped_list_gs_files,
-                                            self, uri_prefix, max_results=max_results)
+        return self._list_gs_files(uri_prefix, max_results=max_results)
+        # return await self._wrapped_list_gs_files(self, uri_prefix, max_results=max_results)
+        # return await retry_transient_errors(self._wrapped_list_gs_files,
+        #                                     self, uri_prefix, max_results=max_results)
 
     async def compose_gs_file(self, sources, dest, *args, **kwargs):
         return await retry_transient_errors(self._wrapped_compose_gs_file,
@@ -144,13 +169,18 @@ class GCS:
         f.metadata = {'Cache-Control': 'no-cache'}
         f.download_to_filename(filename, *args, **kwargs)
 
-    def _read_gs_file_to_file(self, uri, file, offset, *args, **kwargs):
-        file.seek(offset)
-        bucket, path = GCS._parse_uri(uri)
-        bucket = self.gcs_client.bucket(bucket)
-        f = bucket.blob(path)
-        f.metadata = {'Cache-Control': 'no-cache'}
-        f.download_to_file(file, *args, **kwargs)
+    def _read_gs_file_to_file(self, project, key_file, uri, dest, offset, *args, **kwargs):
+        pass
+        # credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
+        # gcs_client = google.cloud.storage.Client(
+        #     project=project, credentials=credentials)
+        # with open(dest, 'r+b') as file:
+        #     file.seek(offset)
+        #     bucket, path = GCS._parse_uri(uri)
+        #     bucket = gcs_client.bucket(bucket)
+        #     f = bucket.blob(path)
+        #     f.metadata = {'Cache-Control': 'no-cache'}
+        #     f.download_to_file(file, *args, **kwargs)
 
     def _delete_gs_files(self, uri_prefix):
         bucket, prefix = GCS._parse_uri(uri_prefix)

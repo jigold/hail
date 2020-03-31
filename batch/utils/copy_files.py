@@ -8,6 +8,7 @@ import argparse
 import time
 import logging
 import shlex
+import traceback
 import humanize
 import glob
 import fnmatch
@@ -23,9 +24,8 @@ from hailtop.utils import AsyncWorkerPool, MultiWaitableSharedPool, blocking_to_
 
 log = logging.getLogger('copy_files')
 
-thread_pool = None
+process_pool = None
 gcs_client = None
-copy_failure = False
 file_lock_store = None
 
 
@@ -108,7 +108,7 @@ class CopyFileTimer:
                 msg += '\n  ' + '\n  '.join([f'{k}: {v:.3f}s' for k, v in self.timing.items()])
             print(msg)
         else:
-            print(f'failed to copy {self.src} to {self.dest} of size {self.size} in {total:.3f}s due to {exc!r} {tb!r}')
+            print(f'failed to copy {self.src} to {self.dest} of size {self.size} in {total:.3f}s due to {exc!r} {traceback.print_tb(tb)}')
 
 
 class FilePart(io.IOBase):
@@ -260,18 +260,20 @@ async def write_file_to_gcs(copy_pool, src, dest, size, max_partitions, min_part
                     await gcs_client.delete_gs_files(dest + f'/{token}/')
 
 
-async def read_file_from_gcs(copy_pool, src, dest, size, max_partitions, min_partition_size):
-    async def _read(timer, start, end):
-        async with timer.step(f'download {start}-{end}'):
-            with open(dest, 'r+b') as dest_file:
-                await gcs_client.read_gs_file_to_file(src, dest_file, offset=start, start=start, end=end)
+async def _read(timer, src, dest, start, end):
+    async with timer.step(f'download {start}-{end}'):
+        await gcs_client.read_gs_file_to_file(src, dest, offset=start, start=start, end=end)
+        # with open(dest, 'r+b') as dest_file:
+        #     await gcs_client.read_gs_file_to_file(src, dest_file, offset=start, start=start, end=end)
 
+
+async def read_file_from_gcs(copy_pool, src, dest, size, max_partitions, min_partition_size):
     async with file_lock_store.get_lock(dest):
         async with CopyFileTimer(src, dest, size) as timer:
             try:
                 async with timer.step('setup'):
                     dest = os.path.abspath(dest)
-                    await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
+                    await blocking_to_async(process_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
 
                     if os.path.exists(dest):
                         os.unlink(dest)
@@ -283,7 +285,7 @@ async def read_file_from_gcs(copy_pool, src, dest, size, max_partitions, min_par
 
                 copy_token = uuid.uuid4().hex[:5]
                 for i in range(len(starts) - 1):
-                    await copy_pool.call(copy_token, _read, timer, starts[i], starts[i+1] - 1)
+                    await copy_pool.call(copy_token, _read, timer, src, dest, starts[i], starts[i+1] - 1)
                 await copy_pool.wait(copy_token)
             except Exception:
                 if os.path.exists(dest):
@@ -296,8 +298,8 @@ async def copy_local_files(copy_pool, src, dest, size):
         async with file_lock_store.get_lock(dest):
             async with CopyFileTimer(src, dest, size):
                 dest = os.path.abspath(dest)
-                await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
-                await blocking_to_async(thread_pool, shutil.copy, src, dest)
+                await blocking_to_async(process_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
+                await blocking_to_async(process_pool, shutil.copy, src, dest)
 
     copy_token = uuid.uuid4().hex[:5]
     await copy_pool.call(copy_token, _copy, src, dest)
@@ -359,14 +361,15 @@ async def main():
     parser.add_argument('--concurrent-downloads', type=int, default=3)
     parser.add_argument('--max-partitions', type=int, default=32)
     parser.add_argument('--min-partition-size', type=str, default='256Mi')
+    parser.add_argument('files', nargs='+', type=str)
 
     args = parser.parse_args()
 
-    global thread_pool, gcs_client, file_lock_store
+    global process_pool, gcs_client, file_lock_store
 
-    thread_pool = concurrent.futures.ThreadPoolExecutor()
+    process_pool = concurrent.futures.ProcessPoolExecutor()
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(args.key_file)
-    gcs_client = batch.google_storage.GCS(thread_pool, project=args.project, credentials=credentials)
+    gcs_client = batch.google_storage.GCS(process_pool, project=args.project, credentials=credentials, key_file=args.key_file)
 
     file_worker_pool = AsyncWorkerPool(args.concurrent_downloads)
     file_pool = WaitableSharedPool(file_worker_pool)
@@ -376,10 +379,15 @@ async def main():
 
     file_lock_store = FileLockStore()
 
+    assert len(args.files) % 2 == 0
+
     try:
         coros = []
-        for line in sys.stdin:
-            src, dest = shlex.split(line.rstrip())
+        for i in range(0, len(args.files), 2):
+            src = args.files[i]
+            dest = args.files[i + 1]
+        # for line in sys.stdin:
+        #     src, dest = shlex.split(line.rstrip())
             if '**' in src:
                 raise NotImplementedError(f'** not supported; got {src}')
             coros.append(copies(file_pool, copy_pool, src, dest, args.max_partitions,
