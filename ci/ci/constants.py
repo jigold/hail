@@ -20,5 +20,6 @@ AUTHORIZED_USERS = {
     'GreatBrando',
     'johnc1231',
     'gsarma',
-    'mkveerapen'
+    'mkveerapen',
+    'bw2'
 }
