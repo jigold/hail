@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS `resources` (
   `resource` VARCHAR(100) NOT NULL,
   `rate` DOUBLE NOT NULL,
+  PRIMARY KEY (`resource`)
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
