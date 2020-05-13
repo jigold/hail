@@ -28,8 +28,7 @@ from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     WORKER_LOGS_BUCKET_NAME, PROJECT
 from ..google_compute import GServices
 from ..globals import HTTP_CLIENT_MAX_SIZE
-from ..utils import cost_from_msec_mcpu, json_to_value
-from ..resources import cost_from_resources
+from ..utils import cost_from_msec_mcpu, coalesce
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
@@ -484,30 +483,11 @@ GROUP BY user;
 
 
 async def check_resource_aggregation(db):
-    def merge(r1, r2):
-        if r1 is None:
-            r1 = {}
-        if r2 is None:
-            r2 = {}
-
-        result = {}
-
-        def add_items(d):
-            for k, v in d.items():
-                if k not in result:
-                    result[k] = v
-                else:
-                    result[k] += v
-
-        add_items(r1)
-        add_items(r2)
-        return result
-
     def seqop(result, k, v):
         if k not in result:
-            result[k] = v
+            result[k] = coalesce(v, 0)
         else:
-            result[k] = merge(result[k], v)
+            result[k] += coalesce(v, 0)
 
     def fold(d, key_f):
         if d is None:
@@ -522,8 +502,9 @@ async def check_resource_aggregation(db):
     async def check(tx):
         attempt_resources = tx.execute_and_fetchall('''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  JSON_OBJECTAGG(resource, quantity * COALESCE(end_time - start_time, 0)) as resources
+  COALESCE(SUM(quantity * COALESCE(end_time - start_time, 0) * rate), 0) as cost
 FROM attempt_resources
+INNER JOIN resources ON attempt_resources.resource = resources.resource
 INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
@@ -533,26 +514,28 @@ LOCK IN SHARE MODE;
 ''')
 
         agg_job_resources = tx.execute_and_fetchall('''
-SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
+SELECT batch_id, job_id, COALESCE(SUM(usage * rate), 0) AS cost
 FROM aggregated_job_resources
+INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
 GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
 ''')
 
         agg_batch_resources = tx.execute_and_fetchall('''
-SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) as resources
+SELECT batch_id, COALESCE(SUM(usage * rate), 0) AS cost
 FROM aggregated_batch_resources
+INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
 GROUP BY batch_id
 LOCK IN SHARE MODE;
 ''')
 
-        attempt_resources = {(record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(record['resources'])
+        attempt_resources = {(record['batch_id'], record['job_id'], record['attempt_id']): record['cost']
                              async for record in attempt_resources}
 
-        agg_job_resources = {(record['batch_id'], record['job_id']): json_to_value(record['resources'])
+        agg_job_resources = {(record['batch_id'], record['job_id']): record['cost']
                              async for record in agg_job_resources}
 
-        agg_batch_resources = {record['batch_id']: json_to_value(record['resources'])
+        agg_batch_resources = {record['batch_id']: record['cost']
                                async for record in agg_batch_resources}
 
         attempt_by_batch_resources = fold(attempt_resources, lambda k: k[0])
@@ -578,8 +561,9 @@ async def check_cost(db):
 SELECT *
 FROM jobs
 LEFT JOIN (
-  SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
+  SELECT batch_id, job_id, COALESCE(SUM(usage * rate), 0) AS cost
   FROM aggregated_job_resources
+  INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
   GROUP BY batch_id, job_id
   LOCK IN SHARE MODE) AS t
 ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
@@ -590,29 +574,29 @@ LOCK IN SHARE MODE;
 SELECT *
 FROM batches
 LEFT JOIN (
-  SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) as resources
+  SELECT batch_id, COALESCE(SUM(usage * rate), 0) AS cost
   FROM aggregated_batch_resources
+  INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
   GROUP BY batch_id
   LOCK IN SHARE MODE) AS t
 ON batches.id = t.batch_id
 LOCK IN SHARE MODE;
 ''')
 
-        def assert_cost_same(id, msec_mcpu, resources):
+        def assert_cost_same(id, msec_mcpu, cost_resources):
             cost_msec_mcpu = cost_from_msec_mcpu(msec_mcpu)
-            cost_resources = cost_from_resources(resources)
             if cost_msec_mcpu is not None and cost_resources is not None:
                 if cost_msec_mcpu != 0:
                     assert abs(cost_resources - cost_msec_mcpu) / cost_msec_mcpu <= 0.01, \
-                        (id, msec_mcpu, resources, cost_msec_mcpu, cost_resources)
+                        (id, cost_msec_mcpu, cost_resources)
                 else:
-                    assert cost_resources == 0, (id, msec_mcpu, resources, cost_msec_mcpu, cost_resources)
+                    assert cost_resources == 0, (id, cost_msec_mcpu, cost_resources)
 
         async for record in agg_job_resources:
-            assert_cost_same((record['batch_id'], record['job_id']), record['msec_mcpu'], json_to_value(record['resources']))
+            assert_cost_same((record['batch_id'], record['job_id']), record['msec_mcpu'], record['cost'])
 
         async for record in agg_batch_resources:
-            assert_cost_same(record['batch_id'], record['msec_mcpu'], json_to_value(record['resources']))
+            assert_cost_same(record['batch_id'], record['msec_mcpu'], record['cost'])
 
     while True:
         try:
@@ -648,6 +632,11 @@ async def on_startup(app):
 
     app['internal_token'] = row['internal_token']
 
+    resources = db.select_and_fetchall(
+        'SELECT resource FROM resources;')
+
+    app['resources'] = [record['resource'] async for record in resources]
+
     machine_name_prefix = f'batch-worker-{DEFAULT_NAMESPACE}-'
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
@@ -680,8 +669,8 @@ async def on_startup(app):
     app['scheduler'] = scheduler
 
     # asyncio.ensure_future(check_incremental_loop(db))
-    # asyncio.ensure_future(check_resource_aggregation(db))
-    # asyncio.ensure_future(check_cost(db))
+    asyncio.ensure_future(check_resource_aggregation(db))
+    asyncio.ensure_future(check_cost(db))
 
 
 async def on_cleanup(app):

@@ -15,7 +15,6 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 from .batch_format_version import BatchFormatVersion
 from .spec_writer import SpecWriter
-from .utils import json_to_value
 
 log = logging.getLogger('batch')
 
@@ -73,7 +72,7 @@ def batch_record_to_dict(app, record):
     msec_mcpu = record['msec_mcpu']
     d['msec_mcpu'] = msec_mcpu
 
-    cost = format_version.cost(record['msec_mcpu'], json_to_value(record.get('resources')))
+    cost = format_version.cost(record['msec_mcpu'], record['cost'])
     d['cost'] = f'${cost:.4f}'
 
     return d
@@ -84,8 +83,9 @@ async def notify_batch_job_complete(app, db, batch_id):
         '''
 SELECT *
 FROM batches
-LEFT JOIN (SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) AS resources
+LEFT JOIN (SELECT batch_id, SUM(usage * rate) AS cost
            FROM aggregated_batch_resources
+           INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
            GROUP BY batch_id) AS t
 ON batches.id = t.batch_id
 WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
@@ -154,10 +154,10 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
                              for resource in resources]
 
             await db.execute_many('''
-    INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
-    VALUES (%s, %s, %s, %s, %s)
-    ON DUPLICATE KEY UPDATE quantity = quantity;
-    ''',
+INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
+VALUES (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE quantity = quantity;
+''',
                                   resource_args)
         except Exception:
             log.exception(f'error while inserting resources for job {id}')
@@ -236,7 +236,7 @@ def job_record_to_dict(app, record, name):
     msec_mcpu = record['msec_mcpu']
     result['msec_mcpu'] = msec_mcpu
 
-    cost = format_version.cost(record['msec_mcpu'], json_to_value(record.get('resources')))
+    cost = format_version.cost(record['msec_mcpu'], record['cost'])
     result['cost'] = f'${cost:.4f}'
 
     return result

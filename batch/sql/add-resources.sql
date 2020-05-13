@@ -1,9 +1,15 @@
+CREATE TABLE IF NOT EXISTS `resources` (
+  `resource` VARCHAR(100) NOT NULL,
+  `rate` DOUBLE NOT NULL,
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
   `batch_id` BIGINT NOT NULL,
   `resource` VARCHAR(100) NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`batch_id`, `resource`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `aggregated_job_resources` (
@@ -13,7 +19,8 @@ CREATE TABLE IF NOT EXISTS `aggregated_job_resources` (
   `usage` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`batch_id`, `job_id`, `resource`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `attempt_resources` (
@@ -25,7 +32,8 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(`batch_id`, `job_id`, `attempt_id`) ON DELETE CASCADE
+  FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(`batch_id`, `job_id`, `attempt_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 DROP INDEX batches_time_created ON `batches`;
