@@ -154,7 +154,7 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT *, format_version, job_attributes.value as name
+SELECT *, cost, format_version, job_attributes.value as name
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
@@ -1008,7 +1008,7 @@ async def _get_job(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT jobs.*, resources, ip_address, format_version
+SELECT jobs.*, cost, ip_address, format_version
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
