@@ -1159,6 +1159,7 @@ LEFT JOIN (SELECT billing_project, `user`, COALESCE(SUM(`usage` * rate), 0) AS c
                        WHERE batches.`time_completed` >= %s AND batches.`time_completed` <= %s AND batches.format_version >= 3
                        LOCK IN SHARE MODE) AS tmp1
            ON aggregated_batch_resources.batch_id = tmp1.id
+           INNER JOIN resources ON resources.resource = aggregated_batch_resources.resource
            GROUP BY billing_project, `user`
            LOCK IN SHARE MODE) AS t3
 ON t1.billing_project = t3.billing_project AND t1.`user` = t3.`user`;
