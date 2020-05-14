@@ -483,6 +483,11 @@ GROUP BY user;
 
 
 async def check_resource_aggregation(db):
+    def json_to_value(x):
+        if x is None:
+            return x
+        return json.loads(x)
+
     def merge(r1, r2):
         if r1 is None:
             r1 = {}
@@ -558,9 +563,9 @@ LOCK IN SHARE MODE;
         attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
         job_by_batch_resources = fold(agg_job_resources, lambda k: k[0])
 
-        assert attempt_by_batch_resources == agg_batch_resources
-        assert attempt_by_job_resources == agg_job_resources
-        assert job_by_batch_resources == agg_batch_resources
+        assert attempt_by_batch_resources == agg_batch_resources, (attempt_by_batch_resources, agg_batch_resources)
+        assert attempt_by_job_resources == agg_job_resources, (attempt_by_job_resources, agg_job_resources)
+        assert job_by_batch_resources == agg_batch_resources, (job_by_batch_resources, agg_batch_resources)
 
     while True:
         try:
