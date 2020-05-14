@@ -483,11 +483,30 @@ GROUP BY user;
 
 
 async def check_resource_aggregation(db):
+    def merge(r1, r2):
+        if r1 is None:
+            r1 = {}
+        if r2 is None:
+            r2 = {}
+
+        result = {}
+
+        def add_items(d):
+            for k, v in d.items():
+                if k not in result:
+                    result[k] = v
+                else:
+                    result[k] += v
+
+        add_items(r1)
+        add_items(r2)
+        return result
+
     def seqop(result, k, v):
         if k not in result:
-            result[k] = coalesce(v, 0)
+            result[k] = v
         else:
-            result[k] += coalesce(v, 0)
+            result[k] = merge(result[k], v)
 
     def fold(d, key_f):
         if d is None:
@@ -500,11 +519,10 @@ async def check_resource_aggregation(db):
 
     @transaction(db, read_only=True)
     async def check(tx):
-        attempt_usage = tx.execute_and_fetchall('''
+        attempt_resources = tx.execute_and_fetchall('''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  SUM(quantity * COALESCE(end_time - start_time, 0)) as usage
+  JSON_OBJECTAGG(resource, quantity * COALESCE(end_time - start_time, 0)) as resources
 FROM attempt_resources
-INNER JOIN resources ON attempt_resources.resource = resources.resource
 INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
@@ -513,38 +531,36 @@ GROUP BY batch_id, job_id, attempt_id
 LOCK IN SHARE MODE;
 ''')
 
-        agg_job_usage = tx.execute_and_fetchall('''
-SELECT batch_id, job_id, SUM(`usage`) AS usage
+        agg_job_resources = tx.execute_and_fetchall('''
+SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM aggregated_job_resources
-INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
 GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
 ''')
 
-        agg_batch_usage = tx.execute_and_fetchall('''
-SELECT batch_id, SUM(`usage`) AS usage
+        agg_batch_resources = tx.execute_and_fetchall('''
+SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM aggregated_batch_resources
-INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
 GROUP BY batch_id
 LOCK IN SHARE MODE;
 ''')
 
-        attempt_usage = {(record['batch_id'], record['job_id'], record['attempt_id']): record['usage']
-                             async for record in attempt_usage}
+        attempt_resources = {(record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(record['resources'])
+                             async for record in attempt_resources}
 
-        agg_job_usage = {(record['batch_id'], record['job_id']): record['usage']
-                             async for record in agg_job_usage}
+        agg_job_resources = {(record['batch_id'], record['job_id']): json_to_value(record['resources'])
+                             async for record in agg_job_resources}
 
-        agg_batch_usage = {record['batch_id']: record['usage']
-                               async for record in agg_batch_usage}
+        agg_batch_resources = {record['batch_id']: json_to_value(record['resources'])
+                               async for record in agg_batch_resources}
 
-        attempt_by_batch_usage = fold(attempt_usage, lambda k: k[0])
-        attempt_by_job_usage = fold(attempt_usage, lambda k: (k[0], k[1]))
-        job_by_batch_usage = fold(agg_job_usage, lambda k: k[0])
+        attempt_by_batch_resources = fold(attempt_resources, lambda k: k[0])
+        attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
+        job_by_batch_resources = fold(agg_job_resources, lambda k: k[0])
 
-        assert attempt_by_batch_usage == agg_batch_usage, (attempt_by_batch_usage, agg_batch_usage)
-        assert attempt_by_job_usage == agg_job_usage, (attempt_by_job_usage, agg_job_usage)
-        assert job_by_batch_usage == agg_batch_usage, (job_by_batch_usage, agg_batch_usage)
+        assert attempt_by_batch_resources == agg_batch_resources
+        assert attempt_by_job_resources == agg_job_resources
+        assert job_by_batch_resources == agg_batch_resources
 
     while True:
         try:
