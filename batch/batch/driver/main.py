@@ -500,9 +500,9 @@ async def check_resource_aggregation(db):
 
     @transaction(db, read_only=True)
     async def check(tx):
-        attempt_resources = tx.execute_and_fetchall('''
+        attempt_usage = tx.execute_and_fetchall('''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  SUM(quantity * COALESCE(end_time - start_time, 0) * rate) as cost
+  SUM(quantity * COALESCE(end_time - start_time, 0)) as usage
 FROM attempt_resources
 INNER JOIN resources ON attempt_resources.resource = resources.resource
 INNER JOIN attempts
@@ -513,38 +513,38 @@ GROUP BY batch_id, job_id, attempt_id
 LOCK IN SHARE MODE;
 ''')
 
-        agg_job_resources = tx.execute_and_fetchall('''
-SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
+        agg_job_usage = tx.execute_and_fetchall('''
+SELECT batch_id, job_id, SUM(`usage`) AS usage
 FROM aggregated_job_resources
 INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
 GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
 ''')
 
-        agg_batch_resources = tx.execute_and_fetchall('''
-SELECT batch_id, SUM(`usage` * rate) AS cost
+        agg_batch_usage = tx.execute_and_fetchall('''
+SELECT batch_id, SUM(`usage`) AS usage
 FROM aggregated_batch_resources
 INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
 GROUP BY batch_id
 LOCK IN SHARE MODE;
 ''')
 
-        attempt_resources = {(record['batch_id'], record['job_id'], record['attempt_id']): record['cost']
-                             async for record in attempt_resources}
+        attempt_usage = {(record['batch_id'], record['job_id'], record['attempt_id']): record['usage']
+                             async for record in attempt_usage}
 
-        agg_job_resources = {(record['batch_id'], record['job_id']): record['cost']
-                             async for record in agg_job_resources}
+        agg_job_usage = {(record['batch_id'], record['job_id']): record['usage']
+                             async for record in agg_job_usage}
 
-        agg_batch_resources = {record['batch_id']: record['cost']
-                               async for record in agg_batch_resources}
+        agg_batch_usage = {record['batch_id']: record['usage']
+                               async for record in agg_batch_usage}
 
-        attempt_by_batch_resources = fold(attempt_resources, lambda k: k[0])
-        attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
-        job_by_batch_resources = fold(agg_job_resources, lambda k: k[0])
+        attempt_by_batch_usage = fold(attempt_usage, lambda k: k[0])
+        attempt_by_job_usage = fold(attempt_usage, lambda k: (k[0], k[1]))
+        job_by_batch_usage = fold(agg_job_usage, lambda k: k[0])
 
-        assert attempt_by_batch_resources == agg_batch_resources, (attempt_by_batch_resources, agg_batch_resources)
-        assert attempt_by_job_resources == agg_job_resources, (attempt_by_job_resources, agg_job_resources)
-        assert job_by_batch_resources == agg_batch_resources, (job_by_batch_resources, agg_batch_resources)
+        assert attempt_by_batch_usage == agg_batch_usage, (attempt_by_batch_usage, agg_batch_usage)
+        assert attempt_by_job_usage == agg_job_usage, (attempt_by_job_usage, agg_job_usage)
+        assert job_by_batch_usage == agg_batch_usage, (job_by_batch_usage, agg_batch_usage)
 
     while True:
         try:
