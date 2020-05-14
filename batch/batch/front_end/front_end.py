@@ -1173,7 +1173,6 @@ ON t1.billing_project = t3.billing_project AND t1.`user` = t3.`user`;
         cost_resources = record['cost']
         record['cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
         del record['msec_mcpu']
-        del record['resources']
         return record
 
     billing = [billing_record_to_dict(record)
