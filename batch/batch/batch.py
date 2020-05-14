@@ -83,7 +83,7 @@ async def notify_batch_job_complete(app, db, batch_id):
         '''
 SELECT *
 FROM batches
-LEFT JOIN (SELECT batch_id, SUM(usage * rate) AS cost
+LEFT JOIN (SELECT batch_id, SUM(`usage` * rate) AS cost
            FROM aggregated_batch_resources
            INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
            GROUP BY batch_id) AS t

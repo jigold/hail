@@ -514,7 +514,7 @@ LOCK IN SHARE MODE;
 ''')
 
         agg_job_resources = tx.execute_and_fetchall('''
-SELECT batch_id, job_id, COALESCE(SUM(usage * rate), 0) AS cost
+SELECT batch_id, job_id, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM aggregated_job_resources
 INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
 GROUP BY batch_id, job_id
@@ -522,7 +522,7 @@ LOCK IN SHARE MODE;
 ''')
 
         agg_batch_resources = tx.execute_and_fetchall('''
-SELECT batch_id, COALESCE(SUM(usage * rate), 0) AS cost
+SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM aggregated_batch_resources
 INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
 GROUP BY batch_id
@@ -561,7 +561,7 @@ async def check_cost(db):
 SELECT *
 FROM jobs
 LEFT JOIN (
-  SELECT batch_id, job_id, COALESCE(SUM(usage * rate), 0) AS cost
+  SELECT batch_id, job_id, COALESCE(SUM(`usage` * rate), 0) AS cost
   FROM aggregated_job_resources
   INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
   GROUP BY batch_id, job_id
@@ -574,7 +574,7 @@ LOCK IN SHARE MODE;
 SELECT *
 FROM batches
 LEFT JOIN (
-  SELECT batch_id, COALESCE(SUM(usage * rate), 0) AS cost
+  SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
   FROM aggregated_batch_resources
   INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
   GROUP BY batch_id

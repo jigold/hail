@@ -161,7 +161,7 @@ LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
      jobs.job_id = job_attributes.job_id AND
      job_attributes.`key` = 'name'
-LEFT JOIN (SELECT batch_id, job_id, SUM(usage * rate) AS cost
+LEFT JOIN (SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
            FROM aggregated_job_resources
            INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
            GROUP BY batch_id, job_id) AS t
@@ -444,7 +444,7 @@ async def _query_batches(request, user):
     sql = f'''
 SELECT *
 FROM batches
-LEFT JOIN (SELECT batch_id, SUM(usage * rate) AS cost
+LEFT JOIN (SELECT batch_id, SUM(`usage` * rate) AS cost
            FROM aggregated_batch_resources
            INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
            GROUP BY batch_id) AS t
@@ -812,7 +812,7 @@ async def _get_batch(app, batch_id, user):
 
     record = await db.select_and_fetchone('''
 SELECT * FROM batches
-LEFT JOIN (SELECT batch_id, SUM(usage * rate) AS cost
+LEFT JOIN (SELECT batch_id, SUM(`usage` * rate) AS cost
            FROM aggregated_batch_resources
            INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
            GROUP BY batch_id) AS t
@@ -1016,7 +1016,7 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
-LEFT JOIN (SELECT batch_id, job_id, SUM(usage * rate) AS cost
+LEFT JOIN (SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
            FROM aggregated_job_resources
            INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
            GROUP BY batch_id, job_id) AS t
@@ -1152,7 +1152,7 @@ LEFT JOIN (SELECT billing_project, `user`, CAST(COALESCE(SUM(msec_mcpu), 0) AS S
            LOCK IN SHARE MODE) AS t2
 ON t1.billing_project = t2.billing_project AND t1.`user` = t2.`user`
 
-LEFT JOIN (SELECT billing_project, `user`, COALESCE(SUM(usage * rate), 0) AS cost
+LEFT JOIN (SELECT billing_project, `user`, COALESCE(SUM(`usage` * rate), 0) AS cost
            FROM aggregated_batch_resources
            INNER JOIN (SELECT id, billing_project, `user`
                        FROM batches
