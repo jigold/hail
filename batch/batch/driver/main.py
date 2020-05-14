@@ -502,7 +502,7 @@ async def check_resource_aggregation(db):
     async def check(tx):
         attempt_resources = tx.execute_and_fetchall('''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  COALESCE(SUM(quantity * COALESCE(end_time - start_time, 0) * rate), 0) as cost
+  SUM(quantity * COALESCE(end_time - start_time, 0) * rate) as cost
 FROM attempt_resources
 INNER JOIN resources ON attempt_resources.resource = resources.resource
 INNER JOIN attempts
@@ -514,7 +514,7 @@ LOCK IN SHARE MODE;
 ''')
 
         agg_job_resources = tx.execute_and_fetchall('''
-SELECT batch_id, job_id, COALESCE(SUM(`usage` * rate), 0) AS cost
+SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
 FROM aggregated_job_resources
 INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
 GROUP BY batch_id, job_id
@@ -522,7 +522,7 @@ LOCK IN SHARE MODE;
 ''')
 
         agg_batch_resources = tx.execute_and_fetchall('''
-SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
+SELECT batch_id, SUM(`usage` * rate) AS cost
 FROM aggregated_batch_resources
 INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
 GROUP BY batch_id
@@ -542,9 +542,9 @@ LOCK IN SHARE MODE;
         attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
         job_by_batch_resources = fold(agg_job_resources, lambda k: k[0])
 
-        assert attempt_by_batch_resources == agg_batch_resources
-        assert attempt_by_job_resources == agg_job_resources
-        assert job_by_batch_resources == agg_batch_resources
+        assert attempt_by_batch_resources == agg_batch_resources, (attempt_by_batch_resources, agg_batch_resources)
+        assert attempt_by_job_resources == agg_job_resources, (attempt_by_job_resources, agg_job_resources)
+        assert job_by_batch_resources == agg_batch_resources, (job_by_batch_resources, agg_batch_resources)
 
     while True:
         try:
@@ -561,7 +561,7 @@ async def check_cost(db):
 SELECT *
 FROM jobs
 LEFT JOIN (
-  SELECT batch_id, job_id, COALESCE(SUM(`usage` * rate), 0) AS cost
+  SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
   FROM aggregated_job_resources
   INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
   GROUP BY batch_id, job_id
@@ -574,7 +574,7 @@ LOCK IN SHARE MODE;
 SELECT *
 FROM batches
 LEFT JOIN (
-  SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
+  SELECT batch_id, SUM(`usage` * rate) AS cost
   FROM aggregated_batch_resources
   INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
   GROUP BY batch_id
@@ -591,6 +591,8 @@ LOCK IN SHARE MODE;
                         (id, cost_msec_mcpu, cost_resources)
                 else:
                     assert cost_resources == 0, (id, cost_msec_mcpu, cost_resources)
+            elif cost_resources is None:
+                assert cost_msec_mcpu == 0, (id, cost_msec_mcpu, cost_resources)
 
         async for record in agg_job_resources:
             assert_cost_same((record['batch_id'], record['job_id']), record['msec_mcpu'], record['cost'])
