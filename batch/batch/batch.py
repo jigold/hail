@@ -15,6 +15,7 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 from .batch_format_version import BatchFormatVersion
 from .spec_writer import SpecWriter
+from .utils import cost_str
 
 log = logging.getLogger('batch')
 
@@ -73,7 +74,7 @@ def batch_record_to_dict(app, record):
     d['msec_mcpu'] = msec_mcpu
 
     cost = format_version.cost(record['msec_mcpu'], record['cost'])
-    d['cost'] = f'${cost:.4f}'
+    d['cost'] = cost_str(cost)
 
     return d
 
@@ -237,7 +238,7 @@ def job_record_to_dict(app, record, name):
     result['msec_mcpu'] = msec_mcpu
 
     cost = format_version.cost(record['msec_mcpu'], record['cost'])
-    result['cost'] = f'${cost:.4f}'
+    result['cost'] = cost_str(cost)
 
     return result
 
