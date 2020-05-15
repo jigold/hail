@@ -608,12 +608,10 @@ LOCK IN SHARE MODE;
             cost_msec_mcpu = cost_from_msec_mcpu(msec_mcpu)
             if cost_msec_mcpu is not None and cost_resources is not None:
                 if cost_msec_mcpu != 0:
-                    assert abs(cost_resources - cost_msec_mcpu) / cost_msec_mcpu <= 0.01, \
+                    assert abs(cost_resources - cost_msec_mcpu) / cost_msec_mcpu <= 0.001, \
                         (id, cost_msec_mcpu, cost_resources)
                 else:
                     assert cost_resources == 0, (id, cost_msec_mcpu, cost_resources)
-            elif cost_resources is None:
-                assert cost_msec_mcpu == 0, (id, cost_msec_mcpu, cost_resources)
 
         async for record in agg_job_resources:
             assert_cost_same((record['batch_id'], record['job_id']), record['msec_mcpu'], record['cost'])
