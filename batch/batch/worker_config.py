@@ -112,7 +112,7 @@ class WorkerConfig:
                           'quantity': cpu_in_mcpu})
 
         resources.append({'name': f'memory/{self.instance_family}-{self.instance_type}-{preemptible}/1',
-                          'quantity': memory_in_bytes / 1000 / 1000})
+                          'quantity': memory_in_bytes / 1024 / 1024})
 
         resources.append({'name': f'boot-disk/{self.boot_disk_type}/1',
                           'quantity': self.boot_disk_size_gb * worker_fraction_in_1024ths})
