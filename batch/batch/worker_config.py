@@ -114,6 +114,7 @@ class WorkerConfig:
         resources.append({'name': f'memory/{self.instance_family}-{self.instance_type}-{preemptible}/1',
                           'quantity': memory_in_bytes / 1024 / 1024})
 
+        # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
         resources.append({'name': f'boot-disk/{self.boot_disk_type}/1',
                           'quantity': self.boot_disk_size_gb * worker_fraction_in_1024ths})
 
