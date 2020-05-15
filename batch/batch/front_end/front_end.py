@@ -1141,32 +1141,29 @@ async def _query_billing(request):
 SELECT *
 FROM (SELECT billing_project, `user`
       FROM batches
-      WHERE batches.`time_completed` >= %s AND batches.`time_completed` <= %s
+      WHERE batches.`time_completed` >= %s AND 
+            batches.`time_completed` <= %s
       GROUP BY billing_project, `user`
       LOCK IN SHARE MODE) AS t1
 
 LEFT JOIN (SELECT billing_project, `user`, CAST(COALESCE(SUM(msec_mcpu), 0) AS SIGNED) AS msec_mcpu
            FROM batches
-           WHERE batches.`time_completed` >= %s AND batches.`time_completed` <= %s AND batches.format_version < 3
-           GROUP BY billing_project, `user`
-           LOCK IN SHARE MODE) AS t2
+           WHERE batches.format_version < 3
+           GROUP BY billing_project, `user`) AS t2
 ON t1.billing_project = t2.billing_project AND t1.`user` = t2.`user`
 
 LEFT JOIN (SELECT billing_project, `user`, COALESCE(SUM(`usage` * rate), 0) AS cost
            FROM aggregated_batch_resources
            INNER JOIN (SELECT id, billing_project, `user`
                        FROM batches
-                       WHERE batches.`time_completed` >= %s AND batches.`time_completed` <= %s AND batches.format_version >= 3
-                       LOCK IN SHARE MODE) AS tmp1
+                       WHERE batches.format_version >= 3) AS tmp1
            ON aggregated_batch_resources.batch_id = tmp1.id
            INNER JOIN resources ON resources.resource = aggregated_batch_resources.resource
-           GROUP BY billing_project, `user`
-           LOCK IN SHARE MODE) AS t3
+           GROUP BY billing_project, `user`) AS t3
 ON t1.billing_project = t3.billing_project AND t1.`user` = t3.`user`;
-
 '''
 
-    sql_args = (start, end, start, end, start, end)
+    sql_args = (start, end)
 
     def billing_record_to_dict(record):
         cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
