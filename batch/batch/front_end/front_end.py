@@ -1141,7 +1141,7 @@ async def _query_billing(request):
 SELECT *
 FROM (SELECT billing_project, `user`
       FROM batches
-      WHERE batches.`time_completed` >= %s AND 
+      WHERE batches.`time_completed` >= %s AND
             batches.`time_completed` <= %s
       GROUP BY billing_project, `user`) AS t1
 
