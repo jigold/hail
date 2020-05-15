@@ -1143,8 +1143,7 @@ FROM (SELECT billing_project, `user`
       FROM batches
       WHERE batches.`time_completed` >= %s AND 
             batches.`time_completed` <= %s
-      GROUP BY billing_project, `user`
-      LOCK IN SHARE MODE) AS t1
+      GROUP BY billing_project, `user`) AS t1
 
 LEFT JOIN (SELECT billing_project, `user`, CAST(COALESCE(SUM(msec_mcpu), 0) AS SIGNED) AS msec_mcpu
            FROM batches
