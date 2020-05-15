@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
 ) ENGINE = InnoDB;
 
 # DROP INDEX batches_time_created ON `batches`;
-CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
-CREATE INDEX `batches_format_version` ON `batches` (`format_version`);
+# CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
+# CREATE INDEX `batches_format_version` ON `batches` (`format_version`);
 
 DELIMITER $$
 
