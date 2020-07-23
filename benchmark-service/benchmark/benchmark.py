@@ -47,7 +47,7 @@ def init_app() -> web.Application:
     setup_aiohttp_session(app)
     admin = web.Application()
     app.add_routes(router)
-    admin.add_subapp('/dabuhijl/benchmark/', app)
+    admin.add_subapp('/jigold/benchmark/', app)
     aiohttp_jinja2.setup(
         app, loader=jinja2.ChoiceLoader([
             jinja2.PackageLoader('benchmark')
