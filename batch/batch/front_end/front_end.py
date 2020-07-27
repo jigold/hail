@@ -22,6 +22,7 @@ from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client_session
 from hailtop.hail_logging import AccessLogger
+from hailtop.utils.plots import attempts_timeline
 from gear import (Database, setup_aiohttp_session,
                   rest_authenticated_users_only, web_authenticated_users_only,
                   web_authenticated_developers_only, check_csrf_token, transaction)
@@ -324,34 +325,34 @@ async def _get_full_job_spec(app, record):
         return None
 
 
-async def _get_full_job_status(app, record):
+async def _get_completed_job_status(app, record):
     log_store = app['log_store']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
     attempt_id = record['attempt_id']
-    state = record['state']
+    latest_attempt_id = record['latest_attempt_id']
     format_version = BatchFormatVersion(record['format_version'])
 
-    if state in ('Pending', 'Ready', 'Cancelled'):
-        return
-
-    if state in ('Error', 'Failed', 'Success'):
-        if not format_version.has_full_status_in_gcs():
+    if not format_version.has_full_status_in_gcs():
+        if attempt_id == latest_attempt_id:
             return json.loads(record['status'])
+        return None
 
-        try:
-            status = await log_store.read_status_file(batch_id, job_id, attempt_id)
-            return json.loads(status)
-        except google.api_core.exceptions.NotFound:
-            id = (batch_id, job_id)
-            log.exception(f'missing status file for {id}')
-            return None
+    try:
+        status = await log_store.read_status_file(batch_id, job_id, attempt_id)
+        return json.loads(status)
+    except google.api_core.exceptions.NotFound:
+        id = (batch_id, job_id)
+        log.exception(f'missing status file for {id}')
+        return None
 
-    assert state == 'Running'
-    assert record['status'] is None
 
+async def _get_in_progress_job_status(record):
+    batch_id = record['batch_id']
+    job_id = record['job_id']
     ip_address = record['ip_address']
+
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         try:
@@ -363,6 +364,35 @@ async def _get_full_job_status(app, record):
             if e.status == 404:
                 return None
             raise
+
+
+async def _get_latest_job_status(app, record):
+    state = record['state']
+    record['latest_attempt_id'] = record['attempt_id']
+
+    if state in ('Pending', 'Ready', 'Cancelled'):
+        return
+
+    if state in ('Error', 'Failed', 'Success'):
+        return await _get_completed_job_status(app, record)
+
+    assert state == 'Running'
+    assert record['status'] is None
+
+    return await _get_in_progress_job_status(record)
+
+
+async def _get_attempt_status(app, record):
+    start_time = record['start_time']
+    end_time = record['end_time']
+
+    if end_time is not None:
+        return await _get_completed_job_status(app, record)
+
+    if start_time is None:
+        return None
+
+    return await _get_in_progress_job_status(record)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
@@ -1052,7 +1082,7 @@ GROUP BY jobs.batch_id, jobs.job_id;
         raise web.HTTPNotFound()
 
     full_status, full_spec, attributes = await asyncio.gather(
-        _get_full_job_status(app, record),
+        _get_latest_job_status(app, record),
         _get_full_job_spec(app, record),
         _get_attributes(app, record)
     )
@@ -1068,41 +1098,49 @@ GROUP BY jobs.batch_id, jobs.job_id;
 async def _get_attempts(app, batch_id, job_id, user):
     db = app['db']
 
-    attempts = db.select_and_fetchall('''
-SELECT attempts.*
+    records = db.select_and_fetchall('''
+SELECT attempts.*, ip_address, format_version, jobs.attempt_id as latest_attempt_id
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attempts.job_id
+LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
                                       (user, batch_id, job_id))
 
-    attempts = [attempt async for attempt in attempts]
-    if len(attempts) == 0:
-        raise web.HTTPNotFound()
-    if len(attempts) == 1 and attempts[0]['attempt_id'] is None:
-        return None
-    for attempt in attempts:
-        start_time = attempt['start_time']
-        if start_time is not None:
-            attempt['start_time'] = time_msecs_str(start_time)
-        else:
-            del attempt['start_time']
+    def _process_record(record):
+        record['status'] = await _get_attempt_status(app, record)
 
-        end_time = attempt['end_time']
-        if end_time is not None:
-            attempt['end_time'] = time_msecs_str(end_time)
+        start_time = record['start_time']
+        if start_time is not None:
+            record['start_time'] = time_msecs_str(start_time)
         else:
-            del attempt['end_time']
+            del record['start_time']
+
+        end_time = record['end_time']
+        if end_time is not None:
+            record['end_time'] = time_msecs_str(end_time)
+        else:
+            del record['end_time']
 
         if start_time is not None:
             # elapsed time if attempt is still running
             if end_time is None:
                 end_time = time_msecs()
             duration_msecs = max(end_time - start_time, 0)
-            attempt['duration'] = humanize_timedelta_msecs(duration_msecs)
+            record['duration'] = humanize_timedelta_msecs(duration_msecs)
 
-    return attempts
+        return record
+
+    records = [record async for record in records]
+
+    if len(records) == 0:
+        raise web.HTTPNotFound()
+    if len(records) == 1 and records[0]['attempt_id'] is None:
+        return None
+
+    await asyncio.gather(*[_process_record(record) for record in records])
+    return records
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
@@ -1142,12 +1180,17 @@ async def ui_get_job(request, userdata):
                                                          _get_attempts(app, batch_id, job_id, user),
                                                          _get_job_log(app, batch_id, job_id, user))
 
+    attempt_statuses = [attempt['status'] for attempt in attempts]
+    attempts_plot_data, attempts_plot_options = attempts_timeline(attempt_statuses)
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
         'job_log': job_log,
         'attempts': attempts,
-        'job_status': json.dumps(job_status, indent=2)
+        'job_status': json.dumps(job_status, indent=2),
+        'attempts_plot_data': attempts_plot_data,
+        'attempts_plot_options': attempts_plot_options
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
