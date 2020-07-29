@@ -15,7 +15,7 @@ from .rates import (
     rate_instance_hour_to_fraction_msec
 )
 from .rate_limiter import RateLimit, RateLimiter
-from .plots import AttemptsTimeline
+from .plots import attempts_timeline
 
 __all__ = [
     'time_msecs',
@@ -55,5 +55,6 @@ __all__ = [
     'rate_instance_hour_to_fraction_msec',
     'RateLimit',
     'RateLimiter',
-    'partition'
+    'partition',
+    'attempts_timeline'
 ]
