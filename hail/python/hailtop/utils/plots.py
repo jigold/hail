@@ -62,9 +62,10 @@ def attempts_timeline(attempts):
 
     for status in attempts:
         attempt_id = status['attempt_id']
+        container_statuses = status['container_statuses']
         for container in ('input', 'main', 'output'):
-            if container in status:
-                rows.extend(parse_attempt(attempt_id, container, status[container]['timing']))
+            if container in container_statuses:
+                rows.extend(parse_attempt(attempt_id, container, container_statuses[container]['timing']))
 
     data = {'cols': cols,
             'rows': rows}

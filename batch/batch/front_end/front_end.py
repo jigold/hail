@@ -1132,6 +1132,10 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
             duration_msecs = max(end_time - start_time, 0)
             record['duration'] = humanize_timedelta_msecs(duration_msecs)
 
+        del record['ip_address']
+        del record['format_version']
+        del record['latest_attempt_id']
+
         return record
 
     records = [record async for record in records]
