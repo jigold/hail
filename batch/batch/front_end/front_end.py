@@ -341,6 +341,8 @@ async def _get_completed_job_status(app, record):
 
     try:
         status = await log_store.read_status_file(batch_id, job_id, attempt_id)
+        id = (batch_id, job_id)
+        log.info(f'read status for {id}')
         return json.loads(status)
     except google.api_core.exceptions.NotFound:
         id = (batch_id, job_id)
@@ -1139,6 +1141,7 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     if len(records) == 1 and records[0]['attempt_id'] is None:
         return None
 
+    log.info(records)
     await asyncio.gather(*[_process_record(record) for record in records])
     return records
 
@@ -1181,6 +1184,7 @@ async def ui_get_job(request, userdata):
                                                          _get_job_log(app, batch_id, job_id, user))
 
     attempt_statuses = [attempt['status'] for attempt in attempts]
+    log.info(attempt_statuses)
     attempts_plot_data, attempts_plot_options = attempts_timeline(attempt_statuses)
 
     page_context = {
