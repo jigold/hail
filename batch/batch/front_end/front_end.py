@@ -1108,7 +1108,7 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
                                       (user, batch_id, job_id))
 
-    def _process_record(record):
+    async def _process_record(record):
         record['status'] = await _get_attempt_status(app, record)
 
         start_time = record['start_time']
