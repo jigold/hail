@@ -67,6 +67,8 @@ REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET
 REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECTS = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECT = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}', verb="GET")
+REQUEST_TIME_GET_BILLING_LIMITS_UI = REQUEST_TIME.labels(endpoint='/billing_limits', verb="GET")
+REQUEST_TIME_POST_BILLING_LIMITS_EDIT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/edit', verb="POST")
 REQUEST_TIME_GET_BILLING_UI = REQUEST_TIME.labels(endpoint='/billing', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
 REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
@@ -1158,6 +1160,71 @@ async def ui_get_job(request, userdata):
         'job_status': json.dumps(job_status, indent=2)
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
+
+
+async def _query_billing_limits(app):
+    db = app['db']
+
+    sql = '''
+SELECT name as billing_project, msec_mcpu, `limit`, SUM(`usage` * rate) as cost
+FROM billing_projects
+LEFT JOIN aggregated_billing_project_resources
+  ON aggregated_billing_project_resources.billing_project = billing_projects.name
+LEFT JOIN resources
+  ON resources.resource = aggregated_billing_project_resources.resource
+GROUP BY name, msec_mcpu, `limit`;
+'''
+
+    def record_to_dict(record):
+        cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
+        cost_resources = record['cost']
+        record['accrued_cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
+        del record['msec_mcpu']
+        return record
+
+    billing_limits = [record_to_dict(record)
+                      async for record
+                      in db.select_and_fetchall(sql)]
+
+    return billing_limits
+
+
+@routes.get('/billing_limits')
+@prom_async_time(REQUEST_TIME_GET_BILLING_LIMITS_UI)
+@web_authenticated_developers_only()
+async def ui_get_billing_limits(request, userdata):
+    billing_limits = await _query_billing_limits(request.app)
+    page_context = {
+        'billing_limits': billing_limits
+    }
+    return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
+
+
+@routes.post('/billing_limits/{billing_project}/edit')
+@prom_async_time(REQUEST_TIME_POST_BILLING_LIMITS_EDIT_UI)
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_billing_limits_edit(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+    post = await request.post()
+    limit = post['limit']
+
+    session = await aiohttp_session.get_session(request)
+
+    try:
+        if limit == 'None':
+            limit = None
+        else:
+            limit = float(limit)
+            assert limit >= 0
+
+        await db.execute_update('UPDATE billing_projects SET `limit` = %s WHERE name = %s;', (limit, billing_project))
+        set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')
+    except Exception:
+        set_message(session, f'invalid value for limit for billing_project {billing_project}', 'error')
+
+    return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))
 
 
 async def _query_billing(request):

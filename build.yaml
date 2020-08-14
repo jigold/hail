@@ -1631,6 +1631,10 @@ steps:
       script: /io/sql/add-worker-pd-ssd-data-disk.sql
     - name: add-aggregated-batch-resources-tokens
       script: /io/sql/add-aggregated-batch-resources-tokens.sql
+    - name: add-aggregated-billing-project-resources
+      script: /io/sql/add-aggregated-billing-project-resources.sql
+    - name: create-billing-projects-test-limits
+      script: /io/sql/create-billing-projects-test-limits.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
