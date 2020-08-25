@@ -166,7 +166,7 @@ async def index(request):  # pylint: disable=unused-argument
         benchmarks_context = get_benchmarks(file)
     context = {'file': file,
                'benchmarks': benchmarks_context}
-    return await render_template('benchmark', request, 'index.html', context)
+    return await render_template('benchmark', request, None, 'index.html', context)
 
 
 @router.get('/compare')
