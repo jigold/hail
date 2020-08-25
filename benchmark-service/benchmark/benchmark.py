@@ -157,8 +157,8 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 
 @router.get('/')
 @router.get('')
-# @web_authenticated_developers_only(redirect=False)
-async def index(request, userdata):  # pylint: disable=unused-argument
+# @web_authenticated_developers_only(redirect=False) #add back userdata arg (also after request, in render_template)
+async def index(request):  # pylint: disable=unused-argument
     file = request.query.get('file')
     if file is None:
         benchmarks_context = None
@@ -166,7 +166,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
         benchmarks_context = get_benchmarks(file)
     context = {'file': file,
                'benchmarks': benchmarks_context}
-    return await render_template('benchmark', request, userdata, 'index.html', context)
+    return await render_template('benchmark', request, 'index.html', context)
 
 
 @router.get('/compare')
