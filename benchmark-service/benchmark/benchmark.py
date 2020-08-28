@@ -202,6 +202,7 @@ def init_app() -> web.Application:
 
     setup_common_static_routes(router)
     app.add_routes(router)
+    app.add_routes([web.static('/autocomplete_style', '/styles/autocomplete.css')])
     return app
 
 
