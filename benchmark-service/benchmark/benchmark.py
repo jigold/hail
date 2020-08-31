@@ -205,8 +205,8 @@ def init_app() -> web.Application:
     setup_aiohttp_session(app)
 
     setup_common_static_routes(router)
-    app.add_routes(router)
     router.static('/static', f'{BENCHMARK_ROOT}/static')
+    app.add_routes(router)
     # app.add_routes([web.static('/autocomplete_style', '/styles/autocomplete.css')])
     # app.router.add_static('/styles/',
     #                       path='benchmark/styles',
