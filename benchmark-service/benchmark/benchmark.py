@@ -23,7 +23,7 @@ log = logging.getLogger('benchmark')
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 
 
-def get_benchmarks(file_path):
+def get_benchmarks(app, file_path):
     read_gs = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     try:
         json_data = read_gs.get_data_as_string(file_path)
@@ -129,7 +129,7 @@ async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=
 @web_authenticated_developers_only(redirect=False)
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     file_path = request.query.get('file')
-    benchmarks = get_benchmarks(file_path)
+    benchmarks = get_benchmarks(request.app, file_path)
     name_data = benchmarks['data'][str(request.match_info['name'])]
 
     try:
@@ -157,14 +157,14 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 
 @router.get('/')
 @router.get('')
-# @web_authenticated_developers_only(redirect=False) #add back userdata arg (also after request, in render_template)
-async def index(request):  # pylint: disable=unused-argument
-    userdata = {}
+@web_authenticated_developers_only(redirect=False)
+async def index(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
     file = request.query.get('file')
     if file is None:
         benchmarks_context = None
     else:
-        benchmarks_context = get_benchmarks(file)
+        benchmarks_context = get_benchmarks(request.app, file)
     context = {'file': file,
                'benchmarks': benchmarks_context,
                'cached_files': ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json'
@@ -175,6 +175,7 @@ async def index(request):  # pylint: disable=unused-argument
 @router.get('/compare')
 @web_authenticated_developers_only(redirect=False)
 async def compare(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
     file1 = request.query.get('file1')
     file2 = request.query.get('file2')
     metric = request.query.get('metrics')
@@ -183,8 +184,8 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
         benchmarks_context2 = None
         comparisons = None
     else:
-        benchmarks_context1 = get_benchmarks(file1)
-        benchmarks_context2 = get_benchmarks(file2)
+        benchmarks_context1 = get_benchmarks(app, file1)
+        benchmarks_context2 = get_benchmarks(app, file2)
         comparisons = final_comparisons(get_comparisons(benchmarks_context1, benchmarks_context2, metric))
     context = {'file1': file1,
                'file2': file2,
@@ -203,7 +204,13 @@ def init_app() -> web.Application:
     setup_common_static_routes(router)
     app.add_routes(router)
     # app.add_routes([web.static('/autocomplete_style', '/styles/autocomplete.css')])
-    app.router.add_static('/styles/',
+    # app.router.add_static('/styles/',
+    #                       path='benchmark/styles',
+    #                       name='css')
+    # app.router.add_static('/styles/',
+    #                       path='benchmark-service/benchmark/styles/autocomplete.css',
+    #                       name='css')
+    app.router.add_static('/',
                           path='benchmark-service/benchmark/styles/autocomplete.css',
                           name='css')
     return app
