@@ -204,7 +204,7 @@ def init_app() -> web.Application:
     app.add_routes(router)
     # app.add_routes([web.static('/autocomplete_style', '/styles/autocomplete.css')])
     app.router.add_static('/styles/',
-                          path='styles/',
+                          path='benchmark-service/benchmark/styles/autocomplete.css',
                           name='css')
     return app
 
