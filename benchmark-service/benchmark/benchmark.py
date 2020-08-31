@@ -1,3 +1,4 @@
+import os
 from aiohttp import web
 import logging
 from gear import setup_aiohttp_session, web_authenticated_developers_only
@@ -21,6 +22,8 @@ deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+
+BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_benchmarks(app, file_path):
@@ -203,6 +206,7 @@ def init_app() -> web.Application:
 
     setup_common_static_routes(router)
     app.add_routes(router)
+    router.static('/static', f'{BENCHMARK_ROOT}/static')
     # app.add_routes([web.static('/autocomplete_style', '/styles/autocomplete.css')])
     # app.router.add_static('/styles/',
     #                       path='benchmark/styles',
@@ -210,9 +214,9 @@ def init_app() -> web.Application:
     # app.router.add_static('/styles/',
     #                       path='benchmark-service/benchmark/styles/autocomplete.css',
     #                       name='css')
-    app.router.add_static('/',
-                          path='benchmark-service/benchmark/styles/autocomplete.css',
-                          name='css')
+    # app.router.add_static('/',
+    #                       path='benchmark-service/benchmark/styles/autocomplete.css',
+    #                       name='css')
     return app
 
 
