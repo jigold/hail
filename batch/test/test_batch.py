@@ -577,3 +577,32 @@ echo $HAIL_BATCH_WORKER_IP
         status = j.wait()
         assert status['state'] == 'Success', status
         assert "No credentialed accounts." in j.log()['main'], (j.log()['main'], status)
+
+    def test_billing_project_accrued_costs(self):
+        client = BatchClient('test-agg-costs')
+        try:
+            b1 = client.create_batch()
+            j1_1 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
+            j1_2 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
+            b1 = b1.submit()
+
+            b2 = client.create_batch()
+            j2_1 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
+            j2_2 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
+            b2 = b2.submit()
+
+            b1 = b1.wait()
+            b2 = b2.wait()
+
+            b1_expected_cost = j1_1.status()['cost'] + j1_2.status()['cost']
+            assert b1_expected_cost == b1['cost'], (b1_expected_cost, b1['cost'])
+
+            b2_expected_cost = j2_1.status()['cost'] + j2_2.status()['cost']
+            assert b2_expected_cost == b2['cost'], (b2_expected_cost, b2['cost'])
+
+            cost_by_batch = b1['cost'] + b2['cost']
+            cost_by_billing_project = client.get_billing_project('test-agg-costs')['accrued_cost']
+
+            assert cost_by_batch == cost_by_billing_project, (cost_by_batch, cost_by_billing_project)
+        finally:
+            client.close()
