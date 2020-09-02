@@ -16,7 +16,7 @@ import google.oauth2.service_account
 import google.api_core.exceptions
 from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
                            request_retry_transient_errors, run_if_changed,
-                           retry_long_running, LoggingTimer)
+                           retry_long_running, LoggingTimer, cost_str)
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes,
                                         parse_storage_in_bytes)
 from hailtop.config import get_deploy_config
@@ -982,7 +982,10 @@ async def ui_batch(request, userdata):
     jobs, last_job_id = await _query_batch_jobs(request, batch_id)
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
+        j['cost'] = cost_str(j['cost'])
     batch['jobs'] = jobs
+
+    batch['cost'] = cost_str(batch['cost'])
 
     page_context = {
         'batch': batch,
@@ -1026,6 +1029,8 @@ async def ui_delete_batch(request, userdata):
 async def ui_batches(request, userdata):
     user = userdata['username']
     batches, last_batch_id = await _query_batches(request, user)
+    for batch in batches:
+        batch['cost'] = cost_str(batch['cost'])
     page_context = {
         'batches': batches,
         'q': request.query.get('q'),
