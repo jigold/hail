@@ -46,9 +46,11 @@ class Test(unittest.TestCase):
         assert r['users'] == ['test'], r
 
     def test_list_billing_projects(self):
-        r = self.client.list_billing_projects()
-        assert len(r) == 1
-        assert r[0]['billing_project'] == 'test', r
+        bps = self.client.list_billing_projects()
+        assert len(bps) == 4, bps
+        expected_billing_projects = {'test', 'test-agg-costs', 'test-zero-limit', 'test-tiny-limit'}
+        actual_billing_projects = {bp['billing_project'] for bp in bps}
+        assert expected_billing_projects == actual_billing_projects, bps
 
     def test_job(self):
         builder = self.client.create_batch()
@@ -587,8 +589,8 @@ echo $HAIL_BATCH_WORKER_IP
             b1 = b1.submit()
 
             b2 = client.create_batch()
-            j2_1 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
-            j2_2 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
+            j2_1 = b2.create_job('ubuntu:18.04', command=['echo', 'head'])
+            j2_2 = b2.create_job('ubuntu:18.04', command=['echo', 'head'])
             b2 = b2.submit()
 
             b1 = b1.wait()
