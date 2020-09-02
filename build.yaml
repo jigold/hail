@@ -1335,10 +1335,10 @@ steps:
    dependsOn:
     - default_ns
     - benchmark_image
-    - deploy_router
-    - create_certs
-    - deploy_auth
-    - create_accounts
+#    - deploy_router
+#    - create_certs
+#    - deploy_auth
+#    - create_accounts
  - kind: runImage
    name: check_monitoring
    image:
