@@ -1381,7 +1381,6 @@ GROUP BY billing_projects.name, users, msec_mcpu, `limit`;
     return billing_projects
 
 
-
 @routes.get('/billing_projects')
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS_UI)
 @web_authenticated_developers_only()
