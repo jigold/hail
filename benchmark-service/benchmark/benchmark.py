@@ -201,7 +201,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
-def on_startup(app):
+async def on_startup(app):
     try:
         app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     except Exception:
@@ -215,9 +215,9 @@ def run():
     setup_aiohttp_session(app)
 
     setup_common_static_routes(router)
-    # router.static('/static', f'{BENCHMARK_ROOT}/static')
+    router.static('/static', f'{BENCHMARK_ROOT}/static')
     app.add_routes(router)
-    # app.on_startup.append(on_startup)
+    app.on_startup.append(on_startup)
     web.run_app(deploy_config.prefix_application(app, 'benchmark'),
                 host='0.0.0.0',
                 port=5000,
