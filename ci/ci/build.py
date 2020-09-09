@@ -49,24 +49,6 @@ def get_namespace(value, config):
     return v['name']
 
 
-class Code(abc.ABC):
-    @abc.abstractmethod
-    def short_str(self):
-        pass
-
-    @abc.abstractmethod
-    def config(self):
-        pass
-
-    @abc.abstractmethod
-    def repo_dir(self):
-        """Path to repository on the ci (locally)."""
-
-    @abc.abstractmethod
-    def checkout_script(self):
-        """Bash script to checkout out the code in the current directory."""
-
-
 class StepParameters:
     def __init__(self, code, scope, json, name_step):
         self.code = code
