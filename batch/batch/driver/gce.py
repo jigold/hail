@@ -3,12 +3,14 @@ import json
 import logging
 import dateutil.parser
 import datetime
+import aiohttp
 
 from gear import Database
 from hailtop import aiotools, aiogoogle
 from hailtop.utils import periodically_call
 
-from ..batch_configuration import PROJECT
+from ..batch_configuration import PROJECT, DEFAULT_NAMESPACE
+from ..disk import Disk
 
 from .zone_monitor import ZoneMonitor
 from .instance_collection_manager import InstanceCollectionManager
@@ -38,6 +40,7 @@ class GCEEventMonitor:
 
     async def async_init(self):
         self.task_manager.ensure_future(self.event_loop())
+        self.task_manager.ensure_future(self.delete_orphaned_disks_loop())
 
     def shutdown(self):
         self.task_manager.shutdown()
@@ -144,3 +147,26 @@ timestamp >= "{mark}"
 
     async def event_loop(self):
         await periodically_call(15, self.handle_events)
+
+    async def delete_orphaned_disks(self):
+        log.info('deleting orphaned disks')
+
+        params = {
+            'filter': f'(labels.namespace = {DEFAULT_NAMESPACE})'
+        }
+
+        for zone in self.zone_monitor.zones:
+            async for disk in await self.compute_client.list(f'/zones/{zone}/disks', params=params):
+                disk_name = disk['name']
+                instance_name = disk_name.rsplit('-', 1)[0]
+                instance = self.inst_coll_manager.get_instance(instance_name)
+                if instance is None:
+                    try:
+                        await Disk.delete_disk(self.compute_client, disk_name, zone)
+                    except aiohttp.ClientResponseError as e:
+                        if e.status == 404:
+                            continue
+                        raise
+
+    async def delete_orphaned_disks_loop(self):
+        await periodically_call(300, self.delete_orphaned_disks)

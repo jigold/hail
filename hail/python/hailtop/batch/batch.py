@@ -1,6 +1,6 @@
 import os
-
 import re
+import warnings
 from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string
@@ -55,7 +55,7 @@ class Batch:
     default_memory:
         Memory setting to use by default if not specified by a job. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
-        or the :class:`.ServiceBackend`. Value is in GB.
+        or the :class:`.ServiceBackend`.
     default_cpu:
         CPU setting to use by default if not specified by a job. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`

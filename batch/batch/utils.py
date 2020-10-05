@@ -3,6 +3,8 @@ import math
 import json
 from collections import deque
 
+from .globals import RESERVED_STORAGE_GB_PER_CORE
+
 log = logging.getLogger('utils')
 
 
@@ -114,6 +116,16 @@ def adjust_cores_for_storage_request(cores_in_mcpu, storage_in_bytes, worker_cor
     return max(cores_in_mcpu, min_cores_mcpu)
 
 
+def unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib, worker_cores):
+    reserved_image_size = 20
+    reserved_container_size = RESERVED_STORAGE_GB_PER_CORE * worker_cores
+    if worker_local_ssd_data_disk:
+        # local ssd is 375Gi
+        # reserve 20Gi for images
+        return 375 - reserved_image_size - reserved_container_size
+    return worker_pd_ssd_data_disk_size_gib - reserved_image_size - reserved_container_size
+
+
 def adjust_cores_for_packability(cores_in_mcpu):
     cores_in_mcpu = max(1, cores_in_mcpu)
     power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
@@ -128,6 +140,20 @@ def round_storage_bytes_to_gib(storage_bytes):
 
 def storage_gib_to_bytes(storage_gib):
     return math.ceil(storage_gib * 1024**3)
+
+
+def convert_storage_gib_to_bytes(storage_gib):
+    return math.ceil(storage_gib * 1024**3)
+
+
+def is_valid_cores_mcpu(cores_mcpu):
+    cores = cores_mcpu / 1000
+    if cores <= 0:
+        return False
+    power = math.log2(cores)
+    if math.floor(power) != math.ceil(power):
+        return False
+    return -2 <= power
 
 
 class Box:

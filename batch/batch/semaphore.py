@@ -5,6 +5,10 @@ import logging
 log = logging.getLogger('semaphore')
 
 
+class FIFOWeightedSemaphoreFull(Exception):
+    pass
+
+
 class ANullContextManager:
     async def __aenter__(self):
         pass
@@ -44,6 +48,12 @@ class FIFOWeightedSemaphore:
         self.queue.append((event, weight))
         event.clear()
         await event.wait()
+
+    def acquire_nowait(self, weight):
+        if not self.queue and self.value >= weight:
+            self.value -= weight
+            return
+        raise FIFOWeightedSemaphoreFull(f'not enough space to acquire semaphore: weight={weight} value={self.value}')
 
     def release(self, weight):
         self.value += weight

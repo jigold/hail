@@ -66,9 +66,9 @@ def test_exit_code_duration(client):
 def test_msec_mcpu(client):
     builder = client.create_batch()
     resources = {
-        'cpu': '100m',
+        'cpu': '250m',
         'memory': '375M',
-        'storage': '1Gi'
+        'storage': '0Gi'
     }
     # two jobs so the batch msec_mcpu computation is non-trivial
     builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'foo'], resources=resources)
@@ -144,7 +144,7 @@ def test_invalid_resource_requests(client):
 
 def test_out_of_memory(client):
     builder = client.create_batch()
-    resources = {'cpu': '0.1', 'memory': '10M', 'storage': '1Gi'}
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
     j = builder.create_job('python:3.6-slim-stretch',
                            ['python', '-c', 'x = "a" * 1000**3'],
                            resources=resources)
@@ -163,6 +163,28 @@ def test_out_of_storage(client):
     status = j.wait()
     assert status['state'] == 'Failed', status
     assert "fallocate failed: No space left on device" in j.log()['main']
+
+
+def test_nonzero_storage(client):
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
+    j = builder.create_job('ubuntu:18.04',
+                           ['/bin/sh', '-c', 'true'],
+                           resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', status
+
+
+def test_attached_disk(client):
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
+    j = builder.create_job('ubuntu:18.04',
+                           ['/bin/sh', '-c', 'fallocate -l 350GiB /io/foo'],
+                           resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', status
 
 
 def test_unsubmitted_state(client):
