@@ -1987,6 +1987,8 @@ steps:
       script: /io/sql/add-status-flag-billing-projects.sql
     - name: add-aggregated-billing-project-resources
       script: /io/sql/add-aggregated-billing-project-resources.sql
+    - name: add-auth-to-billing-project-users
+      script: /io/sql/add-auth-to-billing-project-users.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

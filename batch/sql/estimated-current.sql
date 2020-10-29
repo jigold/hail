@@ -40,6 +40,9 @@ VALUES ('ci');
 INSERT INTO `billing_projects` (`name`)
 VALUES ('test');
 
+INSERT INTO `billing_projects` (`name`)
+VALUES ('auth');
+
 INSERT INTO `billing_project_users` (`billing_project`, `user`)
 VALUES ('ci', 'ci');
 
@@ -48,6 +51,9 @@ VALUES ('test', 'test');
 
 INSERT INTO `billing_project_users` (`billing_project`, `user`)
 VALUES ('test', 'test-dev');
+
+INSERT INTO `billing_project_users` (`billing_project`, `user`)
+VALUES ('auth', 'auth');
 
 CREATE TABLE IF NOT EXISTS `instances` (
   `name` VARCHAR(100) NOT NULL,
