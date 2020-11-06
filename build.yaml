@@ -462,6 +462,15 @@ steps:
          kubectl -n {{ batch_pods_ns.name }} create secret generic benchmark-tokens --from-file=/user-tokens/tokens.json
      fi
      # created benchmark
+     # create atgu
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers atgu-tokens | wc -l | tr -d '[:space:]')
+     if [[ $N = 0 ]]; then
+         # if atgu does not exist
+         rm -f /user-tokens/tokens.json
+         python3 create-session.py '{"state":"active","username":"atgu","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"atgu-gsa-key","tokens_secret_name":"atgu-tokens"}'
+         kubectl -n {{ batch_pods_ns.name }} create secret generic atgu-tokens --from-file=/user-tokens/tokens.json
+     fi
+     # created atgu
    scopes:
     - test
     - dev
@@ -3571,6 +3580,8 @@ steps:
    dependsOn:
     - default_ns
     - deploy_router
+    - deploy_auth
     - atgu_image
     - atgu_database
     - create_certs
+    - create_accounts
