@@ -78,8 +78,10 @@ ksync watch
 
 3. Create a spec in ~/.ksync/ksync.yaml using the create operation
 
+The first path should be the path to the Python module on your local computer.
+
 ```
-ksync create --local-read-only -l app=atgu --name <NAMESPACE>-<APP> -n jigold $(pwd)/<APP>/ /usr/local/lib/python3.7/dist-packages/<APP>/
+ksync create --local-read-only -l app=<APP> --name <NAMESPACE>-<APP> -n <NAMESPACE> $(pwd)/<APP>/<APP>/ /usr/local/lib/python3.7/dist-packages/<APP>/
 ```
 
 4. Use ksync get to make sure the pods are being watched
