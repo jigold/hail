@@ -476,7 +476,7 @@ SELECT user,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
   CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs,
   CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
-FROM user_resources
+FROM user_pool_resources
 GROUP BY user
 LOCK IN SHARE MODE;
 ''')

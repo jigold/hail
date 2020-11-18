@@ -81,6 +81,16 @@ class WorkerConfig:
 
         return WorkerConfig(config)
 
+    @staticmethod
+    def compute_resource(instance_family, preemptible):
+        preemptible = 'preemptible' if preemptible else 'nonpreemptible'
+        return f'compute/{instance_family}-{preemptible}/1'
+
+    @staticmethod
+    def memory_resource(instance_family, preemptible):
+        preemptible = 'preemptible' if preemptible else 'nonpreemptible'
+        return f'memory/{instance_family}-{preemptible}/1'
+
     def __init__(self, config):
         self.config = config
 
@@ -118,13 +128,14 @@ class WorkerConfig:
         assert memory_in_bytes % (1024 * 1024) == 0
         resources = []
 
-        preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'
         worker_fraction_in_1024ths = 1024 * cpu_in_mcpu // (self.cores * 1000)
 
-        resources.append({'name': f'compute/{self.instance_family}-{preemptible}/1',
+        compute_resource = WorkerConfig.compute_resource(self.instance_family, self.preemptible)
+        resources.append({'name': compute_resource,
                           'quantity': cpu_in_mcpu})
 
-        resources.append({'name': f'memory/{self.instance_family}-{preemptible}/1',
+        memory_resource = WorkerConfig.memory_resource(self.instance_family, self.preemptible)
+        resources.append({'name': memory_resource,
                           'quantity': memory_in_bytes // 1024 // 1024})
 
         quantities = defaultdict(lambda: 0)

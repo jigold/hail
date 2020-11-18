@@ -3,6 +3,8 @@ import math
 import json
 from collections import deque
 
+from .worker_config import WorkerConfig
+
 log = logging.getLogger('utils')
 
 

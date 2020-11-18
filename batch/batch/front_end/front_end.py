@@ -1,6 +1,7 @@
 import os
 import concurrent
 import logging
+import collections
 import json
 import random
 import datetime
@@ -49,6 +50,7 @@ from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE,
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
+from ..driver.pool import PoolConfig, Pool
 
 from .validate import ValidationError, validate_batch, validate_jobs
 
@@ -604,10 +606,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_parents_args = []
             job_attributes_args = []
 
-            n_ready_jobs = 0
-            ready_cores_mcpu = 0
-            n_ready_cancellable_jobs = 0
-            ready_cancellable_cores_mcpu = 0
+            pool_resources = collections.defaultdict(lambda: {
+                'n_jobs': 0,
+                'n_ready_jobs': 0,
+                'ready_cores_mcpu': 0,
+                'n_ready_cancellable_jobs': 0,
+                'ready_cancellable_cores_mcpu': 0
+            })
 
             prev_job_idx = None
             start_job_id = None
@@ -671,6 +676,17 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
                         f'maximum: cpu={worker_cores}, memory={total_memory_available}G, storage={total_storage_available}G')
 
+                # TODO: assert private=True if preemptible=False; add support for private workers
+                pool_config = PoolConfig(family=app['worker_family'],
+                                         typ=app['worker_type'],
+                                         cores=app['worker_cores'],
+                                         preemptible=True,
+                                         private=False)
+                pool = pool_config.find_optimal_pool(app['pools'])
+                if pool is None:
+                    ## FIXME: add more error information
+                    raise web.HTTPBadRequest(reason=f'unsupported job configuration')
+
                 secrets = spec.get('secrets')
                 if not secrets:
                     secrets = []
@@ -712,13 +728,15 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     env = []
                     spec['env'] = env
 
+                pr = pool_resources[pool.id]
+                pr['n_jobs'] += 1
                 if len(parent_ids) == 0:
                     state = 'Ready'
-                    n_ready_jobs += 1
-                    ready_cores_mcpu += cores_mcpu
+                    pr['n_ready_jobs'] += 1
+                    pr['ready_cores_mcpu'] += cores_mcpu
                     if not always_run:
-                        n_ready_cancellable_jobs += 1
-                        ready_cancellable_cores_mcpu += cores_mcpu
+                        pr['n_ready_cancellable_jobs'] += 1
+                        pr['ready_cancellable_cores_mcpu'] += cores_mcpu
                 else:
                     state = 'Pending'
 
@@ -731,7 +749,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 jobs_args.append(
                     (batch_id, job_id, state, json.dumps(db_spec),
-                     always_run, cores_mcpu, len(parent_ids)))
+                     always_run, cores_mcpu, len(parent_ids), pool.id))
 
                 for parent_id in parent_ids:
                     job_parents_args.append(
@@ -747,15 +765,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 await spec_writer.write()
 
         rand_token = random.randint(0, app['n_tokens'] - 1)
-        n_jobs = len(job_specs)
 
         async with timer.step('insert jobs'):
             @transaction(db)
             async def insert(tx):
                 try:
                     await tx.execute_many('''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, pool)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                                           jobs_args)
                 except pymysql.err.IntegrityError as err:
@@ -781,27 +798,35 @@ INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
                                       job_attributes_args)
-                await tx.execute_update('''
-INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s)
+
+                for pool_id, resources in pool_resources.items():
+                    n_jobs = resources['n_jobs']
+                    n_ready_jobs = resources['n_ready_jobs']
+                    ready_cores_mcpu = resources['ready_cores_mcpu']
+                    n_ready_cancellable_jobs = resources['n_ready_cancellable_jobs']
+                    ready_cancellable_cores_mcpu = resources['ready_cancellable_cores_mcpu']
+
+                    await tx.execute_update('''
+INSERT INTO batches_pool_staging (batch_id, pool, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_jobs = n_jobs + %s,
   n_ready_jobs = n_ready_jobs + %s,
   ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                        (batch_id, rand_token,
-                                         n_jobs, n_ready_jobs, ready_cores_mcpu,
-                                         n_jobs, n_ready_jobs, ready_cores_mcpu))
-                await tx.execute_update('''
-INSERT INTO batch_cancellable_resources (batch_id, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-VALUES (%s, %s, %s, %s)
+                                            (batch_id, pool_id, rand_token,
+                                             n_jobs, n_ready_jobs, ready_cores_mcpu,
+                                             n_jobs, n_ready_jobs, ready_cores_mcpu))
+                    await tx.execute_update('''
+INSERT INTO batch_pool_cancellable_resources (batch_id, pool, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + %s,
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + %s;
 ''',
-                                        (batch_id, rand_token,
-                                         n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
-                                         n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
+                                            (batch_id, pool_id, rand_token,
+                                             n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
+                                             n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
 
                 if batch_format_version.has_full_spec_in_gcs():
                     await tx.execute_update('''
@@ -1814,16 +1839,19 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT worker_type, worker_cores, worker_disk_size_gb,
+SELECT worker_family, worker_type, worker_cores, worker_disk_size_gb,
   worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
   instance_id, internal_token, n_tokens FROM globals;
 ''')
 
+    app['worker_family'] = row['worker_family']
     app['worker_type'] = row['worker_type']
     app['worker_cores'] = row['worker_cores']
+
     app['worker_disk_size_gb'] = row['worker_disk_size_gb']
     app['worker_local_ssd_data_disk'] = row['worker_local_ssd_data_disk']
     app['worker_pd_ssd_data_disk_size_gb'] = row['worker_pd_ssd_data_disk_size_gb']
+
     app['n_tokens'] = row['n_tokens']
 
     instance_id = row['instance_id']
@@ -1851,6 +1879,12 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     app['task_manager'].ensure_future(retry_long_running(
         'delete_batch_loop',
         run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app))
+
+    pool_records = await db.select_and_fetchall(f'''
+SELECT * from pools;
+''')
+    pools = [Pool.from_record(app, record) async for record in pool_records]
+    app['pools'] = pools
 
 
 async def on_cleanup(app):
