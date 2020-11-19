@@ -112,8 +112,10 @@ class Pool:
         self.task_manager = aiotools.BackgroundTaskManager()
 
     def shutdown(self):
-        self.scheduler.shutdown()
-        self.task_manager.shutdown()
+        try:
+            self.scheduler.shutdown()
+        finally:
+            self.task_manager.shutdown()
 
     async def async_init(self):
         self.scheduler = Scheduler(self.app, self)

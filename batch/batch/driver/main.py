@@ -32,8 +32,8 @@ from ..batch_configuration import (REFRESH_INTERVAL_IN_SECONDS,
                                    HAIL_SHOULD_CHECK_INVARIANTS, WORKER_LOGS_BUCKET_NAME, PROJECT)
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
-from .instance_pool import InstancePool
-from .scheduler import Scheduler
+from .pool_manager import PoolManager
+from .instance_manager import InstanceManager
 from .k8s_cache import K8sCache
 from ..utils import query_billing_projects
 from ..exceptions import OpenBatchError, NonExistentBatchError
@@ -744,13 +744,14 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     log_store = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
-    inst_pool = InstancePool(app, machine_name_prefix)
-    app['inst_pool'] = inst_pool
-    await inst_pool.async_init()
+    ## FIXME: implicit cyclic dependency
+    inst_manager = InstanceManager(app, machine_name_prefix)
+    app['inst_manager'] = inst_manager
+    await inst_manager.async_init()
 
-    scheduler = Scheduler(app)
-    await scheduler.async_init()
-    app['scheduler'] = scheduler
+    pool_manager = PoolManager(app)
+    app['pool_manager'] = pool_manager
+    await pool_manager.async_init()
 
     app['check_incremental_error'] = None
     app['check_resource_aggregation_error'] = None
