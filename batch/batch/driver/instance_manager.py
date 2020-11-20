@@ -61,6 +61,7 @@ class InstanceManager:
             instance = Instance.from_record(self.app, record)
             self.add_instance(instance)
 
+    async def run(self):
         self.task_manager.ensure_future(self.event_loop())
         self.task_manager.ensure_future(self.instance_monitoring_loop())
 
@@ -77,8 +78,7 @@ class InstanceManager:
             self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu -= instance.cores_mcpu
 
-        pool = self.pool_manager.id_pool[instance.pool_id]
-        pool.adjust_for_remove_instance(instance)
+        instance.pool.adjust_for_remove_instance(instance)
 
     async def remove_instance(self, instance, reason, timestamp=None):
         await instance.deactivate(reason, timestamp)
@@ -99,8 +99,7 @@ class InstanceManager:
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu += instance.cores_mcpu
 
-        pool = self.pool_manager.id_pool[instance.pool_id]
-        pool.adjust_for_add_instance(instance)
+        instance.pool.adjust_for_add_instance(instance)
 
     def add_instance(self, instance):
         assert instance.name not in self.name_instance

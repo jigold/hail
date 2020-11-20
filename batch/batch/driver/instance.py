@@ -14,15 +14,17 @@ log = logging.getLogger('instance')
 class Instance:
     @staticmethod
     def from_record(app, record):
+        pool_manager = app['pool_manager']
+        pool = pool_manager.id_pool[record['pool']]
         return Instance(
             app, record['name'], record['state'],
             record['cores_mcpu'], record['free_cores_mcpu'],
             record['time_created'], record['failed_request_count'],
             record['last_updated'], record['ip_address'], record['version'],
-            record['zone'], record['pool'])
+            record['zone'], pool)
 
     @staticmethod
-    async def create(app, name, activation_token, worker_cores_mcpu, zone, pool_id):
+    async def create(app, name, activation_token, worker_cores_mcpu, zone, pool):
         db = app['db']
 
         state = 'pending'
@@ -34,16 +36,16 @@ INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_co
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (name, state, activation_token, token, worker_cores_mcpu,
-             worker_cores_mcpu, now, now, INSTANCE_VERSION, zone, pool_id))
+             worker_cores_mcpu, now, now, INSTANCE_VERSION, zone, pool.id))
         return Instance(
             app, name, state, worker_cores_mcpu, worker_cores_mcpu, now,
-            0, now, None, INSTANCE_VERSION, zone, pool_id)
+            0, now, None, INSTANCE_VERSION, zone, pool)
 
     def __init__(self, app, name, state, cores_mcpu, free_cores_mcpu,
                  time_created, failed_request_count, last_updated, ip_address,
-                 version, zone, pool_id):
+                 version, zone, pool):
         self.db = app['db']
-        self.pool_id = pool_id
+        self.pool = pool
         self.instance_manager = app['inst_manager']
         self.scheduler_state_changed = app['scheduler_state_changed']
         # pending, active, inactive, deleted

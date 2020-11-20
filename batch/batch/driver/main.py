@@ -34,6 +34,7 @@ from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from .pool_manager import PoolManager
 from .instance_manager import InstanceManager
+from .zone import ZoneManager
 from .k8s_cache import K8sCache
 from ..utils import query_billing_projects
 from ..exceptions import OpenBatchError, NonExistentBatchError
@@ -744,14 +745,20 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     log_store = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
-    ## FIXME: implicit cyclic dependency
-    inst_manager = InstanceManager(app, machine_name_prefix)
-    app['inst_manager'] = inst_manager
-    await inst_manager.async_init()
+    zone_manager = ZoneManager(app)
+    app['zone_manager'] = zone_manager
+    await zone_manager.async_init()
 
     pool_manager = PoolManager(app)
     app['pool_manager'] = pool_manager
     await pool_manager.async_init()
+
+    inst_manager = InstanceManager(app, machine_name_prefix)
+    app['inst_manager'] = inst_manager
+    await inst_manager.async_init()
+
+    await pool_manager.run()
+    await inst_manager.run()
 
     app['check_incremental_error'] = None
     app['check_resource_aggregation_error'] = None
@@ -774,12 +781,15 @@ async def on_cleanup(app):
             await app['db'].async_close()
         finally:
             try:
-                app['inst_pool'].shutdown()
+                app['inst_manager'].shutdown()
             finally:
                 try:
-                    app['scheduler'].shutdown()
+                    app['pool_manager'].shutdown()
                 finally:
-                    app['task_manager'].shutdown()
+                    try:
+                        app['zone_manager'].shutdown()
+                    finally:
+                        app['task_manager'].shutdown()
 
 
 def run():

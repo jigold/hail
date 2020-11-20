@@ -77,6 +77,8 @@ FROM globals;
             self.add_pool(pool)
             await pool.async_init()
 
+    async def run(self):
+        await asyncio.gather(*[pool.run() for pool in self.id_pool.values()])
         self.task_manager.ensure_future(self.control_loop())
 
     async def create_pool(self):
@@ -90,9 +92,14 @@ FROM globals;
         del self.id_pool[pool.id]
 
     def shutdown(self):
-        for _, pool in self.id_pool.items():
-            pool.shutdown()
-        self.task_manager.shutdown()
+        try:
+            for _, pool in self.id_pool.items():
+                try:
+                    pool.shutdown()
+                except Exception:
+                    pass
+        finally:
+            self.task_manager.shutdown()
 
     async def compute_fairshare(self):
         # instances_needed = min(instances_needed,

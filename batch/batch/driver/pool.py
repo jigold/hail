@@ -119,6 +119,8 @@ class Pool:
 
     async def async_init(self):
         self.scheduler = Scheduler(self.app, self)
+
+    async def run(self):
         await self.scheduler.async_init()
 
         self.task_manager.ensure_future(retry_long_running(
