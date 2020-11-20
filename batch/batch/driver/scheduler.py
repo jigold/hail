@@ -382,15 +382,15 @@ LIMIT %s;
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
         def get_instance(user, cores_mcpu):
-            i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(cores_mcpu)
-            while i < len(self.inst_pool.healthy_instances_by_free_cores):
-                instance = self.inst_pool.healthy_instances_by_free_cores[i]
+            i = self.pool.healthy_instances_by_free_cores.bisect_key_left(cores_mcpu)
+            while i < len(self.pool.healthy_instances_by_free_cores):
+                instance = self.pool.healthy_instances_by_free_cores[i]
                 assert cores_mcpu <= instance.free_cores_mcpu
                 if user != 'ci' or (user == 'ci' and instance.zone.startswith('us-central1')):
                     return instance
                 i += 1
             histogram = collections.defaultdict(int)
-            for instance in self.inst_pool.healthy_instances_by_free_cores:
+            for instance in self.pool.healthy_instances_by_free_cores:
                 histogram[instance.free_cores_mcpu] += 1
             log.info(f'schedule: no viable instances for {cores_mcpu}: {histogram}')
             return None
