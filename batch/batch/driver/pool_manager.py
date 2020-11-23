@@ -14,18 +14,18 @@ class PoolManager:
         self.app = app
         self.db = app['db']
         self.compute_client = app['compute_client']
-        self.id_pool = {}
+        self.pools = {}
         self.task_manager = aiotools.BackgroundTaskManager()
 
     @property
     def n_pending_instances(self):
         return sum([pool.n_instances_by_state['pending']
-                    for pool in self.id_pool.values()])
+                    for pool in self.pools.values()])
 
     @property
     def n_active_instances(self):
         return sum([pool.n_instances_by_state['active']
-                    for pool in self.id_pool.values()])
+                    for pool in self.pools.values()])
 
     @property
     def n_instances_by_state(self):
@@ -36,14 +36,14 @@ class PoolManager:
             'deleted': 0
         })
 
-        for pool in self.id_pool.values():
+        for pool in self.pools.values():
             state_counter += collections.Counter(pool.n_instances_by_state)
 
         return state_counter
 
     @property
     def n_pools(self):
-        return len(self.id_pool)
+        return len(self.pools)
 
     async def async_init(self):
         log.info('initializing pool manager')
@@ -55,21 +55,21 @@ class PoolManager:
             await pool.async_init()
 
     async def run(self):
-        await asyncio.gather(*[pool.run() for pool in self.id_pool.values()])
+        await asyncio.gather(*[pool.run() for pool in self.pools.values()])
 
     async def create_pool(self):
         raise NotImplementedError
 
     def add_pool(self, pool):
-        self.id_pool[pool.id] = pool
+        self.pools[pool.id] = pool
 
     def remove_pool(self, pool):
         pool.shutdown()
-        del self.id_pool[pool.id]
+        del self.pools[pool.id]
 
     def shutdown(self):
         try:
-            for _, pool in self.id_pool.items():
+            for _, pool in self.pools.items():
                 try:
                     pool.shutdown()
                 except Exception:

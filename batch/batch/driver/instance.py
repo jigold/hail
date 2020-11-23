@@ -15,7 +15,7 @@ class Instance:
     @staticmethod
     def from_record(app, record):
         pool_manager = app['pool_manager']
-        pool = pool_manager.id_pool[record['pool']]
+        pool = pool_manager.pools[record['pool']]
         return Instance(
             app, record['name'], record['state'],
             record['cores_mcpu'], record['free_cores_mcpu'],
