@@ -39,16 +39,16 @@ class InstanceMonitor:
 
         self.name_instance = {}
 
-        # self.n_instances_by_state = {
-        #     'pending': 0,
-        #     'active': 0,
-        #     'inactive': 0,
-        #     'deleted': 0
-        # }
+        self.n_instances_by_state = {
+            'pending': 0,
+            'active': 0,
+            'inactive': 0,
+            'deleted': 0
+        }
 
         # pending and active
-        # self.live_free_cores_mcpu = 0
-        # self.live_total_cores_mcpu = 0
+        self.live_free_cores_mcpu = 0
+        self.live_total_cores_mcpu = 0
 
         self.task_manager = aiotools.BackgroundTaskManager()
 
@@ -71,11 +71,11 @@ class InstanceMonitor:
         assert instance in self.instances_by_last_updated
 
         self.instances_by_last_updated.remove(instance)
-        # self.n_instances_by_state[instance.state] -= 1
-        #
-        # if instance.state in ('pending', 'active'):
-        #     self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
-        #     self.live_total_cores_mcpu -= instance.cores_mcpu
+        self.n_instances_by_state[instance.state] -= 1
+
+        if instance.state in ('pending', 'active'):
+            self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
+            self.live_total_cores_mcpu -= instance.cores_mcpu
 
         instance.pool.adjust_for_remove_instance(instance)
 
@@ -92,11 +92,11 @@ class InstanceMonitor:
         assert instance not in self.instances_by_last_updated
 
         self.instances_by_last_updated.add(instance)
-        # self.n_instances_by_state[instance.state] += 1
-        #
-        # if instance.state in ('pending', 'active'):
-        #     self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
-        #     self.live_total_cores_mcpu += instance.cores_mcpu
+        self.n_instances_by_state[instance.state] += 1
+
+        if instance.state in ('pending', 'active'):
+            self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
+            self.live_total_cores_mcpu += instance.cores_mcpu
 
         instance.pool.adjust_for_add_instance(instance)
 
