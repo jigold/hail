@@ -22,12 +22,12 @@ log = logging.getLogger('pool')
 class Pool:
     @staticmethod
     def from_record(app, record):
-        return Pool(app, record['id'], record['type'], record['cores'], record['disk_size_gb'],
+        return Pool(app, record['name'], record['type'], record['cores'], record['disk_size_gb'],
                     record['local_ssd_data_disk'], record['pd_ssd_data_disk_size_gb'],
                     record['pool_size'], record['max_instances'], record['standing_worker'],
                     record['standing_worker_cores'])
 
-    def __init__(self, app, id, typ, cores, disk_size_gb, local_ssd_data_disk,
+    def __init__(self, app, name, typ, cores, disk_size_gb, local_ssd_data_disk,
                  pd_ssd_data_disk_size_gb, pool_size, max_instances, standing_worker,
                  standing_cores):
         self.app = app
@@ -37,7 +37,7 @@ class Pool:
         self.log_store = app['log_store']
         self.compute_client = app['compute_client']
 
-        self.id = id
+        self.name = name
         self.type = typ
         self.cores = cores
         self.disk_size_gb = disk_size_gb
@@ -89,11 +89,16 @@ class Pool:
 
     def config(self):
         return {
-            'id': self.id,
-            'family': self.family,
+            'name': self.name,
             'type': self.type,
             'cores': self.cores,
-            'preemptible': self.preemptible
+            'disk_size_gb': self.disk_size_gb,
+            'local_ssd_data_disk': self.local_ssd_data_disk,
+            'pd_ssd_data_disk_size_gb': self.pd_ssd_data_disk_size_gb,
+            'pool_size': self.pool_size,
+            'max_instances': self.max_instances,
+            'standing_worker': self.standing_worker,
+            'standing_cores': self.standing_cores
         }
 
     def adjust_for_remove_instance(self, instance):
@@ -148,7 +153,7 @@ class Pool:
 
         activation_token = secrets.token_urlsafe(32)
         instance = await Instance.create(self.app, machine_name, activation_token,
-                                         cores * 1000, zone, self.id)
+                                         cores * 1000, zone, self.name)
         self.instance_monitor.add_instance(instance)
 
         log.info(f'created {instance}')
@@ -449,7 +454,7 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
         await self.compute_client.post(
             f'/zones/{zone}/instances', json=config)
 
-        log.info(f'created machine {machine_name} for {instance} in pool {self.id}')
+        log.info(f'created machine {machine_name} for {instance} in pool {self.name}')
 
     async def control_loop(self):
         log.info(f'starting control loop for pool {self}')
@@ -462,7 +467,7 @@ FROM user_pool_resources
 WHERE pool = %s
 LOCK IN SHARED MODE;
 ''',
-                    (self.id,))
+                    (self.name,))
                 ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
                 free_cores_mcpu = sum([
@@ -506,4 +511,4 @@ LOCK IN SHARED MODE;
             await asyncio.sleep(15)
 
     def __str__(self):
-        return f'{self.config()}'
+        return f'{self.name}'
