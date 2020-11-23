@@ -99,6 +99,7 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
+BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
 BATCH_JOB_DEFAULT_WORKER_TYPE = os.environ.get('HAIL_BATCH_DEFAULT_WORKER_TYPE', 'standard')
 
@@ -640,7 +641,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if 'cpu' not in resources:
                     resources['cpu'] = BATCH_JOB_DEFAULT_CPU
                 if 'memory' not in resources:
-                    resources['memory'] = resources['cpu']
+                    resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
                 if 'storage' not in resources:
                     # FIXME: pvc_size is deprecated
                     pvc_size = spec.get('pvc_size')
@@ -648,33 +649,24 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         resources['storage'] = pvc_size
                     else:
                         resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
-                if 'worker_type' not in resources:
-                    resources['worker_type'] = BATCH_JOB_DEFAULT_WORKER_TYPE
 
                 req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
-                req_storage_bytes = parse_storage_in_bytes(resources['storage'])
-
                 req_memory_bytes = parse_memory_in_bytes(resources['memory'])
-                memory_bytes = cores_mcpu_to_memory_bytes(req_cores_mcpu, resources['worker_type'])
-                if req_memory_bytes > memory_bytes:
-                    raise web.HTTPBadRequest(
-                        reason=f'bad resource request for job {id}: '
-                        f'memory requested {req_memory_bytes}b greater than memory per core {memory_bytes}b '
-                        f'for worker type {resources["worker_type"]}'
-                    )
+                req_storage_bytes = parse_storage_in_bytes(resources['storage'])
 
                 if req_cores_mcpu == 0:
                     raise web.HTTPBadRequest(
                         reason=f'bad resource request for job {id}: '
                         f'cpu cannot be 0')
 
-                worker_type = resources['worker_type']
+                worker_type = BATCH_JOB_DEFAULT_WORKER_TYPE
                 pool = app['pools'].get(worker_type)
                 if pool is None:
                     raise web.HTTPBadRequest(reason=f'unsupported worker type {worker_type}')
                 worker_cores = pool.cores
                 worker_local_ssd_data_disk = pool.local_ssd_data_disk
                 worker_pd_ssd_data_disk_size_gb = pool.pd_ssd_data_disk_size_gb
+
 
                 cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores,
                                                               worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)

@@ -50,7 +50,7 @@ ENV_VAR_KEYS = {'name', 'value'}
 
 SECRET_KEYS = {'namespace', 'name', 'mount_path'}
 
-RESOURCES_KEYS = {'memory', 'cpu', 'storage'}
+RESOURCES_KEYS = {'memory', 'cpu', 'storage', 'worker_type'}
 
 FILE_KEYS = {'from', 'to'}
 
