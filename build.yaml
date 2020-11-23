@@ -1953,8 +1953,6 @@ steps:
       script: /io/sql/add-aggregated-billing-project-resources.sql
     - name: add-pools
       script: /io/sql/add-pools.sql
-    - name: insert-pools
-      script: /io/sql/insert_pools.py
    inputs:
     - from: /repo/batch/sql
       to: /io/
