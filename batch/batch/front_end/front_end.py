@@ -729,7 +729,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     env = []
                     spec['env'] = env
 
-                pr = pool_resources[pool.id]
+                pr = pool_resources[pool.type]
                 pr['n_jobs'] += 1
                 if len(parent_ids) == 0:
                     state = 'Ready'
@@ -750,7 +750,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 jobs_args.append(
                     (batch_id, job_id, state, json.dumps(db_spec),
-                     always_run, cores_mcpu, len(parent_ids), pool.id))
+                     always_run, cores_mcpu, len(parent_ids), pool.type))
 
                 for parent_id in parent_ids:
                     job_parents_args.append(
@@ -800,7 +800,7 @@ VALUES (%s, %s, %s, %s);
 ''',
                                       job_attributes_args)
 
-                for pool_id, resources in pool_resources.items():
+                for pool_type, resources in pool_resources.items():
                     n_jobs = resources['n_jobs']
                     n_ready_jobs = resources['n_ready_jobs']
                     ready_cores_mcpu = resources['ready_cores_mcpu']
@@ -815,7 +815,7 @@ ON DUPLICATE KEY UPDATE
   n_ready_jobs = n_ready_jobs + %s,
   ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                            (batch_id, pool_id, rand_token,
+                                            (batch_id, pool_type, rand_token,
                                              n_jobs, n_ready_jobs, ready_cores_mcpu,
                                              n_jobs, n_ready_jobs, ready_cores_mcpu))
                     await tx.execute_update('''
@@ -825,7 +825,7 @@ ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + %s,
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + %s;
 ''',
-                                            (batch_id, pool_id, rand_token,
+                                            (batch_id, pool_type, rand_token,
                                              n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
                                              n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
 
