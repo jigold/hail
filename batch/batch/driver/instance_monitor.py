@@ -30,7 +30,7 @@ class InstanceMonitor:
         self.db = app['db']
         self.compute_client = app['compute_client']
         self.logging_client = app['logging_client']
-        self.zone_manager = app['zone_manager']
+        self.zone_monitor = app['zone_monitor']
 
         self.machine_name_prefix = machine_name_prefix
 
@@ -164,7 +164,7 @@ class InstanceMonitor:
                 severity = event['severity']
                 operation_id = event['operation']['id']
                 success = (severity != 'ERROR')
-                self.zone_manager.zone_success_rate.push(resource['labels']['zone'], operation_id, success)
+                self.zone_monitor.zone_success_rate.push(resource['labels']['zone'], operation_id, success)
         else:
             instance = self.name_instance.get(name)
             if not instance:

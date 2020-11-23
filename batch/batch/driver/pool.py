@@ -83,9 +83,9 @@ class Pool:
                  pool_size, max_instances):
         self.app = app
         self.db = app['db']
-        self.zone_manager = app['zone_manager']
-        self.instance_manager = app['inst_manager']
-        self.zone_manager = app['zone_manager']
+        self.zone_monitor = app['zone_monitor']
+        self.instance_monitor = app['inst_monitor']
+        self.pool_manager = app['pool_manager']
         self.log_store = app['log_store']
         self.compute_client = app['compute_client']
 
@@ -173,29 +173,29 @@ class Pool:
         while True:
             # 36 ** 5 = ~60M
             suffix = secret_alnum_string(5, case='lower')
-            machine_name = f'{self.instance_manager.machine_name_prefix}{suffix}'
-            if machine_name not in self.instance_manager.name_instance:
+            machine_name = f'{self.instance_monitor.machine_name_prefix}{suffix}'
+            if machine_name not in self.instance_monitor.name_instance:
                 break
 
-        if self.instance_manager.live_total_cores_mcpu // 1000 < 4_000:
+        if self.instance_monitor.live_total_cores_mcpu // 1000 < 4_000:
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
             zone = random.choice(zones)
         else:
             zone_prob_weights = [
-                min(w, 10) * self.zone_manager.zone_success_rate.zone_success_rate(z)
-                for z, w in zip(self.zone_manager.zones, self.zone_manager.zone_weights)]
+                min(w, 10) * self.zone_monitor.zone_success_rate.zone_success_rate(z)
+                for z, w in zip(self.zone_monitor.zones, self.zone_monitor.zone_weights)]
 
-            log.info(f'zones {self.zone_manager.zones}')
-            log.info(f'zone_weights {self.zone_manager.zone_weights}')
-            log.info(f'zone_success_rate {self.zone_manager.zone_success_rate}')
+            log.info(f'zones {self.zone_monitor.zones}')
+            log.info(f'zone_weights {self.zone_monitor.zone_weights}')
+            log.info(f'zone_success_rate {self.zone_monitor.zone_success_rate}')
             log.info(f'zone_prob_weights {zone_prob_weights}')
 
-            zone = random.choices(self.zone_manager.zones, zone_prob_weights)[0]
+            zone = random.choices(self.zone_monitor.zones, zone_prob_weights)[0]
 
         activation_token = secrets.token_urlsafe(32)
         instance = await Instance.create(self.app, machine_name, activation_token,
                                          self.cores * 1000, zone, self.id)
-        self.instance_manager.add_instance(instance)
+        self.instance_monitor.add_instance(instance)
 
         log.info(f'created {instance}')
 

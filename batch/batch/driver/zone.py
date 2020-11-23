@@ -38,7 +38,7 @@ class ZoneSuccessRate:
         return f'global {self._global_counter}, zones {self._zone_counters}'
 
 
-class ZoneManager:
+class ZoneMonitor:
     def __init__(self, app):
         self.app = app
         self.compute_client = app['compute_client']
