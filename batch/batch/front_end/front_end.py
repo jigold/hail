@@ -38,7 +38,7 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
 from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
                      cost_from_msec_mcpu, adjust_cores_for_packability, coalesce,
                      adjust_cores_for_storage_request, total_worker_storage_gib,
-                     query_billing_projects)
+                     query_billing_projects, cores_mcpu_to_memory_bytes)
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           NonExistentUserError, ClosedBillingProjectError,
@@ -99,8 +99,8 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
-BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
+BATCH_JOB_DEFAULT_WORKER_TYPE = os.environ.get('HAIL_BATCH_DEFAULT_WORKER_TYPE', 'standard')
 
 
 def rest_authenticated_developers_or_auth_only(fun):
@@ -558,11 +558,6 @@ async def create_jobs(request, userdata):
     db = app['db']
     log_store = app['log_store']
 
-    worker_type = app['worker_type']
-    worker_cores = app['worker_cores']
-    worker_local_ssd_data_disk = app['worker_local_ssd_data_disk']
-    worker_pd_ssd_data_disk_size_gb = app['worker_pd_ssd_data_disk_size_gb']
-
     batch_id = int(request.match_info['batch_id'])
 
     user = userdata['username']
@@ -645,7 +640,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if 'cpu' not in resources:
                     resources['cpu'] = BATCH_JOB_DEFAULT_CPU
                 if 'memory' not in resources:
-                    resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
+                    resources['memory'] = resources['cpu']
                 if 'storage' not in resources:
                     # FIXME: pvc_size is deprecated
                     pvc_size = spec.get('pvc_size')
@@ -653,17 +648,34 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         resources['storage'] = pvc_size
                     else:
                         resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
+                if 'worker_type' not in resources:
+                    resources['worker_type'] = BATCH_JOB_DEFAULT_WORKER_TYPE
 
                 req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
-                req_memory_bytes = parse_memory_in_bytes(resources['memory'])
                 req_storage_bytes = parse_storage_in_bytes(resources['storage'])
+
+                req_memory_bytes = parse_memory_in_bytes(resources['memory'])
+                memory_bytes = cores_mcpu_to_memory_bytes(req_cores_mcpu, resources['worker_type'])
+                if req_memory_bytes > memory_bytes:
+                    raise web.HTTPBadRequest(
+                        reason=f'bad resource request for job {id}: '
+                        f'memory requested {req_memory_bytes}b greater than memory per core {memory_bytes}b '
+                        f'for worker type {resources["worker_type"]}'
+                    )
 
                 if req_cores_mcpu == 0:
                     raise web.HTTPBadRequest(
                         reason=f'bad resource request for job {id}: '
                         f'cpu cannot be 0')
 
-                cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
+                worker_type = resources['worker_type']
+                pool = app['pools'].get(worker_type)
+                if pool is None:
+                    raise web.HTTPBadRequest(reason=f'unsupported worker type {worker_type}')
+                worker_cores = pool.cores
+                worker_local_ssd_data_disk = pool.local_ssd_data_disk
+                worker_pd_ssd_data_disk_size_gb = pool.pd_ssd_data_disk_size_gb
+
                 cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores,
                                                               worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
                 cores_mcpu = adjust_cores_for_packability(cores_mcpu)
@@ -675,17 +687,6 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         reason=f'resource requests for job {id} are unsatisfiable: '
                         f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
                         f'maximum: cpu={worker_cores}, memory={total_memory_available}G, storage={total_storage_available}G')
-
-                # TODO: assert private=True if preemptible=False; add support for private workers
-                pool_config = PoolConfig(family=app['worker_family'],
-                                         typ=app['worker_type'],
-                                         cores=app['worker_cores'],
-                                         preemptible=True,
-                                         private=False)
-                pool = pool_config.find_optimal_pool(app['pools'])
-                if pool is None:
-                    ## FIXME: add more error information
-                    raise web.HTTPBadRequest(reason=f'unsupported job configuration')
 
                 secrets = spec.get('secrets')
                 if not secrets:
@@ -1839,18 +1840,8 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT worker_family, worker_type, worker_cores, worker_disk_size_gb,
-  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-  instance_id, internal_token, n_tokens FROM globals;
+SELECT instance_id, internal_token, n_tokens FROM globals;
 ''')
-
-    app['worker_family'] = row['worker_family']
-    app['worker_type'] = row['worker_type']
-    app['worker_cores'] = row['worker_cores']
-
-    app['worker_disk_size_gb'] = row['worker_disk_size_gb']
-    app['worker_local_ssd_data_disk'] = row['worker_local_ssd_data_disk']
-    app['worker_pd_ssd_data_disk_size_gb'] = row['worker_pd_ssd_data_disk_size_gb']
 
     app['n_tokens'] = row['n_tokens']
 
