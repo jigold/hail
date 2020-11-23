@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS `resources` (
 CREATE TABLE IF NOT EXISTS `pools` (
   `type` VARCHAR(255) NOT NULL,
   `cores` INT NOT NULL,
+  `standing_worker` BOOLEAN NOT NULL DEFAULT 0,
   `standing_worker_cores` BIGINT NOT NULL,
   `disk_size_gb` BIGINT NOT NULL,
   `local_ssd_data_disk` BOOLEAN NOT NULL DEFAULT 1,

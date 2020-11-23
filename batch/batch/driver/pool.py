@@ -24,10 +24,12 @@ class Pool:
     def from_record(app, record):
         return Pool(app, record['id'], record['type'], record['cores'], record['disk_size_gb'],
                     record['local_ssd_data_disk'], record['pd_ssd_data_disk_size_gb'],
-                    record['pool_size'], record['max_instances'], record['standing_cores'])
+                    record['pool_size'], record['max_instances'], record['standing_worker'],
+                    record['standing_worker_cores'])
 
     def __init__(self, app, id, typ, cores, disk_size_gb, local_ssd_data_disk,
-                 pd_ssd_data_disk_size_gb, pool_size, max_instances, standing_cores):
+                 pd_ssd_data_disk_size_gb, pool_size, max_instances, standing_worker,
+                 standing_cores):
         self.app = app
         self.db = app['db']
         self.zone_monitor = app['zone_monitor']
@@ -43,6 +45,7 @@ class Pool:
         self.pd_ssd_data_disk_size_gb = pd_ssd_data_disk_size_gb
         self.pool_size = pool_size
         self.max_instances = max_instances
+        self.standing_worker = standing_worker
         self.standing_cores = standing_cores
 
         # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
@@ -489,7 +492,11 @@ LOCK IN SHARED MODE;
                         await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
 
                 n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-                if ENABLE_STANDING_WORKER and n_live_instances == 0 and self.max_instances > 0:
+                
+                if (ENABLE_STANDING_WORKER and
+                        self.standing_worker and
+                        n_live_instances == 0 and
+                        self.max_instances > 0):
                     await self.create_instance(cores=self.standing_cores,
                                                max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise

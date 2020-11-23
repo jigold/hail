@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS `pools` (
   `type` VARCHAR(255) NOT NULL,
   `cores` INT NOT NULL,
+  `standing_worker` BOOLEAN NOT NULL DEFAULT 0,
   `standing_worker_cores` BIGINT NOT NULL,
   `disk_size_gb` BIGINT NOT NULL,
   `local_ssd_data_disk` BOOLEAN NOT NULL DEFAULT 1,
@@ -10,11 +11,23 @@ CREATE TABLE IF NOT EXISTS `pools` (
   PRIMARY KEY (`type`)
 ) ENGINE = InnoDB;
 
-INSERT INTO pools (`type`, `cores`, `standing_worker_cores`, `disk_size_gb`,
+INSERT INTO pools (`type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
   `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, max_instances, pool_size)
-SELECT 'standard', worker_cores, standing_worker_cores, worker_disk_size_gb,
+SELECT 'standard', worker_cores, 1, standing_worker_cores, worker_disk_size_gb,
   worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, max_instances,
   pool_size FROM globals;
+
+INSERT INTO pools (`type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
+  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, max_instances, pool_size)
+SELECT 'highmem', worker_cores, 0, standing_worker_cores, worker_disk_size_gb,
+  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, 0,
+  0 FROM globals;
+
+INSERT INTO pools (`type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
+  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, max_instances, pool_size)
+SELECT 'highcpu', worker_cores, 0, standing_worker_cores, worker_disk_size_gb,
+  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, 0,
+  0 FROM globals;
 
 ALTER TABLE globals DROP COLUMN `worker_cores`;
 ALTER TABLE globals DROP COLUMN `worker_type`;
