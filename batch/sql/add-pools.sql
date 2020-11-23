@@ -1,3 +1,48 @@
+
+CREATE TABLE IF NOT EXISTS `instance_groups` (
+  `name` VARCHAR(255) NOT NULL,
+  `max_instances` BIGINT NOT NULL,
+  `pool_size` BIGINT NOT NULL,
+  PRIMARY KEY (`name`)
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS `pools` (
+  `instance_group` VARCHAR(255) NOT NULL,
+  `type` VARCHAR(255) NOT NULL,
+  `cores` INT NOT NULL,
+  `standing_worker` BOOLEAN NOT NULL DEFAULT 0,
+  `standing_worker_cores` BIGINT NOT NULL,
+  `disk_size_gb` BIGINT NOT NULL,
+  `local_ssd_data_disk` BOOLEAN NOT NULL DEFAULT 1,
+  `pd_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`type`),
+  FOREIGN KEY (`instance_group`) REFERENCES instance_groups(name) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+INSERT INTO pools (`name`, `type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
+  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, `max_instances`, `pool_size`)
+SELECT 'standard', 'standard', worker_cores, 1, standing_worker_cores, worker_disk_size_gb,
+  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, max_instances, pool_size
+  FROM globals;
+
+INSERT INTO pools (`name`, `type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
+  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, `max_instances`, `pool_size`)
+SELECT 'highmem', 'highmem', worker_cores, 0, standing_worker_cores, worker_disk_size_gb,
+  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, max_instances, pool_size
+  FROM globals;
+
+INSERT INTO pools (`name`, `type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
+  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, `max_instances`, `pool_size`)
+SELECT 'highcpu', 'highcpu', worker_cores, 0, standing_worker_cores, worker_disk_size_gb,
+  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, max_instances, pool_size
+  FROM globals;
+
+INSERT INTO pools (`name`, `type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
+  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, `max_instances`, `pool_size`)
+SELECT 'private', NULL, NULL, NULL, NULL, NULL, NULL, NULL, max_instances, pool_size
+  FROM globals;
+
+
 CREATE TABLE IF NOT EXISTS `pools` (
   `name` VARCHAR(255) NOT NULL,
   `type` VARCHAR(255) NOT NULL,
@@ -11,24 +56,29 @@ CREATE TABLE IF NOT EXISTS `pools` (
   `pool_size` BIGINT NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
-
-INSERT INTO pools (`type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
-  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, max_instances, pool_size)
-SELECT 'standard', 'standard', worker_cores, 1, standing_worker_cores, worker_disk_size_gb,
-  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, max_instances, pool_size
-  FROM globals;
-
-INSERT INTO pools (`type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
-  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, max_instances, pool_size)
-SELECT 'highmem', 'highmem', worker_cores, 0, standing_worker_cores, worker_disk_size_gb,
-  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, 1, 1
-  FROM globals;
-
-INSERT INTO pools (`type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
-  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, max_instances, pool_size)
-SELECT 'highcpu', 'highcpu', worker_cores, 0, standing_worker_cores, worker_disk_size_gb,
-  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, 1, 1
-  FROM globals;
+--
+--INSERT INTO pools (`name`, `type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
+--  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, `max_instances`, `pool_size`)
+--SELECT 'standard', 'standard', worker_cores, 1, standing_worker_cores, worker_disk_size_gb,
+--  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, max_instances, pool_size
+--  FROM globals;
+--
+--INSERT INTO pools (`name`, `type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
+--  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, `max_instances`, `pool_size`)
+--SELECT 'highmem', 'highmem', worker_cores, 0, standing_worker_cores, worker_disk_size_gb,
+--  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, max_instances, pool_size
+--  FROM globals;
+--
+--INSERT INTO pools (`name`, `type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
+--  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, `max_instances`, `pool_size`)
+--SELECT 'highcpu', 'highcpu', worker_cores, 0, standing_worker_cores, worker_disk_size_gb,
+--  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, max_instances, pool_size
+--  FROM globals;
+--
+--INSERT INTO pools (`name`, `type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
+--  `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, `max_instances`, `pool_size`)
+--SELECT 'private', NULL, NULL, NULL, NULL, NULL, NULL, NULL, max_instances, pool_size
+--  FROM globals;
 
 ALTER TABLE globals DROP COLUMN `worker_cores`;
 ALTER TABLE globals DROP COLUMN `worker_type`;
@@ -40,25 +90,27 @@ ALTER TABLE globals DROP COLUMN `max_instances`;
 ALTER TABLE globals DROP COLUMN `pool_size`;
 
 ALTER TABLE instances ADD COLUMN `pool` VARCHAR(255) NOT NULL DEFAULT 'standard';
+ALTER TABLE instances ADD COLUMN `machine_type` VARCHAR(255) NOT NULL DEFAULT 'n1-standard-16';
+ALTER TABLE instances ADD COLUMN `preemptible` BOOLEAN NOT NULL DEFAULT 1;
 ALTER TABLE jobs ADD COLUMN `pool` VARCHAR(255) NOT NULL DEFAULT 'standard';
 
 ALTER TABLE user_resources RENAME user_pool_resources;
-ALTER TABLE user_pool_resources ADD COLUMN `pool` VARCHAR(255) NOT NULL DEFAULT 'standard';
+ALTER TABLE user_pool_resources ADD COLUMN `pool` VARCHAR(255) DEFAULT 'standard';
 ALTER TABLE user_pool_resources DROP PRIMARY KEY;
 ALTER TABLE user_pool_resources ADD PRIMARY (`user`, pool, token);
-ALTER TABLE user_pool_resources ADD FOREIGN KEY (`pool`) REFERENCES pools(name) ON DELETE CASCADE;
+ALTER TABLE user_pool_resources ADD FOREIGN KEY (`pool`) REFERENCES pools(`name`) ON DELETE CASCADE;
 
 ALTER TABLE batches_staging RENAME batches_pool_staging;
 ALTER TABLE batches_pool_staging ADD COLUMN `pool` VARCHAR(255) NOT NULL DEFAULT 'standard';
 ALTER TABLE batches_pool_staging DROP PRIMARY KEY;
 ALTER TABLE batches_pool_staging ADD PRIMARY (batch_id, pool, token);
-ALTER TABLE batches_pool_staging ADD FOREIGN KEY (`pool`) REFERENCES pools(name) ON DELETE CASCADE;
+ALTER TABLE batches_pool_staging ADD FOREIGN KEY (`pool`) REFERENCES pools(`name`) ON DELETE CASCADE;
 
 ALTER TABLE batch_cancellable_resources RENAME batch_pool_cancellable_resources;
 ALTER TABLE batch_pool_cancellable_resources ADD COLUMN `pool` VARCHAR(255) NOT NULL DEFAULT 'standard';
 ALTER TABLE batch_pool_cancellable_resources DROP PRIMARY KEY;
 ALTER TABLE batch_pool_cancellable_resources ADD PRIMARY (batch_id, pool, token);
-ALTER TABLE batch_pool_cancellable_resources ADD FOREIGN KEY (`pool`) REFERENCES pools(name) ON DELETE CASCADE;
+ALTER TABLE batch_pool_cancellable_resources ADD FOREIGN KEY (`pool`) REFERENCES pools(`name`) ON DELETE CASCADE;
 
 DROP TABLE `ready_cores`;
 

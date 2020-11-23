@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `removed` BOOLEAN NOT NULL DEFAULT FALSE,
   `version` INT NOT NULL,
   `pool` VARCHAR(255) NOT NULL,
+  `machine_type` VARCHAR(255) NOT NULL,
+  `preemptible` BOOLEAN NOT NULL,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`pool`) REFERENCES pools(`id`)
 ) ENGINE = InnoDB;
