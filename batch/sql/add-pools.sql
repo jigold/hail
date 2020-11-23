@@ -14,20 +14,20 @@ CREATE TABLE IF NOT EXISTS `pools` (
 INSERT INTO pools (`type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
   `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, max_instances, pool_size)
 SELECT 'standard', worker_cores, 1, standing_worker_cores, worker_disk_size_gb,
-  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, max_instances,
-  pool_size FROM globals;
+  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, max_instances, pool_size
+  FROM globals;
 
 INSERT INTO pools (`type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
   `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, max_instances, pool_size)
 SELECT 'highmem', worker_cores, 0, standing_worker_cores, worker_disk_size_gb,
-  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, 0,
-  0 FROM globals;
+  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, 1, 1
+  FROM globals;
 
 INSERT INTO pools (`type`, `cores`, `standing_worker`, `standing_worker_cores`, `disk_size_gb`,
   `local_ssd_data_disk`, `pd_ssd_data_disk_size_gb`, max_instances, pool_size)
 SELECT 'highcpu', worker_cores, 0, standing_worker_cores, worker_disk_size_gb,
-  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, 0,
-  0 FROM globals;
+  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, 1, 1
+  FROM globals;
 
 ALTER TABLE globals DROP COLUMN `worker_cores`;
 ALTER TABLE globals DROP COLUMN `worker_type`;

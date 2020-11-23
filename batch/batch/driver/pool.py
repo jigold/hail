@@ -492,7 +492,7 @@ LOCK IN SHARED MODE;
                         await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
 
                 n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-                
+
                 if (ENABLE_STANDING_WORKER and
                         self.standing_worker and
                         n_live_instances == 0 and
