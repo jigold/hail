@@ -323,110 +323,110 @@ FROM ready_cores;
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
 
-@routes.post('/config-update')
-@check_csrf_token
-@web_authenticated_developers_only()
-async def config_update(request, userdata):  # pylint: disable=unused-argument
-    app = request.app
-    inst_pool = app['inst_pool']
-
-    session = await aiohttp_session.get_session(request)
-
-    def validate(name, value, predicate, description):
-        if not predicate(value):
-            set_message(session,
-                        f'{name} invalid: {value}.  Must be {description}.',
-                        'error')
-            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
-        return value
-
-    def validate_int(name, value, predicate, description):
-        try:
-            i = int(value)
-        except ValueError as e:
-            set_message(session,
-                        f'{name} invalid: {value}.  Must be an integer.',
-                        'error')
-            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/')) from e
-        return validate(name, i, predicate, description)
-
-    post = await request.post()
-
-    valid_worker_types = ('highcpu', 'standard', 'highmem')
-    worker_type = validate(
-        'Worker type',
-        post['worker_type'],
-        lambda v: v in valid_worker_types,
-        f'one of {", ".join(valid_worker_types)}')
-
-    if worker_type == 'standard':
-        valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
-    else:
-        valid_worker_cores = (2, 4, 8, 16, 32, 64, 96)
-    worker_cores = validate_int(
-        f'{worker_type} worker cores',
-        post['worker_cores'],
-        lambda v: v in valid_worker_cores,
-        f'one of {", ".join(str(v) for v in valid_worker_cores)}')
-
-    standing_worker_cores = validate_int(
-        f'{worker_type} standing worker cores',
-        post['standing_worker_cores'],
-        lambda v: v in valid_worker_cores,
-        f'one of {", ".join(str(v) for v in valid_worker_cores)}')
-
-    worker_disk_size_gb = validate_int(
-        'Worker disk size',
-        post['worker_disk_size_gb'],
-        lambda v: v > 0,
-        'a positive integer')
-
-    worker_local_ssd_data_disk = validate_int(
-        'Worker local SSD data disk (boolean)',
-        post['worker_local_ssd_data_disk'],
-        lambda v: v in (0, 1),
-        'boolean (0 or 1)')
-
-    worker_pd_ssd_data_disk_size_gb = validate_int(
-        'Worker PD SSD data disk size (in GB)',
-        post['worker_pd_ssd_data_disk_size_gb'],
-        lambda v: v >= 0,
-        'a nonnegative integer')
-
-    if worker_local_ssd_data_disk == 0 and worker_pd_ssd_data_disk_size_gb == 0:
-        set_message(session,
-                    'One of worker local SSD or PD SSD data disk must be non-zero.',
-                    'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
-    if worker_local_ssd_data_disk == 1 and worker_pd_ssd_data_disk_size_gb > 0:
-        set_message(session,
-                    'Both worker local SSD and PD SSD data disk are non-zero.',
-                    'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
-
-    max_instances = validate_int(
-        'Max instances',
-        post['max_instances'],
-        lambda v: v > 0,
-        'a positive integer')
-
-    pool_size = validate_int(
-        'Worker pool size',
-        post['pool_size'],
-        lambda v: v > 0,
-        'a positive integer')
-
-    await inst_pool.configure(
-        worker_type, worker_cores, worker_disk_size_gb,
-        worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-        standing_worker_cores,
-        max_instances, pool_size)
-
-    set_message(session,
-                'Updated batch configuration.',
-                'info')
-
-    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+# @routes.post('/config-update')
+# @check_csrf_token
+# @web_authenticated_developers_only()
+# async def config_update(request, userdata):  # pylint: disable=unused-argument
+#     app = request.app
+#     inst_pool = app['inst_pool']
+#
+#     session = await aiohttp_session.get_session(request)
+#
+#     def validate(name, value, predicate, description):
+#         if not predicate(value):
+#             set_message(session,
+#                         f'{name} invalid: {value}.  Must be {description}.',
+#                         'error')
+#             raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+#         return value
+#
+#     def validate_int(name, value, predicate, description):
+#         try:
+#             i = int(value)
+#         except ValueError as e:
+#             set_message(session,
+#                         f'{name} invalid: {value}.  Must be an integer.',
+#                         'error')
+#             raise web.HTTPFound(deploy_config.external_url('batch-driver', '/')) from e
+#         return validate(name, i, predicate, description)
+#
+#     post = await request.post()
+#
+#     valid_worker_types = ('highcpu', 'standard', 'highmem')
+#     worker_type = validate(
+#         'Worker type',
+#         post['worker_type'],
+#         lambda v: v in valid_worker_types,
+#         f'one of {", ".join(valid_worker_types)}')
+#
+#     if worker_type == 'standard':
+#         valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
+#     else:
+#         valid_worker_cores = (2, 4, 8, 16, 32, 64, 96)
+#     worker_cores = validate_int(
+#         f'{worker_type} worker cores',
+#         post['worker_cores'],
+#         lambda v: v in valid_worker_cores,
+#         f'one of {", ".join(str(v) for v in valid_worker_cores)}')
+#
+#     standing_worker_cores = validate_int(
+#         f'{worker_type} standing worker cores',
+#         post['standing_worker_cores'],
+#         lambda v: v in valid_worker_cores,
+#         f'one of {", ".join(str(v) for v in valid_worker_cores)}')
+#
+#     worker_disk_size_gb = validate_int(
+#         'Worker disk size',
+#         post['worker_disk_size_gb'],
+#         lambda v: v > 0,
+#         'a positive integer')
+#
+#     worker_local_ssd_data_disk = validate_int(
+#         'Worker local SSD data disk (boolean)',
+#         post['worker_local_ssd_data_disk'],
+#         lambda v: v in (0, 1),
+#         'boolean (0 or 1)')
+#
+#     worker_pd_ssd_data_disk_size_gb = validate_int(
+#         'Worker PD SSD data disk size (in GB)',
+#         post['worker_pd_ssd_data_disk_size_gb'],
+#         lambda v: v >= 0,
+#         'a nonnegative integer')
+#
+#     if worker_local_ssd_data_disk == 0 and worker_pd_ssd_data_disk_size_gb == 0:
+#         set_message(session,
+#                     'One of worker local SSD or PD SSD data disk must be non-zero.',
+#                     'error')
+#         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+#     if worker_local_ssd_data_disk == 1 and worker_pd_ssd_data_disk_size_gb > 0:
+#         set_message(session,
+#                     'Both worker local SSD and PD SSD data disk are non-zero.',
+#                     'error')
+#         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+#
+#     max_instances = validate_int(
+#         'Max instances',
+#         post['max_instances'],
+#         lambda v: v > 0,
+#         'a positive integer')
+#
+#     pool_size = validate_int(
+#         'Worker pool size',
+#         post['pool_size'],
+#         lambda v: v > 0,
+#         'a positive integer')
+#
+#     await inst_pool.configure(
+#         worker_type, worker_cores, worker_disk_size_gb,
+#         worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
+#         standing_worker_cores,
+#         max_instances, pool_size)
+#
+#     set_message(session,
+#                 'Updated batch configuration.',
+#                 'info')
+#
+#     return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
 @routes.get('/user_resources')
@@ -693,13 +693,8 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.select_and_fetchone('''
-SELECT worker_type, worker_cores, worker_disk_size_gb,
-  instance_id, internal_token FROM globals;
+SELECT instance_id, internal_token FROM globals;
 ''')
-
-    app['worker_type'] = row['worker_type']
-    app['worker_cores'] = row['worker_cores']
-    app['worker_disk_size_gb'] = row['worker_disk_size_gb']
 
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
