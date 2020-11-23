@@ -667,7 +667,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 worker_local_ssd_data_disk = pool.local_ssd_data_disk
                 worker_pd_ssd_data_disk_size_gb = pool.pd_ssd_data_disk_size_gb
 
-
+                cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
                 cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores,
                                                               worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
                 cores_mcpu = adjust_cores_for_packability(cores_mcpu)
