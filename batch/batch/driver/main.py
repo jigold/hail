@@ -33,7 +33,7 @@ from ..batch_configuration import (REFRESH_INTERVAL_IN_SECONDS,
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from .pool_manager import PoolManager
-from .instance_manager import InstanceManager
+from .instance_manager import InstanceMonitor
 from .zone import ZoneManager
 from .k8s_cache import K8sCache
 from ..utils import query_billing_projects
@@ -753,7 +753,7 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     app['pool_manager'] = pool_manager
     await pool_manager.async_init()
 
-    inst_manager = InstanceManager(app, machine_name_prefix)
+    inst_manager = InstanceMonitor(app, machine_name_prefix)
     app['inst_manager'] = inst_manager
     await inst_manager.async_init()
 

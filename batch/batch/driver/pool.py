@@ -18,67 +18,71 @@ from ..worker_config import WorkerConfig
 log = logging.getLogger('pool')
 
 
-class PoolConfig:
-    def __init__(self, family, typ, cores, preemptible, private):
-        self.family = family
-        self.type = typ
-        self.cores = cores
-        self.preemptible = preemptible
-        self.private = private
+# class PoolConfig:
+#     def __init__(self, family, typ, cores, preemptible, private):
+#         self.family = family
+#         self.type = typ
+#         self.cores = cores
+#         self.preemptible = preemptible
+#         self.private = private
+#
+    # def is_pool_compatible(self, pool, standing=False):
+    #     if (pool.family == self.family and
+    #             pool.type == self.type and
+    #             pool.preemptible == self.preemptible and
+    #             pool.private == self.private):
+    #         if not standing and self.cores <= pool.cores:
+    #             return True
+    #         elif standing and self.cores == pool.cores:
+    #             return True
+    #     return False
+    #
+    # def find_optimal_pool(self, pools, standing=False):
+    #     best_pool = None
+    #     for pool in pools:
+    #         if not (pool.family == self.family and
+    #                 pool.type == self.type and
+    #                 pool.preemptible == self.preemptible and
+    #                 pool.private == self.private):
+    #             continue
+    #
+    #         if standing or self.private:
+    #             if self.cores == pool.cores:
+    #                 best_pool = pool
+    #         else:
+    #             if not best_pool and self.cores <= pool.cores:
+    #                 best_pool = pool
+    #             elif best_pool and best_pool.cores < pool.cores:
+    #                 best_pool = pool
+    #     return best_pool
+    #
+    # def to_dict(self):
+    #     return {
+    #         'family': self.family,
+    #         'type': self.type,
+    #         'cores': self.cores,
+    #         'preemptible': self.preemptible,
+    #         'private': self.private
+    #     }
+    #
+    # def __str__(self):
+    #     return f'{self.to_dict()}'
 
-    def is_pool_compatible(self, pool, standing=False):
-        if (pool.family == self.family and
-                pool.type == self.type and
-                pool.preemptible == self.preemptible and
-                pool.private == self.private):
-            if not standing and self.cores <= pool.cores:
-                return True
-            elif standing and self.cores == pool.cores:
-                return True
-        return False
-
-    def find_optimal_pool(self, pools, standing=False):
-        best_pool = None
-        for pool in pools:
-            if not (pool.family == self.family and
-                    pool.type == self.type and
-                    pool.preemptible == self.preemptible and
-                    pool.private == self.private):
-                continue
-
-            if standing or self.private:
-                if self.cores == pool.cores:
-                    best_pool = pool
-            else:
-                if not best_pool and self.cores <= pool.cores:
-                    best_pool = pool
-                elif best_pool and best_pool.cores < pool.cores:
-                    best_pool = pool
-        return best_pool
-
-    def to_dict(self):
-        return {
-            'family': self.family,
-            'type': self.type,
-            'cores': self.cores,
-            'preemptible': self.preemptible,
-            'private': self.private
-        }
-
-    def __str__(self):
-        return f'{self.to_dict()}'
-
+# worker_disk_size_gb, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb
 
 class Pool:
     @staticmethod
     def from_record(app, record):
         return Pool(app, record['id'], record['family'], record['type'],
-                    record['cores'], record['preemptible'])
+                    record['cores'], record['preemptible'], record['disk_size_gb'],
+                    record['local_ssd_data_disk'], record['pd_ssd_data_disk_size_gb'],
+                    record['pool_size'], record['max_instances'])
 
-    def __init__(self, app, id, family, typ, cores, preemptible):
+    def __init__(self, app, id, family, typ, cores, preemptible,
+                 disk_size_gb, local_ssd_data_disk, pd_ssd_data_disk_size_gb,
+                 pool_size, max_instances):
         self.app = app
         self.db = app['db']
-        self.pool_manager = app['pool_manager']
         self.zone_manager = app['zone_manager']
         self.instance_manager = app['inst_manager']
         self.zone_manager = app['zone_manager']
@@ -90,6 +94,11 @@ class Pool:
         self.type = typ
         self.cores = cores
         self.preemptible = preemptible
+        self.disk_size_gb = disk_size_gb
+        self.local_ssd_data_disk = local_ssd_data_disk
+        self.pd_ssd_data_disk_size_gb = pd_ssd_data_disk_size_gb
+        self.pool_size = pool_size
+        self.max_instances = max_instances
 
         self.scheduler = None
 
@@ -190,7 +199,7 @@ class Pool:
 
         log.info(f'created {instance}')
 
-        if self.pool_manager.worker_local_ssd_data_disk:
+        if self.local_ssd_data_disk:
             worker_data_disk = {
                 'type': 'SCRATCH',
                 'autoDelete': True,
@@ -204,7 +213,7 @@ class Pool:
                 'autoDelete': True,
                 'initializeParams': {
                     'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
-                    'diskSizeGb': str(self.pool_manager.worker_pd_ssd_data_disk_size_gb)
+                    'diskSizeGb': str(self.pd_ssd_data_disk_size_gb)
                 }
             }
             worker_data_disk_name = 'sdb'
@@ -223,7 +232,7 @@ class Pool:
                 'initializeParams': {
                     'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-12',
                     'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
-                    'diskSizeGb': str(self.pool_manager.worker_disk_size_gb)
+                    'diskSizeGb': str(self.disk_size_gb)
                 }
             }, worker_data_disk],
 
@@ -519,14 +528,9 @@ LOCK IN SHARED MODE;
                             (ready_cores_mcpu - self.live_free_cores_mcpu + (self.cores * 1000) - 1)
                             // (self.cores * 1000))
 
-                    fair_share = self.pool_manager.fair_share[self.id]
-                    pool_size = fair_share['pool_size']
-                    long_run_quota = fair_share['long_run_quota']
-                    excess_scheduling_rate = fair_share['excess_scheduling_rate']
-
                     instances_needed = min(instances_needed,
-                                           pool_size - n_live_instances,
-                                           self.pool_manager.max_instances - self.n_instances,
+                                           self.pool_size - n_live_instances,
+                                           self.max_instances - self.n_instances,
                                            long_run_quota,
                                            excess_scheduling_rate)
                     if instances_needed > 0:

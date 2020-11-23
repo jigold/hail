@@ -24,14 +24,13 @@ def parse_resource_name(resource_name):
 RESOURCE_NAME_REGEX = re.compile('projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/instances/(?P<name>.+)')
 
 
-class InstanceManager:
+class InstanceMonitor:
     def __init__(self, app, machine_name_prefix):
         self.app = app
         self.db = app['db']
         self.compute_client = app['compute_client']
         self.logging_client = app['logging_client']
         self.zone_manager = app['zone_manager']
-        self.pool_manager = app['pool_manager']
 
         self.machine_name_prefix = machine_name_prefix
 
@@ -40,16 +39,16 @@ class InstanceManager:
 
         self.name_instance = {}
 
-        self.n_instances_by_state = {
-            'pending': 0,
-            'active': 0,
-            'inactive': 0,
-            'deleted': 0
-        }
+        # self.n_instances_by_state = {
+        #     'pending': 0,
+        #     'active': 0,
+        #     'inactive': 0,
+        #     'deleted': 0
+        # }
 
         # pending and active
-        self.live_free_cores_mcpu = 0
-        self.live_total_cores_mcpu = 0
+        # self.live_free_cores_mcpu = 0
+        # self.live_total_cores_mcpu = 0
 
         self.task_manager = aiotools.BackgroundTaskManager()
 
@@ -72,11 +71,11 @@ class InstanceManager:
         assert instance in self.instances_by_last_updated
 
         self.instances_by_last_updated.remove(instance)
-        self.n_instances_by_state[instance.state] -= 1
-
-        if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
-            self.live_total_cores_mcpu -= instance.cores_mcpu
+        # self.n_instances_by_state[instance.state] -= 1
+        #
+        # if instance.state in ('pending', 'active'):
+        #     self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
+        #     self.live_total_cores_mcpu -= instance.cores_mcpu
 
         instance.pool.adjust_for_remove_instance(instance)
 
@@ -93,11 +92,11 @@ class InstanceManager:
         assert instance not in self.instances_by_last_updated
 
         self.instances_by_last_updated.add(instance)
-        self.n_instances_by_state[instance.state] += 1
-
-        if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
-            self.live_total_cores_mcpu += instance.cores_mcpu
+        # self.n_instances_by_state[instance.state] += 1
+        #
+        # if instance.state in ('pending', 'active'):
+        #     self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
+        #     self.live_total_cores_mcpu += instance.cores_mcpu
 
         instance.pool.adjust_for_add_instance(instance)
 
