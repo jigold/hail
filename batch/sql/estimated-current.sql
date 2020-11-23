@@ -1,17 +1,6 @@
 CREATE TABLE IF NOT EXISTS `globals` (
   `instance_id` VARCHAR(100) NOT NULL,
   `internal_token` VARCHAR(100) NOT NULL,
-  `worker_cores` BIGINT NOT NULL,
-  `worker_family` VARCHAR(100) NOT NULL,
-  `worker_type` VARCHAR(100) NOT NULL,
-  `worker_disk_size_gb` BIGINT NOT NULL,
-  `worker_local_ssd_data_disk` BOOLEAN NOT NULL DEFAULT 1,
-  `worker_pd_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
-  `standing_worker_family` VARCHAR(100) NOT NULL,
-  `standing_worker_type` VARCHAR(100) NOT NULL,
-  `standing_worker_cores` BIGINT NOT NULL,
-  `max_instances` BIGINT NOT NULL,
-  `pool_size` BIGINT NOT NULL,
   `n_tokens` INT NOT NULL
 ) ENGINE = InnoDB;
 
@@ -22,16 +11,16 @@ CREATE TABLE IF NOT EXISTS `resources` (
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `pools` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `family` VARCHAR(255) NOT NULL,
   `type` VARCHAR(255) NOT NULL,
   `cores` INT NOT NULL,
-  `preemptible` BOOLEAN NOT NULL DEFAULT 1,
-  `private` BOOLEAN NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`),
-  UNIQUE (`family`, `type`, `cores`, `preemptible`, `private`)
+  `standing_worker_cores` BIGINT NOT NULL,
+  `disk_size_gb` BIGINT NOT NULL,
+  `local_ssd_data_disk` BOOLEAN NOT NULL DEFAULT 1,
+  `pd_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
+  `max_instances` BIGINT NOT NULL,
+  `pool_size` BIGINT NOT NULL,
+  PRIMARY KEY (`type`)
 ) ENGINE = InnoDB;
-CREATE INDEX `pools_config` ON `pools` (`family`, `type`, `cores`, `preemptible`, `private`);
 
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
@@ -79,7 +68,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `time_deactivated` BIGINT,
   `removed` BOOLEAN NOT NULL DEFAULT FALSE,
   `version` INT NOT NULL,
-  `pool` INT NOT NULL,
+  `pool` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`pool`) REFERENCES pools(`id`)
 ) ENGINE = InnoDB;
@@ -88,7 +77,7 @@ CREATE INDEX `instances_pool` ON `instances` (`pool`);
 
 CREATE TABLE IF NOT EXISTS `user_pool_resources` (
   `user` VARCHAR(100) NOT NULL,
-  `pool` INT NOT NULL,
+  `pool` VARCHAR(255) NOT NULL,
   `token` INT NOT NULL,
   `n_ready_jobs` INT NOT NULL DEFAULT 0,
   `n_running_jobs` INT NOT NULL DEFAULT 0,
@@ -132,7 +121,7 @@ CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `s
 
 CREATE TABLE IF NOT EXISTS `batches_pool_staging` (
   `batch_id` BIGINT NOT NULL,
-  `pool` INT NOT NULL,
+  `pool` VARCHAR(255) NOT NULL,
   `token` INT NOT NULL,
   `n_jobs` INT NOT NULL DEFAULT 0,
   `n_ready_jobs` INT NOT NULL DEFAULT 0,
@@ -144,7 +133,7 @@ CREATE TABLE IF NOT EXISTS `batches_pool_staging` (
 
 CREATE TABLE `batch_pool_cancellable_resources` (
   `batch_id` BIGINT NOT NULL,
-  `pool` INT NOT NULL,
+  `pool` VARCHAR(255) NOT NULL,
   `token` INT NOT NULL,
   # neither run_always nor cancelled
   `n_ready_cancellable_jobs` INT NOT NULL DEFAULT 0,
@@ -168,7 +157,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `attempt_id` VARCHAR(40),
-  `pool` INT NOT NULL,  # FIXME: this needs to be nullable in current setup
+  `pool` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`pool`) REFERENCES pools(id) ON DELETE CASCADE
