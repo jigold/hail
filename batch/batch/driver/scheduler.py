@@ -1,6 +1,7 @@
 import abc
 import logging
 import asyncio
+import json
 import random
 import sortedcontainers
 
@@ -10,6 +11,8 @@ from hailtop import aiotools
 
 from ..batch import schedule_job
 from ..utils import WindowFractionCounter
+from ..spec_writer import SpecWriter
+from ..batch_format_version import BatchFormatVersion
 
 log = logging.getLogger('driver')
 
@@ -268,6 +271,7 @@ class JobPrivateInstanceScheduler(Scheduler):
     def __init__(self, app):
         super(Scheduler).__init__(app)
         self.job_private_inst_manager = app['job_private_inst_manager']
+        self.log_store = app['log_store']
 
     async def schedule_loop_body(self):
         records = self.db.select_and_fetchall(
@@ -342,21 +346,27 @@ LIMIT %s;
                 batch_id = record['batch_id']
                 job_id = record['job_id']
                 id = (batch_id, job_id)
-                attempt_id = secret_alnum_string(6)
-                record['attempt_id'] = attempt_id
 
-                # if self.job_private_inst_manager.n_instances > self.job_private_inst_manager.max_instances:
-                #     break
+                format_version =  BatchFormatVersion(record['format_version'])
+                assert format_version.has_full_spec_in_gcs()
 
-                async def create_instance_with_error_handling(app, batch_id, job_id, id):
+                token, start_job_id = await SpecWriter.get_token_start_id(self.db, batch_id, job_id)
+                job_spec = await self.log_store.read_spec_file(batch_id, token, start_job_id, job_id)
+                job_spec = json.loads(job_spec)
+
+                if self.job_private_inst_manager.n_instances >= self.job_private_inst_manager.max_instances:
+                    should_wait = True
+                    break
+
+                async def create_instance_with_error_handling(batch_id, job_id, id, job_spec):
                     try:
-                        self.job_private_inst_manager.create_instance(record)
+                        self.job_private_inst_manager.create_instance(batch_id, job_id, job_spec)
                     except Exception:
-                        log.info(f'error while cancelling job {id}', exc_info=True)
+                        log.info(f'error while creating private instance for job {id}', exc_info=True)
 
                 await waitable_pool.call(
                     create_instance_with_error_handling,
-                    self.app, batch_id, job_id, id)
+                    batch_id, job_id, id, job_spec)
 
                 remaining.value -= 1
                 if remaining.value <= 0:
