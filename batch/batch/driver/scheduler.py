@@ -307,6 +307,7 @@ WHERE user = %s AND `state` = 'running';
 ''',
                     (user,),
                     timer_description=f'in schedule: get {user} running batches'):
+                # FIXME: don't get jobs with leases on them
                 async for record in self.db.select_and_fetchall(
                         '''
 SELECT job_id, spec
@@ -322,6 +323,7 @@ LIMIT %s;
                     record['format_version'] = batch['format_version']
                     yield record
                 if not batch['cancelled']:
+                    # FIXME: don't get jobs with leases on them
                     async for record in self.db.select_and_fetchall(
                             '''
 SELECT job_id, spec
