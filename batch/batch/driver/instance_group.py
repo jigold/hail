@@ -243,8 +243,10 @@ LOCK IN SHARE MODE;
     def adjust_for_add_instance(self, instance):
         self.n_instances += 1
 
-    async def create_instance(self, batch_id, job_id):
-        instance = Instance.create_instance(...)
+    async def create_instance(self, batch_id, job_id, cores, machine_type, preemptible, pd_ssd_data_disk_size_gb):
+        await self.inst_monitor.create_instance(None, cores, worker_local_ssd_data_disk=False,
+                                                worker_pd_ssd_data_disk_size_gb,
+                worker_disk_size_gb, machine_type, preemptible, max_idle_time_msecs)
 
         await self.db.insert(f'''
 INSERT INTO instance_private_jobs (instance, batch_id, job_id)

@@ -7,6 +7,7 @@ from hailtop.utils import time_msecs, time_msecs_str
 
 from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
+from ..worker_config import parse_machine_type_str
 
 log = logging.getLogger('instance')
 
@@ -24,10 +25,10 @@ class Instance:
             record['zone'], pool, record['machine_type'], record['preemptible'])
 
     @staticmethod
-    async def create(app, name, activation_token, worker_cores_mcpu, zone, pool,
-                     machine_type, preemptible):
+    async def create(app, name, activation_token, zone, pool, machine_type, preemptible):
         db = app['db']
 
+        worker_cores_mcpu = parse_machine_type_str(machine_type)['cores'] * 1000
         state = 'pending'
         now = time_msecs()
         token = secrets.token_urlsafe(32)
@@ -38,7 +39,8 @@ INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_co
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (name, state, activation_token, token, worker_cores_mcpu,
-             worker_cores_mcpu, now, now, INSTANCE_VERSION, zone, pool.id))
+             worker_cores_mcpu, now, now, INSTANCE_VERSION, zone, pool.id,
+             machine_type, preemptible))
         return Instance(
             app, name, state, worker_cores_mcpu, worker_cores_mcpu, now,
             0, now, None, INSTANCE_VERSION, zone, pool, machine_type, preemptible)

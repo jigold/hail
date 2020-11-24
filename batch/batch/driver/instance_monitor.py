@@ -89,7 +89,8 @@ class InstanceMonitor:
             self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu -= instance.cores_mcpu
 
-        instance.pool.adjust_for_remove_instance(instance)
+        if instance.pool:
+            instance.pool.adjust_for_remove_instance(instance)
 
     async def remove_instance(self, instance, reason, timestamp=None):
         await instance.deactivate(reason, timestamp)
@@ -111,7 +112,8 @@ class InstanceMonitor:
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu += instance.cores_mcpu
 
-        instance.pool.adjust_for_add_instance(instance)
+        if instance.pool:
+            instance.pool.adjust_for_add_instance(instance)
 
     def add_instance(self, instance):
         assert instance.name not in self.name_instance
@@ -290,8 +292,8 @@ timestamp >= "{mark}"
 
             await asyncio.sleep(1)
 
-    async def create_instance(self, pool, cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-                              worker_disk_size_gb, machine_type, preemptible, max_idle_time_msecs):
+    async def create_instance(self, pool, machine_type, preemptible, worker_local_ssd_data_disk,
+                              worker_pd_ssd_data_disk_size_gb, worker_disk_size_gb, max_idle_time_msecs):
         if max_idle_time_msecs is None:
             max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS
 
@@ -318,7 +320,7 @@ timestamp >= "{mark}"
             zone = random.choices(self.zone_monitor.zones, zone_prob_weights)[0]
 
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, machine_name, activation_token, cores * 1000, zone,
+        instance = await Instance.create(self.app, machine_name, activation_token, zone,
                                          pool, machine_type, preemptible)
         self.add_instance(instance)
 

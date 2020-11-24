@@ -135,7 +135,10 @@ class Pool:
             self.healthy_instances_by_free_cores.add(instance)
 
     async def create_instance(self, cores, max_idle_time_msecs=None):
-        pass
+        preemptible = True
+        machine_type = f'n1-{self.type}-{cores}'
+        self.instance_monitor.create_instance(self, cores, self.local_ssd_data_disk, self.pd_ssd_data_disk_size_gb,
+                                              self.disk_size_gb, machine_type, preemptible, max_idle_time_msecs)
 
     async def control_loop(self):
         log.info(f'starting control loop for pool {self}')
