@@ -28,7 +28,7 @@ class InstanceGroup:
             self.task_manager.shutdown()
 
     async def async_init(self):
-        self.scheduler = Scheduler(self.app, self)
+        pass
 
     async def run(self):
         await self.scheduler.async_init()
@@ -251,15 +251,3 @@ INSERT INTO instance_private_jobs (instance, batch_id, job_id)
   VALUES (%s, %s, %s);
 ''',
                              (instance.name, batch_id, job_id))
-
-    async def control_loop(self):
-        log.info(f'starting control loop for job private instances {self}')
-        while True:
-            try:
-
-
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:
-                log.exception('in control loop')
-            await asyncio.sleep(15)

@@ -2,6 +2,7 @@ import re
 import asyncio
 import aiohttp
 import logging
+import collections
 import datetime
 import sortedcontainers
 import dateutil.parser
@@ -39,6 +40,8 @@ class InstanceMonitor:
 
         self.name_instance = {}
 
+        self.n_instances_by_machine_type = collections.defaultdict(lambda x: 0)
+
         self.n_instances_by_state = {
             'pending': 0,
             'active': 0,
@@ -72,6 +75,7 @@ class InstanceMonitor:
 
         self.instances_by_last_updated.remove(instance)
         self.n_instances_by_state[instance.state] -= 1
+        self.n_instances_by_machine_type[instance.machine_type] -= 1
 
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
@@ -93,6 +97,7 @@ class InstanceMonitor:
 
         self.instances_by_last_updated.add(instance)
         self.n_instances_by_state[instance.state] += 1
+        self.n_instances_by_machine_type[instance.machine_type] += 1
 
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)

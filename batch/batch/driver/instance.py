@@ -21,10 +21,11 @@ class Instance:
             record['cores_mcpu'], record['free_cores_mcpu'],
             record['time_created'], record['failed_request_count'],
             record['last_updated'], record['ip_address'], record['version'],
-            record['zone'], pool)
+            record['zone'], pool, record['machine_type'], record['preemptible'])
 
     @staticmethod
-    async def create(app, name, activation_token, worker_cores_mcpu, zone, pool):
+    async def create(app, name, activation_token, worker_cores_mcpu, zone, pool,
+                     machine_type, preemptible):
         db = app['db']
 
         state = 'pending'
@@ -32,18 +33,19 @@ class Instance:
         token = secrets.token_urlsafe(32)
         await db.just_execute(
             '''
-INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated, version, zone, pool)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated, version, zone, pool,
+  machine_type, preemptible)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (name, state, activation_token, token, worker_cores_mcpu,
              worker_cores_mcpu, now, now, INSTANCE_VERSION, zone, pool.id))
         return Instance(
             app, name, state, worker_cores_mcpu, worker_cores_mcpu, now,
-            0, now, None, INSTANCE_VERSION, zone, pool)
+            0, now, None, INSTANCE_VERSION, zone, pool, machine_type, preemptible)
 
     def __init__(self, app, name, state, cores_mcpu, free_cores_mcpu,
                  time_created, failed_request_count, last_updated, ip_address,
-                 version, zone, pool):
+                 version, zone, pool, machine_type, preemptible):
         self.db = app['db']
         self.pool = pool
         self.instance_manager = app['inst_manager']
@@ -59,6 +61,8 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self.ip_address = ip_address
         self.version = version
         self.zone = zone
+        self.machine_type = machine_type
+        self.preemptible = preemptible
 
     @property
     def state(self):
