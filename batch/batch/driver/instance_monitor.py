@@ -624,3 +624,5 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
 
         log.info(f'created machine {machine_name} for {instance} '
                  f' with logs at {self.log_store.worker_log_path(machine_name, "worker.log")}')
+
+        return instance

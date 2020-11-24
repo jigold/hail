@@ -1,20 +1,12 @@
 import asyncio
 import sortedcontainers
 import collections
-import random
 import logging
-import secrets
-import base64
-import json
 
 from hailtop import aiotools
-from hailtop.utils import secret_alnum_string, retry_long_running
+from hailtop.utils import retry_long_running
 
-from .instance import Instance
-from .scheduler import Scheduler
-from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
-    WORKER_MAX_IDLE_TIME_MSECS, BATCH_WORKER_IMAGE
-from ..worker_config import WorkerConfig
+from .scheduler import PoolScheduler
 from ..batch_configuration import ENABLE_STANDING_WORKER, STANDING_WORKER_MAX_IDLE_TIME_MSECS
 
 log = logging.getLogger('pool')
@@ -76,7 +68,7 @@ class Pool:
             self.task_manager.shutdown()
 
     async def async_init(self):
-        self.scheduler = Scheduler(self.app, self)
+        self.scheduler = PoolScheduler(self.app, self)
 
     async def run(self):
         await self.scheduler.async_init()

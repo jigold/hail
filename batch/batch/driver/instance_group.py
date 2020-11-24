@@ -7,7 +7,7 @@ import sortedcontainers
 from hailtop import aiotools
 from hailtop.utils import retry_long_running, time_msecs
 
-from .scheduler import Scheduler
+from .scheduler import PoolScheduler
 from .instance import Instance
 from ..batch_configuration import ENABLE_STANDING_WORKER, STANDING_WORKER_MAX_IDLE_TIME_MSECS
 
@@ -27,6 +27,7 @@ class InstanceGroup:
         finally:
             self.task_manager.shutdown()
 
+    @abc.abstractmethod
     async def async_init(self):
         pass
 
@@ -105,6 +106,9 @@ class Pool(InstanceGroup):
         # pending and active
         self.live_free_cores_mcpu = 0
         self.live_total_cores_mcpu = 0
+
+    async def async_init(self):
+        self.scheduler = PoolScheduler(self.app, self)
 
     def config(self):
         return {
@@ -220,7 +224,7 @@ class JobPrivateInstanceGroup(InstanceGroup):
 
         self.db = self.app['db']
         self.inst_monitor = self.app['inst_monitor']
-        self.n_instances = 0
+
 
     async def get_instance(self, user, record):
         record = await self.db.select_and_fetchone(f'''
@@ -236,12 +240,6 @@ LOCK IN SHARE MODE;
             instance = self.inst_monitor.name_instance[record['instance']]
             return instance
         return None
-
-    def adjust_for_remove_instance(self, instance):
-        self.n_instances -= 1
-
-    def adjust_for_add_instance(self, instance):
-        self.n_instances += 1
 
     async def create_instance(self, batch_id, job_id, cores, machine_type, preemptible, pd_ssd_data_disk_size_gb):
         await self.inst_monitor.create_instance(None, cores, worker_local_ssd_data_disk=False,
