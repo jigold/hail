@@ -347,7 +347,7 @@ LIMIT %s;
                 job_id = record['job_id']
                 id = (batch_id, job_id)
 
-                format_version =  BatchFormatVersion(record['format_version'])
+                format_version = BatchFormatVersion(record['format_version'])
                 assert format_version.has_full_spec_in_gcs()
 
                 token, start_job_id = await SpecWriter.get_token_start_id(self.db, batch_id, job_id)
