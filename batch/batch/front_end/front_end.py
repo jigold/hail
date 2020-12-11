@@ -1231,8 +1231,11 @@ async def ui_get_job(request, userdata):
                                                         'env': list}))
 
     page_context = {
+        #141659
         'batch_id': batch_id,
+        # 1
         'job_id': job_id,
+        # {'input': None, 'main': 'hello', 'output': None}
         'job_log': job_log,
         'attempts': attempts,
         'step_statuses': step_statuses,
