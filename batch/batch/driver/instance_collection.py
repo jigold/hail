@@ -37,6 +37,10 @@ class InstanceCollection:
         self.live_free_cores_mcpu = 0
         self.live_total_cores_mcpu = 0
 
+        self.boot_disk_size_gb = None
+        self.max_instances = None
+        self.max_live_instances = None
+
         self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):

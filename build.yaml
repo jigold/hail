@@ -1994,6 +1994,10 @@ steps:
       script: /io/sql/add-enable-standing-worker.py
     - name: add-inst-colls
       script: /io/sql/add-inst-colls.sql
+    - name: add-job-private-inst-colls
+      script: /io/sql/add-job-private-inst-colls.sql
+    - name: insert-nonpreemptible-resources
+      script: /io/sql/insert_nonpreemptible_resources.py
    inputs:
     - from: /repo/batch/sql
       to: /io/

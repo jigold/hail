@@ -95,12 +95,15 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `removed` BOOLEAN NOT NULL DEFAULT FALSE,
   `version` INT NOT NULL,
   `inst_coll` VARCHAR(255) NOT NULL,
+  `machine_type` VARCHAR(255) NOT NULL,
+  `preemptible` BOOLEAN NOT NULL,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `instances_removed` ON `instances` (`removed`);
 CREATE INDEX `instances_inst_coll` ON `instances` (`inst_coll`);
 CREATE INDEX `instances_removed_inst_coll` ON `instances` (`removed`, `inst_coll`);
+CREATE INDEX `instances_removed_time_activated` ON `instances` (`time_activated`);
 
 CREATE TABLE IF NOT EXISTS `user_inst_coll_resources` (
   `user` VARCHAR(100) NOT NULL,
@@ -314,10 +317,6 @@ DROP TRIGGER IF EXISTS attempts_before_update;
 CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
 FOR EACH ROW
 BEGIN
-  IF OLD.start_time IS NOT NULL AND (NEW.start_time IS NULL OR NEW.start_time < OLD.start_time) THEN
-    SET NEW.start_time = OLD.start_time;
-  END IF;
-
   IF OLD.reason IS NOT NULL AND (OLD.end_time IS NULL OR NEW.end_time IS NULL OR NEW.end_time >= OLD.end_time) THEN
     SET NEW.end_time = OLD.end_time;
     SET NEW.reason = OLD.reason;

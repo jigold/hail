@@ -23,7 +23,7 @@ from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            CalledProcessError, check_shell_output, is_google_registry_image)
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
-                                        parse_memory_in_bytes)
+                                        parse_memory_in_bytes, parse_storage_in_bytes)
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS, HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 # import uvloop
@@ -553,7 +553,7 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
 
-    delay = await sleep_and_backoff(delay)
+        delay = await sleep_and_backoff(delay)
 
 
 def copy_command(src, dst, requester_pays_project=None):
@@ -706,7 +706,7 @@ class Job:
 
         req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
         req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
-        req_storage_in_bytes = parse_memory_in_bytes(job_spec['resources']['storage'])
+        req_storage_in_bytes = parse_storage_in_bytes(job_spec['resources']['storage'])
 
         cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
         cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)

@@ -8,7 +8,7 @@ import aiohttp
 import pytest
 
 from hailtop.config import get_deploy_config, get_user_config
-from hailtop.auth import service_auth_headers, get_userinfo
+from hailtop.auth import service_auth_headers
 from hailtop.utils import (retry_response_returning_functions,
                            external_requests_client_session)
 from hailtop.batch_client.client import BatchClient
@@ -719,17 +719,19 @@ def test_verify_private_network_is_restricted(client):
 
 def test_highmem_instance(client):
     builder = client.create_batch()
-    resources = {'worker_type': 'highmem'}
+    resources = {'cpu': '0.25', 'memory': '5Gi', 'storage': '500Mi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'highmem' in status['status']['worker'], str(status['status'])
 
 
 def test_highcpu_instance(client):
     builder = client.create_batch()
-    resources = {'worker_type': 'highcpu'}
+    resources = {'cpu': '0.25', 'memory': '50Mi', 'storage': '500Mi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'highcpu' in status['status']['worker'], str(status['status'])

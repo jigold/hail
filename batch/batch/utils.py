@@ -2,6 +2,7 @@ import logging
 import math
 import json
 from collections import deque
+from sortedcontainers import SortedList
 
 log = logging.getLogger('utils')
 
@@ -14,6 +15,27 @@ def coalesce(x, default):
     if x is not None:
         return x
     return default
+
+
+def get_cpu_cost_per_core_hour(worker_type, preemptible):
+    # per core costs; assumes n1 family
+    if preemptible:
+        if worker_type == 'standard':
+            cpu_cost_per_core_hour = 0.01
+        elif worker_type == 'highcpu':
+            cpu_cost_per_core_hour = 0.0075
+        else:
+            assert worker_type == 'highmem'
+            cpu_cost_per_core_hour = 0.0125
+    else:
+        if worker_type == 'standard':
+            cpu_cost_per_core_hour = 0.04749975
+        elif worker_type == 'highcpu':
+            cpu_cost_per_core_hour = 0.0354243
+        else:
+            assert worker_type == 'highmem'
+            cpu_cost_per_core_hour = 0.0591515
+    return cpu_cost_per_core_hour
 
 
 def cost_from_msec_mcpu(msec_mcpu):
@@ -38,13 +60,7 @@ def cost_from_msec_mcpu(msec_mcpu):
     instance_cost_per_instance_hour = disk_cost_per_instance_hour + ip_cost_per_instance_hour
 
     # per core costs
-    if worker_type == 'standard':
-        cpu_cost_per_core_hour = 0.01
-    elif worker_type == 'highcpu':
-        cpu_cost_per_core_hour = 0.0075
-    else:
-        assert worker_type == 'highmem'
-        cpu_cost_per_core_hour = 0.0125
+    cpu_cost_per_core_hour = get_cpu_cost_per_core_hour(worker_type, preemptible=True)
 
     service_cost_per_core_hour = 0.01
 
@@ -118,6 +134,25 @@ def adjust_cores_for_packability(cores_in_mcpu):
     cores_in_mcpu = max(1, cores_in_mcpu)
     power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
     return int(2**power * 1000)
+
+
+def adjust_cores_for_worker_type(cores_in_mcpu, worker_type):
+    if worker_type == 'standard':
+        valid_worker_cores = SortedList([1, 2, 4, 8, 16, 32, 64, 96])
+    else:
+        valid_worker_cores = SortedList([2, 4, 8, 16, 32, 64, 96])
+
+    cores = adjust_cores_for_packability(cores_in_mcpu) // 1000
+    idx = valid_worker_cores.bisect_left(cores)
+    if idx < len(valid_worker_cores):
+        return valid_worker_cores[idx] * 1000
+    return None
+
+
+def round_storage_bytes_to_gib(storage_bytes):
+    gib = storage_bytes / 1024 / 1024 / 1024
+    gib = math.ceil(gib)
+    return gib
 
 
 class Box:

@@ -161,18 +161,25 @@ WHERE name = %s;
         if zone is None:
             return
 
+        machine_type = f'n1-{self.worker_type}-{cores}'
+
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, self, machine_name, activation_token, cores * 1000, zone)
+
+        instance = await Instance.create(self.app, self, machine_name, activation_token,
+                                         cores * 1000, zone, machine_type, True)
         self.add_instance(instance)
         log.info(f'created {instance}')
 
-        machine_type = f'n1-{self.worker_type}-{cores}'
-        await create_instance(app=self.app, zone=zone, machine_name=machine_name,
-                              machine_type=machine_type, activation_token=activation_token,
+        await create_instance(app=self.app,
+                              zone=zone,
+                              machine_name=machine_name,
+                              machine_type=machine_type,
+                              activation_token=activation_token,
                               max_idle_time_msecs=max_idle_time_msecs,
                               worker_local_ssd_data_disk=self.worker_local_ssd_data_disk,
                               worker_pd_ssd_data_disk_size_gb=self.worker_pd_ssd_data_disk_size_gb,
-                              boot_disk_size_gb=self.boot_disk_size_gb)
+                              boot_disk_size_gb=self.boot_disk_size_gb,
+                              preemptible=True)
 
     async def create_instances(self):
         ready_cores = await self.db.select_and_fetchone(
