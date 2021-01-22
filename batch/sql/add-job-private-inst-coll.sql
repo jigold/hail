@@ -4,7 +4,7 @@ FROM inst_colls
 WHERE `name` = 'standard';
 
 ALTER TABLE instances ADD COLUMN `machine_type` VARCHAR(255);
-UPDATE instances SET machine_type = CONCAT('n1-', inst_coll, '-', cores_mcpu / 1000);
+UPDATE instances SET machine_type = CONCAT('n1-', inst_coll, '-', cores_mcpu DIV 1000);
 ALTER TABLE instances MODIFY COLUMN `machine_type` VARCHAR(255) NOT NULL;
 
 ALTER TABLE instances ADD COLUMN `preemptible` BOOLEAN DEFAULT TRUE;
