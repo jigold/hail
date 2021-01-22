@@ -42,6 +42,27 @@ class JobPrivateInstanceCollection(InstanceCollection):
         self.async_worker_pool: AsyncWorkerPool = app['async_worker_pool']
 
     async def async_init(self):
+        log.info(f'initializing {self}')
+
+        await super().async_init()
+
+        row = await self.db.select_and_fetchone('''
+SELECT boot_disk_size_gb, max_instances, max_live_instances
+FROM inst_colls
+WHERE name = %s;
+''',
+                                                (self.name,))
+
+        self.boot_disk_size_gb = row['boot_disk_size_gb']
+        self.max_instances = row['max_instances']
+        self.max_live_instances = row['max_live_instances']
+
+        async for record in self.db.select_and_fetchall(
+                'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;',
+                (self.name,)):
+            instance = Instance.from_record(self.app, self, record)
+            self.add_instance(instance)
+
         self.task_manager.ensure_future(retry_long_running(
             'create_instances_loop',
             run_if_changed, self.create_instances_state_changed, self.create_instances_loop_body))
@@ -89,9 +110,9 @@ LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE batches.state = 'running'
   AND jobs.state = 'Ready'
   AND (jobs.always_run OR NOT jobs.cancelled)
-  AND inst_coll = %s
+  AND jobs.inst_coll = %s
   AND instances.`state` = 'active'
-SORT BY instances.time_activated ASC
+ORDER BY instances.time_activated ASC
 LIMIT 300;
 ''',
                 (self.name,),
