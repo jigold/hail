@@ -10,7 +10,7 @@ ALTER TABLE instances MODIFY COLUMN `machine_type` VARCHAR(255) NOT NULL;
 ALTER TABLE instances ADD COLUMN `preemptible` BOOLEAN DEFAULT TRUE;
 ALTER TABLE instances MODIFY COLUMN `preemptible` BOOLEAN NOT NULL;
 
-CREATE INDEX `instances_removed_time_activated` ON `instances` (`time_activated`);
+CREATE INDEX `instances_time_activated` ON `instances` (`time_activated`);
 
 DELIMITER $$
 
