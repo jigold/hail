@@ -21,6 +21,7 @@ class InstanceCollectionManager:
 
         self.name_inst_coll = {}
         self.name_pool = {}
+        self.name_job_private = {}
 
     async def async_init(self):
         inst_coll_records = self.db.execute_and_fetchall('''
@@ -36,6 +37,7 @@ SELECT * FROM inst_colls;
                 self.name_pool[inst_coll_name] = inst_coll
             else:
                 inst_coll = JobPrivateInstanceCollection(self.app, inst_coll_name, self.machine_name_prefix)
+                self.name_job_private[inst_coll_name] = inst_coll
 
             self.name_inst_coll[inst_coll_name] = inst_coll
 
@@ -50,6 +52,10 @@ SELECT * FROM inst_colls;
     @property
     def pools(self):
         return self.name_pool
+
+    @property
+    def job_private_inst_colls(self):
+        return self.name_job_private
 
     @property
     def name_instance(self):

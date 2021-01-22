@@ -36,9 +36,9 @@ from ..globals import HTTP_CLIENT_MAX_SIZE
 from .zone_monitor import ZoneMonitor
 from .gce import GCEEventMonitor
 from .canceller import Canceller
-from .instance_collection import InstanceCollection
 from .instance_collection_manager import InstanceCollectionManager
 from .job import mark_job_complete, mark_job_started
+from .job_private import JobPrivateInstanceCollection
 from .k8s_cache import K8sCache
 from .pool import Pool
 from ..utils import query_billing_projects
@@ -319,6 +319,7 @@ FROM user_inst_coll_resources;
 
     page_context = {
         'pools': inst_coll_manager.pools.values(),
+        'job_private_inst_colls': inst_coll_manager.job_private_inst_colls.values(),
         'instance_id': app['instance_id'],
         'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
         'instances': inst_coll_manager.name_instance.values(),
@@ -439,7 +440,7 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
 
-@routes.get('/inst_coll/{inst_coll}')
+@routes.get('/inst_coll/pool/{pool}')
 @web_authenticated_developers_only()
 async def get_inst_coll(request, userdata):
     app = request.app
@@ -447,19 +448,16 @@ async def get_inst_coll(request, userdata):
 
     session = await aiohttp_session.get_session(request)
 
-    log.info(request.match_info)
-    inst_coll_name = request.match_info['inst_coll']
-    inst_coll = inst_coll_manager.get_inst_coll(inst_coll_name)
+    pool_name = request.match_info['pool']
+    pool = inst_coll_manager.get_inst_coll(pool_name)
 
-    if not isinstance(inst_coll, InstanceCollection):
+    if not isinstance(pool, Pool):
         set_message(session,
-                    f'Unknown inst_coll {inst_coll_name}.',
+                    f'Unknown pool {pool_name}.',
                     'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
-    assert isinstance(inst_coll, Pool)
-
-    user_resources = await inst_coll.scheduler.compute_fair_share()
+    user_resources = await pool.scheduler.compute_fair_share()
     user_resources = sorted(user_resources.values(),
                             key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
                             reverse=True)
@@ -467,8 +465,42 @@ async def get_inst_coll(request, userdata):
     ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
 
     page_context = {
-        'pool': inst_coll,
-        'instances': inst_coll.name_instance.values(),
+        'pool': pool,
+        'instances': pool.name_instance.values(),
+        'user_resources': user_resources,
+        'ready_cores_mcpu': ready_cores_mcpu
+    }
+
+    return await render_template('batch-driver', request, userdata, 'pool.html', page_context)
+
+
+@routes.get('/inst_coll/job_private/{job_private}')
+@web_authenticated_developers_only()
+async def get_inst_coll(request, userdata):
+    app = request.app
+    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+
+    session = await aiohttp_session.get_session(request)
+
+    job_private_name = request.match_info['job_private']
+    job_private_inst_coll = inst_coll_manager.get_inst_coll(job_private_name)
+
+    if not isinstance(job_private_inst_coll, JobPrivateInstanceCollection):
+        set_message(session,
+                    f'Unknown inst_coll {job_private_name}.',
+                    'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    user_resources = await job_private_inst_coll.compute_fair_share()
+    user_resources = sorted(user_resources.values(),
+                            key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
+                            reverse=True)
+
+    ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
+
+    page_context = {
+        'pool': job_private_inst_coll,
+        'instances': job_private_inst_coll.name_instance.values(),
         'user_resources': user_resources,
         'ready_cores_mcpu': ready_cores_mcpu
     }
