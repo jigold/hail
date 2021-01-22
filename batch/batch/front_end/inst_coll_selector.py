@@ -59,18 +59,18 @@ LEFT JOIN inst_colls ON pools.name = inst_colls.name;
         optimal_cores_mcpu = None
         min_cost = None
         for pool in self.pool_configs.values():
-            cores_mcpu = pool.resources_to_cores_mcpu(cores_mcpu, memory_bytes, storage_bytes)
-            if cores_mcpu is not None:
-                cost = pool.cpu_memory_cost_per_core_hour(cores_mcpu)
+            maybe_cores_mcpu = pool.resources_to_cores_mcpu(cores_mcpu, memory_bytes, storage_bytes)
+            if maybe_cores_mcpu is not None:
+                cost = pool.cpu_memory_cost_per_core_hour(maybe_cores_mcpu)
                 if min_cost is None or cost < min_cost:
                     min_cost = cost
-                    optimal_cores_mcpu = cores_mcpu
+                    optimal_cores_mcpu = maybe_cores_mcpu
                     optimal_pool_name = pool.name
 
         if optimal_pool_name is not None:
             return (optimal_pool_name, optimal_cores_mcpu)
 
-        return None
+        return (None, None)
 
 
 class JobPrivateInstanceSelector:
@@ -95,9 +95,9 @@ class JobPrivateInstanceSelector:
                 if min_cost is None or cost < min_cost:
                     min_cost = cost
                     optimal_machine_type = f'n1-{worker_type}-{cores}'
-                    optimal_cores_mcpu = cores
+                    optimal_cores_mcpu = cores * 1000
 
         if optimal_machine_type:
             return ('job-private', optimal_machine_type, optimal_cores_mcpu, storage_gib)
 
-        return None
+        return (None, None, None, None)

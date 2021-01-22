@@ -21,7 +21,7 @@ class Instance:
             record['cores_mcpu'], record['free_cores_mcpu'],
             record['time_created'], record['failed_request_count'],
             record['last_updated'], record['ip_address'], record['version'],
-            record['zone'], record['machine_type'], record['preemptible'])
+            record['zone'], record['machine_type'], bool(record['preemptible']))
 
     @staticmethod
     async def create(app, inst_coll, name, activation_token, worker_cores_mcpu,
@@ -79,7 +79,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self._state = 'active'
         self.ip_address = ip_address
         self.inst_coll.adjust_for_add_instance(self)
-
+        log.info(f'activated {self}')
         self.inst_coll.scheduler_state_changed.set()
 
         return rv['token']

@@ -99,6 +99,7 @@ deploy_config = get_deploy_config()
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
+BATCH_JOB_DEFAULT_WORKER_TYPE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_WORKER_TYPE', 'standard')
 BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 
 
@@ -639,12 +640,16 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
                 if 'storage' not in resources:
                     resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
+                if 'worker_type' not in resources:
+                    resources['worker_type'] = BATCH_JOB_DEFAULT_WORKER_TYPE
                 if 'preemptible' not in resources:
                     resources['preemptible'] = BATCH_JOB_DEFAULT_PREEMPTIBLE
 
                 req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
                 req_memory_bytes = parse_memory_in_bytes(resources['memory'])
                 req_storage_bytes = parse_storage_in_bytes(resources['storage'])
+
+                worker_type = resources['worker_type']
                 preemptible = resources['preemptible']
 
                 if req_cores_mcpu == 0:
@@ -653,23 +658,20 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'cpu cannot be 0')
 
                 inst_coll_name = None
+                cores_mcpu = None
 
                 if preemptible:
                     pool_selector: PoolSelector = app['pool_selector']
-                    spec = pool_selector.select_pool(cores_mcpu=req_cores_mcpu,
-                                                     memory_bytes=req_memory_bytes,
-                                                     storage_bytes=req_storage_bytes)
-                    if spec:
-                        pool_name, cores_mcpu = spec
-                        inst_coll_name = pool_name
+                    inst_coll_name, cores_mcpu = pool_selector.select_pool(
+                        cores_mcpu=req_cores_mcpu,
+                        memory_bytes=req_memory_bytes,
+                        storage_bytes=req_storage_bytes)
 
                 if not preemptible or inst_coll_name is None:
-                    spec = JobPrivateInstanceSelector.get_machine_type(
+                    inst_coll_name, machine_type, cores_mcpu, storage_gib = JobPrivateInstanceSelector.get_machine_type(
                         req_cores_mcpu, req_memory_bytes, req_storage_bytes, preemptible)
-                    if spec:
-                        inst_coll_name, machine_type, cores_mcpu, storage_gib = spec
-                        resources['machine_type'] = machine_type
-                        resources['storage_gib'] = storage_gib
+                    resources['machine_type'] = machine_type
+                    resources['storage_gib'] = storage_gib
 
                 if inst_coll_name is None:
                     raise web.HTTPBadRequest(

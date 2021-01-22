@@ -1,4 +1,6 @@
 import re
+import random
+import json
 import logging
 import asyncio
 import secrets
@@ -16,7 +18,7 @@ from .create_instance import create_instance
 from .instance_collection import InstanceCollection
 from .instance import Instance
 from .job import mark_job_started, schedule_job
-from ..utils import worker_memory_per_core_bytes
+from ..utils import worker_memory_per_core_bytes, Box
 
 log = logging.getLogger('job_private_inst_coll')
 
@@ -94,6 +96,7 @@ WHERE name = %s;
         self.max_live_instances = max_live_instances
 
     async def schedule_jobs_loop_body(self):
+        log.info(f'starting scheduling jobs loop')
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
         should_wait = True
@@ -142,7 +145,17 @@ LIMIT 300;
 
         return should_wait
 
-    async def compute_fair_share(self, n_jobs_to_allocate):
+    def max_instances_to_create(self):
+        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+
+        return min(self.max_live_instances - n_live_instances,
+                   self.max_instances - self.n_instances,
+                   # 20 queries/s; our GCE long-run quota
+                   300)
+
+    async def compute_fair_share(self):
+        n_jobs_to_allocate = self.max_instances_to_create()
+
         user_running_jobs = {}
         user_total_jobs = {}
         result = {}
@@ -170,11 +183,11 @@ HAVING n_ready_jobs + n_running_jobs > 0;
             user_running_jobs[user] = record['n_running_jobs']
             user_total_jobs[user] = record['n_ready_jobs'] + record['n_running_jobs']
             pending_users_by_running_jobs.add(user)
-            record['allocated_jobs'] = 0
+            record['n_allocated_jobs'] = 0
             result[user] = record
 
         def allocate_jobs(user, mark):
-            result[user]['allocated_jobs'] = mark - user_running_jobs[user]
+            result[user]['n_allocated_jobs'] = mark - user_running_jobs[user]
 
         mark = 0
         while n_jobs_to_allocate > 0 and (pending_users_by_running_jobs or allocating_users_by_total_jobs):
@@ -225,6 +238,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 
         machine_type_dict = machine_type_to_dict(machine_type)
         cores = int(machine_type_dict['cores'])
+        worker_type = machine_type_dict['machine_type']
 
         zone = self.zone_monitor.get_zone(cores, False, storage_gb)
         if zone is None:
@@ -247,86 +261,209 @@ HAVING n_ready_jobs + n_running_jobs > 0;
                                               boot_disk_size_gb=self.boot_disk_size_gb,
                                               preemptible=preemptible)
 
-        memory_in_bytes = worker_memory_per_core_bytes(machine_type)
+        memory_in_bytes = worker_memory_per_core_bytes(worker_type)
         resources = worker_config.resources(cores * 1000, memory_in_bytes)
 
         start_time = time_msecs()
 
         await mark_job_started(self.app, batch_id, job_id, attempt_id, instance, start_time, resources)
 
+#     async def create_instances_loop_body(self):
+#         log.info(f'create_instances for {self}: starting')
+#         start = time_msecs()
+#         n_total_created = 0
+#
+#         user_resources = await self.compute_fair_share()
+#
+#         total = sum(resources['allocated_jobs']
+#                     for resources in user_resources.values())
+#
+#         if total == 0:
+#             log.info(f'create_instances {self}: no allocated jobs')
+#             should_wait = True
+#             return should_wait
+#
+#         user_share = {
+#             user: max(int(300 * resources['allocated_jobs'] / total + 0.5), 20)
+#             for user, resources in user_resources.items()
+#         }
+#
+#         waitable_pool = WaitableSharedPool(self.async_worker_pool)
+#
+#         should_wait = True
+#         for user, resources in user_resources.items():
+#             n_allocated_jobs = resources['allocated_jobs']
+#
+#             share = user_share[user]
+#             n_created = 0
+#
+#             log.info(f'create_instances for {self}: user-share: {user}: {n_allocated_jobs} {share}')
+#
+#             if n_allocated_jobs == 0:
+#                 continue
+#
+#             async for record in self.db.select_and_fetchall(
+#                     '''
+# SELECT jobs.batch_id, jobs.job_id, userdata, user, format_version,
+# spec, jobs.cores_mcpu
+# FROM batches
+# INNER JOIN jobs ON batches.id = jobs.batch_id
+# LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
+# LEFT JOIN instances ON attempts.instance_name = instances.name
+# WHERE batches.user = %s
+#   AND batches.state = 'running'
+#   AND jobs.state = 'Ready'
+#   AND (jobs.always_run OR NOT jobs.cancelled)
+#   AND jobs.inst_coll = %s
+#   AND NOT ((attempts.instance_name) IN (
+#     SELECT `name` FROM instances
+#     WHERE `state` = 'pending' OR `state` = 'active'
+#   ))
+# LIMIT %s;
+# ''',
+#                     (user, self.name, share + 1),
+#                     timer_description=f'create_instances for {self}: get {user} runnable jobs'):
+#                 batch_id = record['batch_id']
+#                 job_id = record['job_id']
+#                 id = (batch_id, job_id)
+#                 attempt_id = secret_alnum_string(6)
+#
+#                 log.info(f'creating job private instance for job {id}')
+#
+#                 async def create_instance_with_error_handling(batch_id, job_id, attempt_id, record):
+#                     id = (batch_id, job_id)
+#                     try:
+#                         batch_format_version = BatchFormatVersion(record['format_version'])
+#                         spec = json.loads(record['spec'])
+#                         machine_spec = batch_format_version.get_spec_machine_spec(spec)
+#                         await self.create_instance(batch_id, job_id, attempt_id, machine_spec)
+#                     except Exception:
+#                         log.info(f'creating job private instance for job {id}', exc_info=True)
+#
+#                 await waitable_pool.call(
+#                     create_instance_with_error_handling, batch_id, job_id, attempt_id, record)
+#
+#                 n_created += 1
+#                 n_total_created += 1
+#
+#                 if n_created == share:
+#                     should_wait = False
+#                     break
+#
+#         await waitable_pool.wait()
+#
+#         end = time_msecs()
+#         log.info(f'created {n_total_created} instances in {end - start}ms for {self}')
+#
+#         if n_total_created >= self.max_instances_to_create():
+#             await asyncio.sleep(15)  # ensure we don't create more instances than GCE limit
+#
+#         return should_wait
+
     async def create_instances_loop_body(self):
-        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-
-        max_instances_to_create = min(self.max_live_instances - n_live_instances,
-                                      self.max_instances - self.n_instances,
-                                      # 20 queries/s; our GCE long-run quota
-                                      300)
-
         log.info(f'create_instances for {self}: starting')
         start = time_msecs()
-        n_total_created = 0
+        n_instances_created = 0
 
-        user_resources = await self.compute_fair_share(max_instances_to_create)
+        user_resources = await self.compute_fair_share()
 
-        total = sum(resources['allocated_jobs']
+        total = sum(resources['n_allocated_jobs']
                     for resources in user_resources.values())
-
-        if total == 0:
+        if not total:
             log.info(f'create_instances {self}: no allocated jobs')
             should_wait = True
             return should_wait
-
         user_share = {
-            user: max(int(300 * resources['allocated_jobs'] / total + 0.5), 20)
+            user: max(int(300 * resources['n_allocated_jobs'] / total + 0.5), 20)
             for user, resources in user_resources.items()
         }
 
-        waitable_pool = WaitableSharedPool(self.async_worker_pool)
-
-        should_wait = True
-        for user, resources in user_resources.items():
-            n_allocated_jobs = resources['allocated_jobs']
-
-            share = user_share[user]
-            n_created = 0
-
-            log.info(f'create_instances for {self}: user-share: {user}: {n_allocated_jobs} {share}')
-
-            if n_allocated_jobs == 0:
-                continue
-
-            async for record in self.db.select_and_fetchall(
+        async def user_runnable_jobs(user, remaining):
+            async for batch in self.db.select_and_fetchall(
                     '''
-SELECT jobs.batch_id, jobs.job_id, userdata, user, format_version,
-spec, cores_mcpu
+SELECT id, cancelled, userdata, user, format_version
 FROM batches
-INNER JOIN jobs ON batches.id = jobs.batch_id
+WHERE user = %s AND `state` = 'running';
+''',
+                    (user,),
+                    timer_description=f'in create_instances {self}: get {user} running batches'):
+                async for record in self.db.select_and_fetchall(
+                        '''
+SELECT job_id, spec, cores_mcpu
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
-LEFT JOIN instances ON attempts.instance_name = instances.name
-WHERE batches.user = %s
-  AND batches.state = 'running'
-  AND jobs.state = 'Ready'
-  AND (jobs.always_run OR NOT jobs.cancelled)
-  AND inst_coll = %s
-  AND NOT ((attempts.instance_name) IN (
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
+AND NOT ((attempts.instance_name) IN (
     SELECT `name` FROM instances
     WHERE `state` = 'pending' OR `state` = 'active'
   ))
 LIMIT %s;
 ''',
-                    (user, self.name),
-                    timer_description=f'reate_instances for {self}: get {user} runnable jobs'):
+                        (batch['id'], self.name, remaining.value),
+                        timer_description=f'in create_instances {self}: get {user} batch {batch["id"]} runnable jobs (1)'):
+                    record['batch_id'] = batch['id']
+                    record['userdata'] = batch['userdata']
+                    record['user'] = batch['user']
+                    record['format_version'] = batch['format_version']
+                    yield record
+                if not batch['cancelled']:
+                    async for record in self.db.select_and_fetchall(
+                            '''
+SELECT job_id, spec, cores_mcpu
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
+AND NOT ((attempts.instance_name) IN (
+    SELECT `name` FROM instances
+    WHERE `state` = 'pending' OR `state` = 'active'
+  ))
+LIMIT %s;
+''',
+                            (batch['id'], self.name, remaining.value),
+                            timer_description=f'in create_instances {self}: get {user} batch {batch["id"]} runnable jobs (2)'):
+                        record['batch_id'] = batch['id']
+                        record['userdata'] = batch['userdata']
+                        record['user'] = batch['user']
+                        record['format_version'] = batch['format_version']
+                        yield record
+
+        waitable_pool = WaitableSharedPool(self.async_worker_pool)
+
+        should_wait = True
+        for user, resources in user_resources.items():
+            n_allocated_instances = resources['n_allocated_jobs']
+            if n_allocated_instances == 0:
+                continue
+
+            n_user_instances_created = 0
+
+            share = user_share[user]
+
+            log.info(f'create_instances {self}: user-share: {user}: {share}')
+
+            remaining = Box(share)
+            async for record in user_runnable_jobs(user, remaining):
                 batch_id = record['batch_id']
                 job_id = record['job_id']
+                id = (batch_id, job_id)
                 attempt_id = secret_alnum_string(6)
+                record['attempt_id'] = attempt_id
+
+                if n_user_instances_created >= n_allocated_instances:
+                    # FIXME: Add exceeded shares once this is all working
+                    break
+
+                n_instances_created += 1
+                n_user_instances_created += 1
+                should_wait = False
 
                 log.info(f'creating job private instance for job {id}')
 
                 async def create_instance_with_error_handling(batch_id, job_id, attempt_id, record):
-                    id = (batch_id, job_id)
                     try:
-                        format_version: BatchFormatVersion = record['format_version']
-                        machine_spec = format_version.get_spec_machine_spec(record['spec'])
+                        batch_format_version = BatchFormatVersion(record['format_version'])
+                        spec = json.loads(record['spec'])
+                        machine_spec = batch_format_version.get_spec_machine_spec(spec)
                         await self.create_instance(batch_id, job_id, attempt_id, machine_spec)
                     except Exception:
                         log.info(f'creating job private instance for job {id}', exc_info=True)
@@ -334,22 +471,18 @@ LIMIT %s;
                 await waitable_pool.call(
                     create_instance_with_error_handling, batch_id, job_id, attempt_id, record)
 
-                n_created += 1
-                n_total_created += 1
-
-                if n_created == share:
-                    should_wait = False
+                remaining.value -= 1
+                if remaining.value <= 0:
                     break
 
         await waitable_pool.wait()
 
         end = time_msecs()
-        log.info(f'created {n_total_created} instances in {end - start}ms for {self}')
+        log.info(f'create_instances: created instances for {n_instances_created} jobs in {end - start}ms for {self}')
 
-        if n_total_created >= max_instances_to_create:
-            await asyncio.sleep(15)  # ensure we don't create more instances than GCE limit
+        await asyncio.sleep(15)  # ensure we don't create more instances than GCE limit
 
         return should_wait
 
     def __str__(self):
-        return f'job_private_inst_coll {self.name}'
+        return f'jpic {self.name}'

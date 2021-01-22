@@ -1,23 +1,15 @@
 {% extends "layout.html" %}
-{% block title %}Job Private{% endblock %}
+{% block title %}Job Private Instance Collection{% endblock %}
 {% block content %}
 
-<h1>{{ job_private.name }}</h1>
+<h1>{{ job_private_inst_coll.name }}</h1>
 
 <h2>Configuration</h2>
 <div class="attributes">
-  <form action="{{ base_path }}/config-update/job_private/{{ job_private.name }}" method="POST">
-    <div>Worker boot disk size (in GB): <input name="boot_disk_size_gb" value="{{ pool.boot_disk_size_gb }}" /></div>
-    <div>
-      <label for="worker_local_ssd_data_disk">Worker should use a Local SSD: </label>
-      <input type="checkbox"
-             id="worker_local_ssd_data_disk"
-             name="worker_local_ssd_data_disk"
-             {% if pool.worker_local_ssd_data_disk %}checked{% endif %}
-             value="true" />
-    </div>
-    <div>Max instances: <input name="max_instances" value="{{ pool.max_instances }}" /></div>
-    <div>Max live instances: <input name="max_live_instances" value="{{ pool.max_live_instances }}" /></div>
+  <form action="{{ base_path }}/config-update/job-private/{{ job_private_inst_coll.name }}" method="POST">
+    <div>Boot disk size (in GB): <input name="boot_disk_size_gb" value="{{ job_private_inst_coll.boot_disk_size_gb }}" /></div>
+    <div>Max instances: <input name="max_instances" value="{{ job_private_inst_coll.max_instances }}" /></div>
+    <div>Max live instances: <input name="max_live_instances" value="{{ job_private_inst_coll.max_live_instances }}" /></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
     <button>
       Update
@@ -49,7 +41,7 @@
 
 <h2>Status</h2>
 <div class="attributes">
-  <div>Ready cores: {{ ready_cores_mcpu / 1000 }}</div>
+  <div>Ready jobs: {{ n_ready_jobs }}</div>
 </div>
 <table class="data-table" id="status">
   <thead>
@@ -64,12 +56,12 @@
   </thead>
   <tbody>
   <tr>
-    <td class="numeric-cell">{{ pool.n_instances_by_state['pending'] }}</td>
-    <td class="numeric-cell">{{ pool.n_instances_by_state['active'] }}</td>
-    <td class="numeric-cell">{{ pool.n_instances_by_state['inactive'] }}</td>
-    <td class="numeric-cell">{{ pool.n_instances_by_state['deleted'] }}</td>
-    <td class="numeric-cell">{{ pool.live_total_cores_mcpu / 1000 }}</td>
-    <td class="numeric-cell">{{ pool.live_free_cores_mcpu / 1000 }}</td>
+    <td class="numeric-cell">{{ job_private_inst_coll.n_instances_by_state['pending'] }}</td>
+    <td class="numeric-cell">{{ job_private_inst_coll.n_instances_by_state['active'] }}</td>
+    <td class="numeric-cell">{{ job_private_inst_coll.n_instances_by_state['inactive'] }}</td>
+    <td class="numeric-cell">{{ job_private_inst_coll.n_instances_by_state['deleted'] }}</td>
+    <td class="numeric-cell">{{ job_private_inst_coll.live_total_cores_mcpu / 1000 }}</td>
+    <td class="numeric-cell">{{ job_private_inst_coll.live_free_cores_mcpu / 1000 }}</td>
   </tr>
   </tbody>
 </table>

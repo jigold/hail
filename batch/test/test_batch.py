@@ -717,7 +717,7 @@ def test_verify_private_network_is_restricted(client):
         assert False
 
 
-def test_highmem_instance(client):
+def test_pool_highmem_instance(client):
     builder = client.create_batch()
     resources = {'worker_type': 'highmem'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
@@ -726,7 +726,7 @@ def test_highmem_instance(client):
     assert status['state'] == 'Success', str(j.log()['main'], status)
 
 
-def test_highcpu_instance(client):
+def test_pool_highcpu_instance(client):
     builder = client.create_batch()
     resources = {'worker_type': 'highcpu'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
@@ -737,7 +737,7 @@ def test_highcpu_instance(client):
 
 def test_job_private_instance_nonpreemptible(client):
     builder = client.create_batch()
-    resources = {'worker_type': 'highcpu'}
+    resources = {'worker_type': 'standard', 'preemptible': False}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
