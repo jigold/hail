@@ -5,10 +5,10 @@ WHERE `name` = 'standard';
 
 ALTER TABLE instances ADD COLUMN `machine_type` VARCHAR(255);
 UPDATE instances SET machine_type = CONCAT('n1-', inst_coll, '-', cores_mcpu / 1000);
-ALTER TABLE instances ALTER COLUMN `machine_type` VARCHAR(255) NOT NULL;
+ALTER TABLE instances MODIFY COLUMN `machine_type` VARCHAR(255) NOT NULL;
 
 ALTER TABLE instances ADD COLUMN `preemptible` BOOLEAN DEFAULT TRUE;
-ALTER TABLE instances ALTER COLUMN `preemptible` BOOLEAN NOT NULL;
+ALTER TABLE instances MODIFY COLUMN `preemptible` BOOLEAN NOT NULL;
 
 CREATE INDEX `instances_removed_time_activated` ON `instances` (`time_activated`);
 
