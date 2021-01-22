@@ -1,5 +1,5 @@
 INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
-SELECT 'job-private', 0, worker_disk_size_gb, max_instances, max_live_instances
+SELECT 'job-private', 0, boot_disk_size_gb, max_instances, max_live_instances
 FROM inst_colls
 WHERE `name` = 'standard';
 
