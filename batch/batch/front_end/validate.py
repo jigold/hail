@@ -55,7 +55,7 @@ job_validator = keyed({
         'memory': regex(MEMORY_REGEXPAT, MEMORY_REGEX),
         'cpu': regex(CPU_REGEXPAT, CPU_REGEX),
         'storage': regex(MEMORY_REGEXPAT, MEMORY_REGEX),
-        'worker_type': oneof('standard', 'highcpu', 'highmem')
+        'preemptible': bool_type
     }),
     'secrets': listof(keyed({
         required('namespace'): k8s_str,
