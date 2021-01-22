@@ -1,4 +1,7 @@
-INSERT INTO inst_colls (`name`, `pool`) VALUES ('job-private', 0);
+INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
+SELECT 'job-private', 0, worker_disk_size_gb, max_instances, max_live_instances
+FROM inst_colls
+WHERE `name` = 'standard';
 
 ALTER TABLE instances ADD COLUMN `machine_type` VARCHAR(255);
 UPDATE instances SET machine_type = CONCAT('n1-', inst_coll, '-', cores_mcpu / 1000);
