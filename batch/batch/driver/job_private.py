@@ -101,7 +101,7 @@ WHERE name = %s;
         self.scheduler_state_changed.set()
 
     async def schedule_jobs_loop_body(self):
-        log.info(f'starting scheduling jobs')
+        log.info(f'starting scheduling jobs for {self}')
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
         should_wait = True
@@ -113,7 +113,7 @@ SELECT jobs.batch_id, jobs.job_id, jobs.attempt_id, batches.format_version,
   attempts.instance_name
 FROM batches
 INNER JOIN jobs ON batches.id = jobs.batch_id
-LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = jobs.batch_id
+LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE batches.state = 'running'
   AND jobs.state = 'Ready'
