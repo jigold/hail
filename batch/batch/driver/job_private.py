@@ -304,13 +304,13 @@ WHERE user = %s AND `state` = 'running';
                     timer_description=f'in create_instances {self}: get {user} running batches'):
                 async for record in self.db.select_and_fetchall(
                         '''
-SELECT jobs.job_id, spec, cores_mcpu, SUM(instances.state IS NOT NULL AND 
-  (instances.state = 'pending' OR instances.state = 'active')) as active_attempts
+SELECT jobs.job_id, spec, cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND 
+  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 WHERE jobs.batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
 GROUP BY jobs.job_id, spec, cores_mcpu
-HAVING active_attempts = 0
+HAVING live_attempts = 0
 LIMIT %s;
 ''',
                         (batch['id'], self.name, remaining.value),
@@ -323,13 +323,13 @@ LIMIT %s;
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                             '''
-SELECT jobs.job_id, spec, cores_mcpu, SUM(instances.state IS NOT NULL AND 
-  (instances.state = 'pending' OR instances.state = 'active')) as active_attempts
+SELECT jobs.job_id, spec, cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND 
+  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 WHERE jobs.batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
 GROUP BY jobs.job_id, spec, cores_mcpu
-HAVING active_attempts = 0
+HAVING live_attempts = 0
 LIMIT %s;
 ''',
                             (batch['id'], self.name, remaining.value),
