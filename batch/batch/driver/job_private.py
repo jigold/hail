@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 
 from hailtop.utils import (Notice, run_if_changed,
                            WaitableSharedPool, time_msecs, retry_long_running,
-                           secret_alnum_string, AsyncWorkerPool)
+                           secret_alnum_string, AsyncWorkerPool, periodically_call)
 
 from ..batch_format_version import BatchFormatVersion
 from ..batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
@@ -73,6 +73,8 @@ WHERE name = %s;
             'schedule_jobs_loop',
             run_if_changed, self.scheduler_state_changed, self.schedule_jobs_loop_body))
 
+        self.task_manager.ensure_future(periodically_call(15, self.bump_scheduler))
+
     def config(self):
         return {
             'name': self.name,
@@ -95,8 +97,11 @@ WHERE name = %s;
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
 
+    async def bump_scheduler(self):
+        self.scheduler_state_changed.set()
+
     async def schedule_jobs_loop_body(self):
-        log.info(f'starting scheduling jobs loop')
+        log.info(f'starting scheduling jobs')
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
         should_wait = True
@@ -142,6 +147,8 @@ LIMIT 300;
             n_scheduled += 1
 
         await waitable_pool.wait()
+
+        log.info(f'scheduled {n_scheduled} jobs for {self}')
 
         return should_wait
 
@@ -297,14 +304,13 @@ WHERE user = %s AND `state` = 'running';
                     timer_description=f'in create_instances {self}: get {user} running batches'):
                 async for record in self.db.select_and_fetchall(
                         '''
-SELECT job_id, spec, cores_mcpu
+SELECT jobs.job_id, spec, cores_mcpu, SUM(instances.state IS NOT NULL AND 
+  (instances.state = 'pending' OR instances.state = 'active')) as active_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
-WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
-AND NOT ((attempts.instance_name) IN (
-    SELECT `name` FROM instances
-    WHERE `state` = 'pending' OR `state` = 'active'
-  ))
+WHERE jobs.batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
+GROUP BY jobs.job_id, spec, cores_mcpu
+HAVING active_attempts = 0
 LIMIT %s;
 ''',
                         (batch['id'], self.name, remaining.value),
@@ -317,14 +323,13 @@ LIMIT %s;
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                             '''
-SELECT job_id, spec, cores_mcpu
+SELECT jobs.job_id, spec, cores_mcpu, SUM(instances.state IS NOT NULL AND 
+  (instances.state = 'pending' OR instances.state = 'active')) as active_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
-WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
-AND NOT ((attempts.instance_name) IN (
-    SELECT `name` FROM instances
-    WHERE `state` = 'pending' OR `state` = 'active'
-  ))
+WHERE jobs.batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
+GROUP BY jobs.job_id, spec, cores_mcpu
+HAVING active_attempts = 0
 LIMIT %s;
 ''',
                             (batch['id'], self.name, remaining.value),
