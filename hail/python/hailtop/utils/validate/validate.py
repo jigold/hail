@@ -1,4 +1,4 @@
-from typing import Union, Dict, Pattern, Callable, Any
+from typing import Union, Dict, Pattern, Callable, Any, List
 import re
 
 
@@ -137,6 +137,22 @@ class NullableValidator:
             self.checker.validate(name, obj)
 
 
+class MultipleValidator:
+    def __init__(self, checkers: List['Validator']):
+        self.checkers = checkers
+
+    def validate(self, name: str, obj):
+        excs = []
+        for checker in self.checkers:
+            try:
+                return checker.validate(name, obj)
+            except ValidationError as e:
+                excs.append(e)
+        if excs:
+            reasons = '\n'.join([e.reason for e in excs])
+            raise ValidationError(f'{name} does not satisfy any conditions:\n{reasons}')
+
+
 def required(key: str):
     return RequiredKey(key)
 
@@ -178,3 +194,7 @@ def numeric(**conditions: Callable[[Any], Any]):
 
 def switch(key: str, checkers: Dict[str, Dict[Key, Validator]]):
     return SwitchValidator(key, checkers)
+
+
+def any(*checkers: Validator):
+    return MultipleValidator(list(checkers))

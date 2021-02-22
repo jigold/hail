@@ -44,7 +44,8 @@ from ..inst_coll_config import InstanceCollectionConfigs
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, valid_machine_types
+from ..globals import (HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, valid_machine_types,
+                       memory_to_worker_type)
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
@@ -661,7 +662,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 worker_type = resources.get('worker_type')
                 machine_type = resources.get('machine_type')
-                preemptible = resources.get('preemptible')
+                preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
 
                 if machine_type and ('cpu' in resources or 'memory' in resources):
                     raise web.HTTPBadRequest(
@@ -671,11 +672,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     raise web.HTTPBadRequest(
                         reason='cannot specify both worker_type and machine_type')
 
-                if not machine_type and not worker_type:
-                    worker_type = BATCH_JOB_DEFAULT_WORKER_TYPE
-                    resources['worker_type'] = worker_type
-
-                if not machine_type:
+                if machine_type is None:
                     if 'cpu' not in resources:
                         resources['cpu'] = BATCH_JOB_DEFAULT_CPU
                     resources['req_cpu'] = resources['cpu']
@@ -690,7 +687,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                     if 'memory' not in resources:
                         resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
-                    resources['req_memory'] = resources['memory']
+                    req_memory = resources['memory']
+                    if req_memory in memory_to_worker_type:
+                        if worker_type is not None:
+                            raise web.HTTPBadRequest(
+                                reason='cannot specify both worker_type and memory type')
+                        worker_type = memory_to_worker_type[req_memory]
+                    resources['req_memory'] = req_memory
                     del resources['memory']
                     req_memory_bytes = parse_memory_in_bytes(resources['req_memory'])
 
@@ -709,43 +712,27 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
-                inst_coll_name = None
-                cores_mcpu = None
+                result, exc = inst_coll_configs.select_inst_coll(machine_type, preemptible,
+                                                                 worker_type, req_cores_mcpu,
+                                                                 req_memory_bytes, req_storage_bytes)
 
-                if worker_type:
-                    if preemptible is not None:
-                        raise web.HTTPBadRequest(
-                            reason='cannot have preemptible specified with a worker_type')
+                if exc:
+                    raise web.HTTPBadRequest(reason=exc.message)
 
-                    result = inst_coll_configs.select_pool(
-                        worker_type=worker_type,
-                        cores_mcpu=req_cores_mcpu,
-                        memory_bytes=req_memory_bytes,
-                        storage_bytes=req_storage_bytes)
-                    if result:
-                        inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
-                        resources['cores_mcpu'] = cores_mcpu
-                        resources['memory_bytes'] = memory_bytes
-                        resources['storage_gib'] = storage_gib
-                else:
-                    assert machine_type and machine_type in valid_machine_types
-
-                    if 'preemptible' not in resources:
-                        resources['preemptible'] = BATCH_JOB_DEFAULT_PREEMPTIBLE
-
-                    result = inst_coll_configs.select_job_private(
-                        machine_type=machine_type,
-                        storage_bytes=req_storage_bytes)
-                    if result:
-                        inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
-                        resources['cores_mcpu'] = cores_mcpu
-                        resources['memory_bytes'] = memory_bytes
-                        resources['storage_gib'] = storage_gib
-
-                if inst_coll_name is None:
+                if result is None:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'requested: cpu={resources["req_cpu"]}, memory={resources["req_memory"]}, storage={resources["req_storage"]}')
+                        f'cpu={resources["req_cpu"]}, '
+                        f'memory={resources["req_memory"]}, '
+                        f'storage={resources["req_storage"]}, '
+                        f'preemptible={resources["preemptible"]}, '
+                        f'machine_type={machine_type}')
+
+                inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
+                resources['cores_mcpu'] = cores_mcpu
+                resources['memory_bytes'] = memory_bytes
+                resources['storage_gib'] = storage_gib
+                resources['preemptible'] = preemptible
 
                 secrets = spec.get('secrets')
                 if not secrets:
