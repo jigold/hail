@@ -686,7 +686,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(
                             reason=f'bad resource request for job {id}: '
                             f'cpu must be a power of two with a min of 0.25; '
-                            f'found {resources["cpu"]}.')
+                            f'found {resources["req_cpu"]}.')
 
                     if 'memory' not in resources:
                         resources['memory'] = BATCH_JOB_DEFAULT_MEMORY

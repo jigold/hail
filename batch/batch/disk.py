@@ -62,7 +62,6 @@ chmod a+w {self.mount_path}
         log.info(f'creating disk {self.name}')
         if labels is None:
             labels = {}
-        labels['attached'] = '0'
 
         config = {
             'name': self.name,
@@ -78,7 +77,6 @@ chmod a+w {self.mount_path}
             resp = await self.compute_client.post(f'/zones/{self.zone}/disks',
                                                   json=config,
                                                   params={'requestId': create_uuid})
-            log.info(resp)
             delay = await sleep_and_backoff(delay)
         log.info(f'created disk {self.name}')
 
