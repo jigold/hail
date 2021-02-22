@@ -138,7 +138,13 @@ def test_invalid_resource_requests(client):
     builder = client.create_batch()
     resources = {'cpu': '0', 'memory': '1Gi', 'storage': '1Gi'}
     builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request.*cpu cannot be 0'):
+    with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*'):
+        builder.submit()
+
+    builder = client.create_batch()
+    resources = {'cpu': '0.1', 'memory': '1Gi', 'storage': '1Gi'}
+    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*'):
         builder.submit()
 
 
@@ -155,7 +161,7 @@ def test_out_of_memory(client):
 
 def test_out_of_storage(client):
     builder = client.create_batch()
-    resources = {'cpu': '0.1', 'memory': '10M', 'storage': '5Gi'}
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE,
                            ['/bin/sh', '-c', 'fallocate -l 100GiB /foo'],
                            resources=resources)

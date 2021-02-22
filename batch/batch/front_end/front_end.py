@@ -680,26 +680,25 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         resources['cpu'] = BATCH_JOB_DEFAULT_CPU
                     resources['req_cpu'] = resources['cpu']
                     del resources['cpu']
+                    req_cores_mcpu = parse_cpu_in_mcpu(resources['req_cpu'])
+
+                    if not is_valid_cores_mcpu(req_cores_mcpu):
+                        raise web.HTTPBadRequest(
+                            reason=f'bad resource request for job {id}: '
+                            f'cpu must be a power of two with a min of 0.25; '
+                            f'found {resources["cpu"]}.')
 
                     if 'memory' not in resources:
                         resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
                     resources['req_memory'] = resources['memory']
                     del resources['memory']
+                    req_memory_bytes = parse_memory_in_bytes(resources['req_memory'])
 
                 if 'storage' not in resources:
                     resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
                 resources['req_storage'] = resources['storage']
                 del resources['storage']
-
-                req_cores_mcpu = parse_cpu_in_mcpu(resources['req_cpu'])
-                req_memory_bytes = parse_memory_in_bytes(resources['req_memory'])
                 req_storage_bytes = parse_storage_in_bytes(resources['req_storage'])
-
-                if not is_valid_cores_mcpu(req_cores_mcpu):
-                    raise web.HTTPBadRequest(
-                        reason=f'bad resource request for job {id}: '
-                        f'cpu must be a power of two with a min of 0.25; '
-                        f'found {resources["cpu"]}.')
 
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 

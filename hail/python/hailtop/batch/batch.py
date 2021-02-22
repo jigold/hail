@@ -1,6 +1,5 @@
 import os
 import re
-import warnings
 from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string

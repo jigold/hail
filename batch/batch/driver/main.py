@@ -44,7 +44,6 @@ from .pool import Pool
 from ..utils import query_billing_projects, unreserved_worker_data_disk_size_gib
 from ..exceptions import BatchUserError
 
-
 uvloop.install()
 
 log = logging.getLogger('batch')
