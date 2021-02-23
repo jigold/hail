@@ -923,16 +923,19 @@ class DockerJob(Job):
                 worker.storage_sem.acquire_nowait(self.external_storage_in_gib)
         except FIFOWeightedSemaphoreFull:
             log.info(f'worker data disk storage is full: {self.external_storage_in_gib}Gi requested and {worker.storage_sem.value}Gi remaining')
+            uid = self.token[:20]
             self.disk = Disk(zone=ZONE,
                              project=PROJECT,
                              instance_name=NAME,
-                             name=f'{NAME}-{self.token[:6]}',
+                             name=f'{uid}',
                              compute_client=worker.compute_client,
                              size_in_gb=self.external_storage_in_gib,
                              mount_path=self.io_host_path())
             labels = {
                 'namespace': NAMESPACE,
-                'batch': '1'
+                'batch': '1',
+                'instance-name': NAME,
+                'uid': uid
             }
             await self.disk.create(labels=labels)
             log.info(f'created disk {self.disk.name} for job {self.id}')

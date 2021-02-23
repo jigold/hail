@@ -157,12 +157,11 @@ timestamp >= "{mark}"
 
         for zone in self.zone_monitor.zones:
             async for disk in await self.compute_client.list(f'/zones/{zone}/disks', params=params):
-                disk_name = disk['name']
-                instance_name = disk_name.rsplit('-', 1)[0]
+                instance_name = disk['labels']['instance-name']
                 instance = self.inst_coll_manager.get_instance(instance_name)
                 if instance is None:
                     try:
-                        await Disk.delete_disk(self.compute_client, disk_name, zone)
+                        await Disk.delete_disk(self.compute_client, disk['name'], zone)
                     except aiohttp.ClientResponseError as e:
                         if e.status == 404:
                             continue
