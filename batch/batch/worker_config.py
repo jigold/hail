@@ -2,7 +2,10 @@ import re
 from collections import defaultdict
 
 from .globals import WORKER_CONFIG_VERSION
-from .inst_coll_config import PoolConfig
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .inst_coll_config import PoolConfig  # pylint: disable=cyclic-import
 
 MACHINE_TYPE_REGEX = re.compile('projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/machineTypes/(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
 DISK_TYPE_REGEX = re.compile('(projects/(?P<project>[^/]+)/)?zones/(?P<zone>[^/]+)/diskTypes/(?P<disk_type>.+)')
@@ -84,7 +87,7 @@ class WorkerConfig:
         return WorkerConfig(config)
 
     @staticmethod
-    def from_pool_config(pool_config: PoolConfig):
+    def from_pool_config(pool_config: 'PoolConfig'):
         disks = [{
             'boot': True,
             'project': None,
@@ -210,4 +213,4 @@ class WorkerConfig:
             quantity = r['quantity']
             rate_unit_msec = resource_rates[name]
             cost_per_msec += quantity * rate_unit_msec
-        return cost_per_msec / 1000 / 60 / 60
+        return cost_per_msec * 1000 * 60 * 60

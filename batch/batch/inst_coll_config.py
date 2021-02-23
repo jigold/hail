@@ -123,6 +123,10 @@ class InstanceCollectionConfigs:
         self.jpim_config: Optional[JobPrivateInstanceManagerConfig] = None
 
     async def async_init(self):
+        await self.refresh()
+
+    async def refresh(self):
+        log.info('loading inst coll configs and resource rates from db')
         records = self.db.execute_and_fetchall('''
 SELECT inst_colls.*, pools.*
 FROM inst_colls
@@ -134,7 +138,6 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                 config = PoolConfig.from_record(record)
                 self.name_pool_config[config.name] = config
             else:
-                assert self.jpim_config is None
                 config = JobPrivateInstanceManagerConfig.from_record(record)
                 self.jpim_config = config
 
@@ -145,7 +148,7 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         records = self.db.execute_and_fetchall('''
 SELECT * FROM resources;
 ''')
-        self.resource_rates = {record['name']: record['rate'] async for record in records}
+        self.resource_rates = {record['resource']: record['rate'] async for record in records}
 
     def select_pool_from_cost(self, cores_mcpu, memory_bytes, storage_bytes):
         assert self.resource_rates is not None
@@ -160,7 +163,6 @@ SELECT * FROM resources;
                                                 maybe_cores_mcpu,
                                                 maybe_memory_bytes,
                                                 maybe_storage_gib)
-                log.info(f'maybe_cost {maybe_cost} for pool {pool.name} with resource requests cores_mcpu {maybe_cores_mcpu} memory_bytes {maybe_memory_bytes} storage_gib {maybe_storage_gib}')
                 if optimal_cost is None or maybe_cost < optimal_cost:
                     optimal_cost = maybe_cost
                     optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)

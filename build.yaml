@@ -2419,6 +2419,7 @@ steps:
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      export HAIL_TOKEN="{{ token }}"
+     export HAIL_SCOPE="{{ global.scope }}"
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2487,6 +2488,7 @@ steps:
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      export HAIL_TOKEN="{{ token }}"
+     export HAIL_SCOPE="{{ global.scope }}"
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2555,6 +2557,7 @@ steps:
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      export HAIL_TOKEN="{{ token }}"
+     export HAIL_SCOPE="{{ global.scope }}"
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2623,6 +2626,7 @@ steps:
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      export HAIL_TOKEN="{{ token }}"
+     export HAIL_SCOPE="{{ global.scope }}"
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2691,6 +2695,7 @@ steps:
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      export HAIL_TOKEN="{{ token }}"
+     export HAIL_SCOPE="{{ global.scope }}"
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \

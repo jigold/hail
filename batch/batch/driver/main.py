@@ -1,4 +1,3 @@
-import secrets
 import logging
 import json
 from functools import wraps
@@ -14,11 +13,13 @@ from prometheus_async.aio.web import server_stats
 from gear import (Database, setup_aiohttp_session,
                   rest_authenticated_developers_only,
                   web_authenticated_developers_only, check_csrf_token,
-                  transaction, maybe_parse_bearer_header)
+                  transaction)
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
+from hailtop.httpx import client_session
 from hailtop.utils import (time_msecs, RateLimit, serialization,
-                           Notice, periodically_call, AsyncWorkerPool)
+                           Notice, periodically_call, AsyncWorkerPool,
+                           request_retry_transient_errors)
 from hailtop.tls import internal_server_ssl_context
 from hailtop import aiogoogle, aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
@@ -41,7 +42,8 @@ from .instance_collection_manager import InstanceCollectionManager
 from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
 from .pool import Pool
-from ..utils import query_billing_projects, unreserved_worker_data_disk_size_gib
+from ..utils import (query_billing_projects, unreserved_worker_data_disk_size_gib,
+                     batch_only, authorization_token)
 from ..exceptions import BatchUserError
 
 uvloop.install()
@@ -53,30 +55,6 @@ log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
-
-
-def authorization_token(request):
-    auth_header = request.headers.get('Authorization')
-    if not auth_header:
-        return None
-    session_id = maybe_parse_bearer_header(auth_header)
-    if not session_id:
-        return None
-    return session_id
-
-
-def batch_only(fun):
-    @wraps(fun)
-    async def wrapped(request):
-        token = authorization_token(request)
-        if not token:
-            raise web.HTTPUnauthorized()
-
-        if not secrets.compare_digest(token, request.app['internal_token']):
-            raise web.HTTPUnauthorized()
-
-        return await fun(request)
-    return wrapped
 
 
 def instance_name_from_request(request):
@@ -368,6 +346,14 @@ def validate_int(session, url_path, name, value, predicate, description):
     return validate(session, url_path, name, i, predicate, description)
 
 
+async def refresh_inst_colls_on_front_end(app):
+    async with client_session() as session:
+        await request_retry_transient_errors(
+            session, 'PATCH',
+            deploy_config.url('batch', '/api/v1alpha/inst_colls/refresh'),
+            headers=app['batch_headers'])
+
+
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
 @web_authenticated_developers_only()
@@ -474,6 +460,8 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         enable_standing_worker, standing_worker_cores,
         max_instances, max_live_instances)
 
+    await refresh_inst_colls_on_front_end(app)
+
     set_message(session,
                 f'Updated configuration for {pool}.',
                 'info')
@@ -520,6 +508,8 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
         'a positive integer')
 
     await job_private_inst_manager.configure(boot_disk_size_gb, max_instances, max_live_instances)
+
+    await refresh_inst_colls_on_front_end(app)
 
     set_message(session,
                 f'Updated configuration for {job_private_inst_manager}.',
@@ -859,6 +849,10 @@ SELECT instance_id, internal_token FROM globals;
     app['instance_id'] = instance_id
 
     app['internal_token'] = row['internal_token']
+
+    app['batch_headers'] = {
+        'Authorization': f'Bearer {row["internal_token"]}'
+    }
 
     resources = db.select_and_fetchall(
         'SELECT resource FROM resources;')

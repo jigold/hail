@@ -1,5 +1,8 @@
 from typing import Union, Dict, Pattern, Callable, Any, List
 import re
+import logging
+
+log = logging.getLogger('foo')
 
 
 class ValidationError(Exception):
@@ -149,8 +152,9 @@ class MultipleValidator:
             except ValidationError as e:
                 excs.append(e)
         if excs:
-            reasons = '\n'.join([e.reason for e in excs])
-            raise ValidationError(f'{name} does not satisfy any conditions:\n{reasons}')
+            reasons = ' or '.join([e.reason for e in excs])
+            log.info(reasons)
+            raise ValidationError(f'{name} does not satisfy any conditions: {reasons}')
 
 
 def required(key: str):
@@ -196,5 +200,5 @@ def switch(key: str, checkers: Dict[str, Dict[Key, Validator]]):
     return SwitchValidator(key, checkers)
 
 
-def any(*checkers: Validator):
+def anyof(*checkers: Validator):
     return MultipleValidator(list(checkers))
