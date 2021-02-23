@@ -167,7 +167,7 @@ def test_out_of_storage(client):
                            resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', status
+    assert status['state'] == 'Failed', str(status)
     assert "fallocate failed: No space left on device" in j.log()['main']
 
 
@@ -179,7 +179,7 @@ def test_nonzero_storage(client):
                            resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', status
+    assert status['state'] == 'Success', str(status)
 
 
 def test_attached_disk(client):
@@ -190,7 +190,7 @@ def test_attached_disk(client):
                            resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', status
+    assert status['state'] == 'Success', str(status)
 
 
 def test_unsubmitted_state(client):
