@@ -927,7 +927,7 @@ class DockerJob(Job):
             self.disk = Disk(zone=ZONE,
                              project=PROJECT,
                              instance_name=NAME,
-                             name=f'{uid}',
+                             name=f'batch-disk-{uid}',
                              compute_client=worker.compute_client,
                              size_in_gb=self.external_storage_in_gib,
                              mount_path=self.io_host_path())
