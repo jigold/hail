@@ -1,5 +1,6 @@
 import uuid
 import logging
+import aiohttp
 
 from hailtop.utils import sleep_and_backoff, check_shell
 
@@ -74,9 +75,13 @@ chmod a+w {self.mount_path}
         delay = 0.2
         create_uuid = str(uuid.uuid4())
         while resp is None or resp['status'] != 'DONE':  # pylint: disable=unsubscriptable-object
-            resp = await self.compute_client.post(f'/zones/{self.zone}/disks',
-                                                  json=config,
-                                                  params={'requestId': create_uuid})
+            try:
+                resp = await self.compute_client.post(f'/zones/{self.zone}/disks',
+                                                      json=config,
+                                                      params={'requestId': create_uuid})
+            except aiohttp.ClientResponseError as e:
+                log.exception(f'while trying to create disk {e.status} {e.message} {e.request_info} {e}')
+                raise
             delay = await sleep_and_backoff(delay)
         log.info(f'created disk {self.name}')
 
