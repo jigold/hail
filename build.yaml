@@ -2144,14 +2144,14 @@ steps:
       for: alive
    dependsOn:
     - default_ns
-    - deploy_router
+#    - deploy_router
     - deploy_batch_sa
-    - create_accounts
+#    - create_accounts
     - batch_image
     - batch_worker_image
     - batch_database
-    - deploy_auth
-    - create_certs
+#    - deploy_auth
+#    - create_certs
  - kind: runImage
    name: create_billing_projects
    image:
