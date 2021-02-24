@@ -69,6 +69,7 @@ class PoolConfig(InstanceCollectionConfig):
         self.worker_config = WorkerConfig.from_pool_config(self)
 
     def convert_requests_to_resources(self, cores_mcpu, memory_bytes, storage_bytes):
+        log.info(f'cores_mcpu={cores_mcpu} memory_bytes={memory_bytes} storage_bytes={storage_bytes}')
         storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes)
 
         cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes, self.worker_type)
