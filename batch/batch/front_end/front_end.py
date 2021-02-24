@@ -688,7 +688,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         else:
                             req_memory_bytes = parse_memory_in_bytes(req_memory)
                     else:
-                        req_memory_bytes = parse_memory_in_bytes(BATCH_JOB_DEFAULT_MEMORY)
+                        resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
+                        req_memory_bytes = parse_memory_in_bytes(resources['memory'])
                     resources['req_memory'] = req_memory
                     del resources['memory']
 
