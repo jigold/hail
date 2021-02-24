@@ -690,8 +690,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     else:
                         resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
                         req_memory_bytes = parse_memory_in_bytes(resources['memory'])
+                    assert req_memory_bytes is not None, resources['memory']
                     resources['req_memory'] = req_memory
                     del resources['memory']
+                else:
+                    req_cores_mcpu = None
+                    req_memory_bytes = None
 
                 if 'storage' not in resources:
                     resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
