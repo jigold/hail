@@ -46,7 +46,7 @@ from ..inst_coll_config import InstanceCollectionConfigs
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, valid_machine_types
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, valid_machine_types, tasks
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
@@ -73,6 +73,8 @@ REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch
 REQUEST_TIME_POST_DELETE_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/delete', verb='POST')
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id', verb="GET")
+REQUEST_TIME_GET_JOB_LOG_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/log', verb="GET")
+REQUEST_TIME_GET_JOB_TASK_LOG_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/task/task', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECTS = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECT = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/billing_project', verb="GET")
 REQUEST_TIME_GET_BILLING_LIMITS_UI = REQUEST_TIME.labels(endpoint='/billing_limits', verb="GET")
@@ -1279,6 +1281,32 @@ async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argume
     job_id = int(request.match_info['job_id'])
     status = await _get_job(request.app, batch_id, job_id)
     return web.json_response(status)
+
+
+@routes.get('/batches/{batch_id}/jobs/{job_id}/log')
+@prom_async_time(REQUEST_TIME_GET_JOB_LOG_UI)
+@web_billing_project_users_only()
+async def ui_get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
+    app = request.app
+    job_id = int(request.match_info['job_id'])
+    job_logs = await _get_job_log(app, batch_id, job_id)
+    concat_logs = '\n'.join([job_logs[task] for task in tasks if task in job_logs])
+    return web.Response(text=concat_logs)
+
+
+@routes.get('/batches/{batch_id}/jobs/{job_id}/task/{task}/log')
+@prom_async_time(REQUEST_TIME_GET_JOB_TASK_LOG_UI)
+@web_billing_project_users_only()
+async def ui_get_job_task_log(request, userdata, batch_id):  # pylint: disable=unused-argument
+    app = request.app
+    job_id = int(request.match_info['job_id'])
+    task = request.match_info['task']
+
+    if task not in tasks:
+        return web.HTTPBadRequest()
+    job_logs = await _get_job_log(app, batch_id, job_id)
+    task_log = job_logs[task]
+    return web.Response(text=task_log)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')

@@ -90,20 +90,41 @@
 </table>
 
 {% if job_log %}
-<h2>Log</h2>
+<h2>Logs</h2>
+<button type="button">
+  <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log" download="batch-{{ batch_id }}-job-{{ job_id }}.log">
+    Download
+  </a>
+</button>
 
 {% if 'input' in job_log %}
 <h3>Input</h3>
+<button type="button">
+  <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/task/input/log" download="batch-{{ batch_id }}-job-{{ job_id }}-input.log">
+    Download
+  </a>
+</button>
 <pre>{{ job_log['input'] }}</pre>
 {% endif %}
 
 {% if 'main' in job_log %}
 <h3>Main</h3>
+  <button type="button">
+    <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/task/main/log" download="batch-{{ batch_id }}-job-{{ job_id }}-main.log">
+    Download
+    </a>
+  </button>
+
 <pre>{{ job_log['main'] }}</pre>
 {% endif %}
 
 {% if 'output' in job_log %}
 <h3>Output</h3>
+<button type="button">
+  <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/task/output/log" download="batch-{{ batch_id }}-job-{{ job_id }}-output.log">
+    Download
+  </a>
+</button>
 <pre>{{ job_log['output'] }}</pre>
 {% endif %}
 {% endif %}
