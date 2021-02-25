@@ -680,19 +680,16 @@ WHERE user = %s AND id = %s AND NOT deleted;
                             f'cpu must be a power of two with a min of 0.25; '
                             f'found {resources["req_cpu"]}.')
 
-                    req_memory = resources.get('memory')
-                    if req_memory is not None:
-                        if req_memory in memory_to_worker_type:
-                            worker_type = memory_to_worker_type[req_memory]
-                            req_memory_bytes = cores_mcpu_to_memory_bytes(req_cores_mcpu, worker_type)
-                        else:
-                            req_memory_bytes = parse_memory_in_bytes(req_memory)
-                    else:
+                    if 'memory' not in resources:
                         resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
-                        req_memory_bytes = parse_memory_in_bytes(resources['memory'])
-                    assert req_memory_bytes is not None, resources['memory']
-                    resources['req_memory'] = req_memory
+                    resources['req_memory'] = resources['memory']
                     del resources['memory']
+                    req_memory = resources['req_memory']
+                    if req_memory in memory_to_worker_type:
+                        worker_type = memory_to_worker_type[req_memory]
+                        req_memory_bytes = cores_mcpu_to_memory_bytes(req_cores_mcpu, worker_type)
+                    else:
+                        req_memory_bytes = parse_memory_in_bytes(req_memory)
                 else:
                     req_cores_mcpu = None
                     req_memory_bytes = None
