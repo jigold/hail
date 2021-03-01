@@ -1,14 +1,55 @@
 import math
+import sys
+import os
+import shutil
 
-from typing import List
+from typing import List, Optional
 
 from ..utils.utils import grouped, digits_needed
+from ..utils.process import sync_check_shell_output
 from .exceptions import BatchException
-from .batch import Batch
+from . import batch as _batch  # pylint: disable=cyclic-import
 from .resource import ResourceGroup, ResourceFile
 
 
-def concatenate(b: Batch, files: List[ResourceFile], image: str = None, branching_factor: int = 100) -> ResourceFile:
+def build_python_image(build_dir: str,
+                       dest_image: str,
+                       python_requirements: Optional[List[str]] = None,
+                       verbose: bool = True):
+
+    version = sys.version_info
+    if version.major != 3 or version.minor not in (6, 7, 8):
+        raise ValueError(
+            f'You must specify an image if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})')
+    base_image = f'python:{version.major}.{version.minor}'
+
+    docker_path = f'{build_dir}/docker'
+    shutil.rmtree(docker_path)
+    os.makedirs(docker_path)
+
+    python_requirements = python_requirements or []
+    python_requirements_file = f'{docker_path}/requirements.txt'
+    with open(python_requirements_file, 'w') as f:
+        f.write('\n'.join(python_requirements) + '\n')
+
+    with open(f'{docker_path}/Dockerfile', 'w') as f:
+        f.write(f'''
+FROM {base_image}
+
+COPY requirements.txt .
+
+RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
+    python3 -m pip check
+''')
+
+    sync_check_shell_output(f'docker build -t {dest_image} {docker_path}', echo=verbose)
+
+    image_split = dest_image.rsplit('/', 1)
+    if len(image_split) == 2:
+        sync_check_shell_output(f'docker push {dest_image}', echo=verbose)
+
+
+def concatenate(b: '_batch.Batch', files: List[ResourceFile], image: str = None, branching_factor: int = 100) -> ResourceFile:
     """
     Concatenate files using tree aggregation.
 
@@ -59,7 +100,7 @@ def concatenate(b: Batch, files: List[ResourceFile], image: str = None, branchin
     return _combine(_concatenate, b, 'concatenate', files, branching_factor=branching_factor)
 
 
-def plink_merge(b: Batch, bfiles: List[ResourceGroup],
+def plink_merge(b: '_batch.Batch', bfiles: List[ResourceGroup],
                 image: str = None, branching_factor: int = 100) -> ResourceGroup:
     """
     Merge binary PLINK files using tree aggregation.

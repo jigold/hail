@@ -1,5 +1,9 @@
 import re
-from typing import Union, Optional, Dict, List, Set, Tuple
+import dill
+import functools
+from io import BytesIO
+from typing import Union, Optional, Dict, List, Set, Tuple, Callable
+# import hail as hl
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -114,54 +118,6 @@ class Job:
     def _add_inputs(self, resource: '_resource.Resource') -> None:
         _add_resource_to_set(self._inputs, resource, include_rg=False)
 
-    def declare_resource_group(self, **mappings: str) -> 'Job':
-        """Declare a resource group for a job.
-
-        Examples
-        --------
-
-        Declare a resource group:
-
-        >>> b = Batch()
-        >>> input = b.read_input_group(bed='data/example.bed',
-        ...                            bim='data/example.bim',
-        ...                            fam='data/example.fam')
-        >>> j = b.new_job()
-        >>> j.declare_resource_group(tmp1={'bed': '{root}.bed',
-        ...                                'bim': '{root}.bim',
-        ...                                'fam': '{root}.fam',
-        ...                                'log': '{root}.log'})
-        >>> j.command(f'plink --bfile {input} --make-bed --out {j.tmp1}')
-        >>> b.run()  # doctest: +SKIP
-
-        Warning
-        -------
-        Be careful when specifying the expressions for each file as this is Python
-        code that is executed with `eval`!
-
-        Parameters
-        ----------
-        mappings:
-            Keywords (in the above example `tmp1`) are the name(s) of the
-            resource group(s).  File names may contain arbitrary Python
-            expressions, which will be evaluated by Python `eval`.  To use the
-            keyword as the file name, use `{root}` (in the above example {root}
-            will be replaced with `tmp1`).
-
-        Returns
-        -------
-        Same job object with resource groups set.
-        """
-
-        for name, d in mappings.items():
-            assert name not in self._resources
-            if not isinstance(d, dict):
-                raise BatchException(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
-            rg = self._batch._new_resource_group(self, d, root=name)
-            self._resources[name] = rg
-            _add_resource_to_set(self._valid, rg)
-        return self
-
     def depends_on(self, *jobs: 'Job') -> 'Job':
         """
         Explicitly set dependencies on other jobs.
@@ -211,119 +167,6 @@ class Job:
 
     def env(self, variable: str, value: str):
         self._env[variable] = value
-
-    def command(self, command: str) -> 'Job':
-        """Set the job's command to execute.
-
-        Examples
-        --------
-
-        Simple job with no output files:
-
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.command(f'echo "hello"')
-        >>> b.run()
-
-        Simple job with one temporary file `j.ofile` that is written to a
-        permanent location:
-
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.command(f'echo "hello world" > {j.ofile}')
-        >>> b.write_output(j.ofile, 'output/hello.txt')
-        >>> b.run()
-
-        Two jobs with a file interdependency:
-
-        >>> b = Batch()
-        >>> j1 = b.new_job()
-        >>> j1.command(f'echo "hello" > {j1.ofile}')
-        >>> j2 = b.new_job()
-        >>> j2.command(f'cat {j1.ofile} > {j2.ofile}')
-        >>> b.write_output(j2.ofile, 'output/cat_output.txt')
-        >>> b.run()
-
-        Specify multiple commands in the same job:
-
-        >>> b = Batch()
-        >>> t = b.new_job()
-        >>> j.command(f'echo "hello" > {j.tmp1}')
-        >>> j.command(f'echo "world" > {j.tmp2}')
-        >>> j.command(f'echo "!" > {j.tmp3}')
-        >>> j.command(f'cat {j.tmp1} {j.tmp2} {j.tmp3} > {j.ofile}')
-        >>> b.write_output(j.ofile, 'output/concatenated.txt')
-        >>> b.run()
-
-        Notes
-        -----
-        This method can be called more than once. It's behavior is to append
-        commands to run to the set of previously defined commands rather than
-        overriding an existing command.
-
-        To declare a resource file of type :class:`.JobResourceFile`, use either
-        the get attribute syntax of `job.{identifier}` or the get item syntax of
-        `job['identifier']`. If an object for that identifier doesn't exist,
-        then one will be created automatically (only allowed in the
-        :meth:`.command` method). The identifier name can be any valid Python
-        identifier such as `ofile5000`.
-
-        All :class:`.JobResourceFile` are temporary files and must be written to
-        a permanent location using :meth:`.Batch.write_output` if the output
-        needs to be saved.
-
-        Only resources can be referred to in commands. Referencing a
-        :class:`.batch.Batch` or :class:`.Job` will result in an error.
-
-        Parameters
-        ----------
-        command:
-            A ``bash`` command.
-
-        Returns
-        -------
-        Same job object with command appended.
-        """
-
-        def handler(match_obj):
-            groups = match_obj.groupdict()
-            if groups['JOB']:
-                raise BatchException(f"found a reference to a Job object in command '{command}'.")
-            if groups['BATCH']:
-                raise BatchException(f"found a reference to a Batch object in command '{command}'.")
-
-            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
-            r_uid = match_obj.group()
-            r = self._batch._resource_map.get(r_uid)
-
-            if r is None:
-                raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
-                                     f"Hint: resources must be from the same batch as the current job.")
-
-            if r._source != self:
-                self._add_inputs(r)
-                if r._source is not None:
-                    if r not in r._source._valid:
-                        name = r._source._resources_inverse[r]
-                        raise BatchException(f"undefined resource '{name}'\n"
-                                             f"Hint: resources must be defined within "
-                                             f"the job methods 'command' or 'declare_resource_group'")
-                    self._dependencies.add(r._source)
-                    r._source._add_internal_outputs(r)
-            else:
-                _add_resource_to_set(self._valid, r)
-            self._mentioned.add(r)
-            return f"${{{r_uid}}}"
-
-        regexes = [_resource.ResourceFile._regex_pattern,
-                   _resource.ResourceGroup._regex_pattern,
-                   Job._regex_pattern,
-                   batch.Batch._regex_pattern]
-        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
-                               handler,
-                               command)
-        self._command.append(subst_command)
-        return self
 
     def storage(self, storage: Union[str, int]) -> 'Job':
         """
@@ -430,34 +273,6 @@ class Job:
         """
 
         self._cpu = str(cores)
-        return self
-
-    def image(self, image: str) -> 'Job':
-        """
-        Set the job's docker image.
-
-        Examples
-        --------
-
-        Set the job's docker image to `ubuntu:18.04`:
-
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> (j.image('ubuntu:18.04')
-        ...   .command(f'echo "hello"'))
-        >>> b.run()  # doctest: +SKIP
-
-        Parameters
-        ----------
-        image:
-            Docker image to use.
-
-        Returns
-        -------
-        Same job object with docker image set.
-        """
-
-        self._image = image
         return self
 
     def always_run(self, always_run: bool = True) -> 'Job':
@@ -583,3 +398,331 @@ class Job:
 
     def __str__(self):
         return self._uid
+
+
+class BashJob(Job):
+    def declare_resource_group(self, **mappings: str) -> 'Job':
+        """Declare a resource group for a job.
+
+        Examples
+        --------
+
+        Declare a resource group:
+
+        >>> b = Batch()
+        >>> input = b.read_input_group(bed='data/example.bed',
+        ...                            bim='data/example.bim',
+        ...                            fam='data/example.fam')
+        >>> j = b.new_job()
+        >>> j.declare_resource_group(tmp1={'bed': '{root}.bed',
+        ...                                'bim': '{root}.bim',
+        ...                                'fam': '{root}.fam',
+        ...                                'log': '{root}.log'})
+        >>> j.command(f'plink --bfile {input} --make-bed --out {j.tmp1}')
+        >>> b.run()  # doctest: +SKIP
+
+        Warning
+        -------
+        Be careful when specifying the expressions for each file as this is Python
+        code that is executed with `eval`!
+
+        Parameters
+        ----------
+        mappings:
+            Keywords (in the above example `tmp1`) are the name(s) of the
+            resource group(s).  File names may contain arbitrary Python
+            expressions, which will be evaluated by Python `eval`.  To use the
+            keyword as the file name, use `{root}` (in the above example {root}
+            will be replaced with `tmp1`).
+
+        Returns
+        -------
+        Same job object with resource groups set.
+        """
+
+        for name, d in mappings.items():
+            assert name not in self._resources
+            if not isinstance(d, dict):
+                raise BatchException(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
+            rg = self._batch._new_resource_group(self, d, root=name)
+            self._resources[name] = rg
+            _add_resource_to_set(self._valid, rg)
+        return self
+
+    def image(self, image: str) -> 'Job':
+        """
+        Set the job's docker image.
+
+        Examples
+        --------
+
+        Set the job's docker image to `ubuntu:18.04`:
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> (j.image('ubuntu:18.04')
+        ...   .command(f'echo "hello"'))
+        >>> b.run()  # doctest: +SKIP
+
+        Parameters
+        ----------
+        image:
+            Docker image to use.
+
+        Returns
+        -------
+        Same job object with docker image set.
+        """
+
+        self._image = image
+        return self
+
+    def command(self, command: str) -> 'BashJob':
+        """Set the job's command to execute.
+
+        Examples
+        --------
+
+        Simple job with no output files:
+
+        >>> b = Batch()
+        >>> j = b.new_bash_job()
+        >>> j.command(f'echo "hello"')
+        >>> b.run()
+
+        Simple job with one temporary file `j.ofile` that is written to a
+        permanent location:
+
+        >>> b = Batch()
+        >>> j = b.new_bash_job()
+        >>> j.command(f'echo "hello world" > {j.ofile}')
+        >>> b.write_output(j.ofile, 'output/hello.txt')
+        >>> b.run()
+
+        Two jobs with a file interdependency:
+
+        >>> b = Batch()
+        >>> j1 = b.new_bash_job()
+        >>> j1.command(f'echo "hello" > {j1.ofile}')
+        >>> j2 = b.new_bash_job()
+        >>> j2.command(f'cat {j1.ofile} > {j2.ofile}')
+        >>> b.write_output(j2.ofile, 'output/cat_output.txt')
+        >>> b.run()
+
+        Specify multiple commands in the same job:
+
+        >>> b = Batch()
+        >>> t = b.new_bash_job()
+        >>> j.command(f'echo "hello" > {j.tmp1}')
+        >>> j.command(f'echo "world" > {j.tmp2}')
+        >>> j.command(f'echo "!" > {j.tmp3}')
+        >>> j.command(f'cat {j.tmp1} {j.tmp2} {j.tmp3} > {j.ofile}')
+        >>> b.write_output(j.ofile, 'output/concatenated.txt')
+        >>> b.run()
+
+        Notes
+        -----
+        This method can be called more than once. It's behavior is to append
+        commands to run to the set of previously defined commands rather than
+        overriding an existing command.
+
+        To declare a resource file of type :class:`.JobResourceFile`, use either
+        the get attribute syntax of `job.{identifier}` or the get item syntax of
+        `job['identifier']`. If an object for that identifier doesn't exist,
+        then one will be created automatically (only allowed in the
+        :meth:`.command` method). The identifier name can be any valid Python
+        identifier such as `ofile5000`.
+
+        All :class:`.JobResourceFile` are temporary files and must be written to
+        a permanent location using :meth:`.Batch.write_output` if the output
+        needs to be saved.
+
+        Only resources can be referred to in commands. Referencing a
+        :class:`.batch.Batch` or :class:`.Job` will result in an error.
+
+        Parameters
+        ----------
+        command:
+            A ``bash`` command.
+
+        Returns
+        -------
+        Same job object with command appended.
+        """
+
+        def handler(match_obj):
+            groups = match_obj.groupdict()
+            if groups['JOB']:
+                raise BatchException(f"found a reference to a Job object in command '{command}'.")
+            if groups['BATCH']:
+                raise BatchException(f"found a reference to a Batch object in command '{command}'.")
+            if groups['PYTHON_RESULT']:
+                raise BatchException(f"found a reference to a PythonResult object. hint: Use one of the methods `as_str`, `as_json` or `as_repr` on a PythonResult. command: '{command}'")
+
+            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
+            r_uid = match_obj.group()
+            r = self._batch._resource_map.get(r_uid)
+
+            if r is None:
+                raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
+                                     f"Hint: resources must be from the same batch as the current job.")
+
+            if r._source != self:
+                self._add_inputs(r)
+                if r._source is not None:
+                    if r not in r._source._valid:
+                        name = r._source._resources_inverse[r]
+                        raise BatchException(f"undefined resource '{name}'\n"
+                                             f"Hint: resources must be defined within "
+                                             f"the job methods 'command' or 'declare_resource_group'")
+                    self._dependencies.add(r._source)
+                    r._source._add_internal_outputs(r)
+            else:
+                _add_resource_to_set(self._valid, r)
+            self._mentioned.add(r)
+            return f"${{{r_uid}}}"
+
+        regexes = [_resource.ResourceFile._regex_pattern,
+                   _resource.ResourceGroup._regex_pattern,
+                   _resource.PythonResult._regex_pattern,
+                   Job._regex_pattern,
+                   batch.Batch._regex_pattern]
+        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
+                               handler,
+                               command)
+        self._command.append(subst_command)
+        return self
+
+
+class PythonJob(Job):
+    def __init__(self,
+                 batch: 'batch.Batch',
+                 name: Optional[str] = None,
+                 attributes: Optional[Dict[str, str]] = None,
+                 shell: Optional[str] = None):
+        super().__init__(batch, name, attributes, shell)
+        self._functions = []
+        self._image = batch._python_image
+
+    def _get_resource(self, item: str) -> '_resource.Resource':
+        if item not in self._resources:
+            r = self._batch._new_python_result(self, value=item)
+            self._resources[item] = r
+            self._resources_inverse[r] = item
+        return self._resources[item]
+
+    def call(self, result: '_resource.PythonResult', unapplied: Callable, *args, **kwargs):
+        if not callable(unapplied):
+            raise BatchException(f'unapplied must be a callable function. Found {type(unapplied)}.')
+
+        def wrapped():
+            def f(*args, **kwargs):
+                newargs = []
+                for arg in args:
+                    if isinstance(arg, _resource.PythonResult):
+                        arg = arg._load_value()
+                    newargs.append(arg)
+                newkwargs = dict()
+                for key, arg in kwargs:
+                    if isinstance(arg, _resource.PythonResult):
+                        arg = arg._load_value()
+                    newkwargs[key] = arg
+                return unapplied(*newargs, **newkwargs)
+            return f
+
+        self._functions.append((result, wrapped, args, kwargs))
+
+        def handle_arg(r):
+            if r._source != self:
+                self._add_inputs(r)
+                if r._source is not None:
+                    if r not in r._source._valid:
+                        name = r._source._resources_inverse[r]
+                        raise BatchException(f"undefined resource '{name}'\n")
+                    self._dependencies.add(r._source)
+                    r._source._add_internal_outputs(r)
+            else:
+                _add_resource_to_set(self._valid, r)
+
+            self._mentioned.add(r)
+
+        for arg in args:
+            if isinstance(arg, _resource.Resource):
+                handle_arg(arg)
+
+        for value in kwargs.values():
+            if isinstance(value, _resource.Resource):
+                handle_arg(value)
+
+        handle_arg(result)
+
+        return self
+
+    def _compile(self, tmpdir):
+        for result, unapplied, args, kwargs in self._functions:
+            self._mentioned.add(result)
+
+            pipe = BytesIO()
+            # dill.dump(functools.partial(str, 5), pipe, recurse=True)  # this works
+            dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
+            pipe.seek(0)
+
+            code_path = f'{tmpdir}/code.p'
+
+            # FIXME: replace with file system robust upload
+            # hl.hadoop_open was getting pickle errors in pprint
+            with open(code_path, 'wb') as f:
+                f.write(pipe.getvalue())
+
+            # self._batch.gcs.write_gs_file_from_file_like_object(code_path, pipe)
+            # with hl.hadoop_open(code_path, 'wb') as f:
+            #     f.write(pipe.getvalue())
+
+            code = self._batch.read_input(code_path)
+            self._add_inputs(code)
+            self._mentioned.add(code)
+
+            json_write = ''
+            if result._json:
+                self._mentioned.add(result._json)
+                json_write = f'''
+with open(os.environ[\\"{result._json}\\"], \\"w\\") as out:
+   out.write(json.dumps(result))
+'''
+
+            str_write = ''
+            if result._str:
+                self._mentioned.add(result._str)
+                str_write = f'''
+with open(os.environ[\\"{result._str}\\"], \\"w\\") as out:
+   out.write(str(result))
+'''
+
+            repr_write = ''
+            if result._repr:
+                self._mentioned.add(result._repr)
+                repr_write = f'''
+with open(os.environ[\\"{result._repr}\\"], \\"w\\") as out:
+   out.write(repr(result))
+'''
+
+            self._command.append(f'''python3 -c "
+import os
+import base64
+import dill
+import traceback
+import json
+
+with open(os.environ[\\"{result}\\"], \\"wb\\") as dill_out:
+    try:
+        with open(os.environ[\\"{code}\\"], \\"rb\\") as f:
+            result = dill.load(f)()
+            print(result)
+            dill.dump(result, dill_out, recurse=True)
+    except Exception as e:
+        traceback.print_exc()
+        dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), dill_out, recurse=True)
+{json_write}
+{str_write}
+{repr_write}
+"''')

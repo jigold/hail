@@ -1,10 +1,11 @@
 import abc
-
+import os
+import dill
 from shlex import quote as shq
 from typing import Optional, Set
 
-from .exceptions import BatchException
 from . import job  # pylint: disable=cyclic-import
+from .exceptions import BatchException
 
 
 class Resource:
@@ -22,8 +23,12 @@ class Resource:
     def _add_output_path(self, path: str) -> None:
         pass
 
+    @abc.abstractmethod
+    def _source(self):
+        pass
+
     def _declare(self, directory: str) -> str:
-        return f"{self._uid}={shq(self._get_path(directory))}"  # pylint: disable=no-member
+        return f"export {self._uid}={shq(self._get_path(directory))}"  # pylint: disable=no-member
 
 
 class ResourceFile(Resource, str):
@@ -77,6 +82,14 @@ class ResourceFile(Resource, str):
 
     def __repr__(self):
         return self._uid  # pylint: disable=no-member
+
+    def __getstate__(self):
+        return {'_uid': self._uid}
+
+    def __reduce__(self):
+        def reduce():
+            return os.environ[self._uid]
+        return (reduce, ())
 
 
 class InputResourceFile(ResourceFile):
@@ -270,3 +283,143 @@ class ResourceGroup(Resource):
 
     def __str__(self):
         return f'"{self._uid}"'
+
+    def __getstate__(self):
+        return {'resources': self._resources}
+
+    def __reduce__(self):
+        return (dict, (self._resources,))
+
+
+def deserialize_object(uid):
+    with open(os.environ[uid], 'rb') as f:
+        x = dill.load(f)()
+    return x
+
+
+class PythonResult(Resource, str):
+    """
+    Class representing a Python result.
+    """
+    _counter = 0
+    _uid_prefix = "__PYTHON_RESULT__"
+    _regex_pattern = r"(?P<PYTHON_RESULT>{}\d+)".format(_uid_prefix)
+
+    @classmethod
+    def _new_uid(cls):
+        uid = "{}{}".format(cls._uid_prefix, cls._counter)
+        cls._counter += 1
+        return uid
+
+    def __new__(cls, *args, **kwargs):  # pylint: disable=W0613
+        uid = PythonResult._new_uid()
+        r = str.__new__(cls, uid)
+        r._uid = uid
+        return r
+
+    def __init__(self, value: Optional[str], source: job.PythonJob):
+        super().__init__()
+        assert value is None or isinstance(value, str)
+        self._value = value
+        self._source = source
+        self._output_paths: Set[str] = set()
+        self._json = None
+        self._str = None
+        self._repr = None
+
+    def _get_path(self, directory: str) -> str:
+        assert self._source is not None
+        assert self._value is not None
+        return f'{directory}/{self._source._job_id}/{self._value}'
+
+    def _add_converted_resource(self, value):
+        jrf = self._source._batch._new_job_resource_file(self._source, value)
+        self._source._resources[value] = jrf
+        self._source._resources_inverse[jrf] = value
+        self._source._valid.add(jrf)
+        self._source._mentioned.add(jrf)
+        return jrf
+
+    def _add_output_path(self, path: str) -> None:
+        self._output_paths.add(path)
+        if self._source is not None:
+            self._source._external_outputs.add(self)
+
+    def as_json(self):
+        if self._json is None:
+            jrf = self._add_converted_resource(self._value + '-json')
+            jrf.add_extension('.json')
+            self._json = jrf
+        return self._json
+
+    def as_str(self):
+        if self._str is None:
+            jrf = self._add_converted_resource(self._value + '-str')
+            jrf.add_extension('.txt')
+            self._str = jrf
+        return self._str
+
+    def as_repr(self):
+        if self._repr is None:
+            jrf = self._add_converted_resource(self._value + '-repr')
+            jrf.add_extension('.txt')
+            self._repr = jrf
+        return self._repr
+
+    def __str__(self):
+        return f'"{self._uid}"'  # pylint: disable=no-member
+
+    def __repr__(self):
+        return self._uid  # pylint: disable=no-member
+
+    def __getstate__(self):
+        return {'_uid': self._uid}
+
+    def _load_value(self):
+        with open(os.environ[self._uid], 'rb') as f:
+            x = dill.load(f)()
+        return x
+
+    # def __getnewargs__(self):
+    #     def reduce():
+    #         with open(os.environ[self._uid], 'rb') as f:
+    #             x = dill.load(f)()
+    #         return x
+    #     return (reduce, ())
+
+    # def __reduce__(self):
+    #     def reduce():
+    #         with open(os.environ[self._uid], 'rb') as f:
+    #             x = dill.load(f)()
+    #         return x
+    #     return (reduce, ())
+
+# def reduce(v):
+#     return 5
+#
+#
+# class Foo:
+#     def __init__(self, x):
+#         self.x = x
+#     def __getstate__(self):
+#         return {'x': dill.dumps(self.x)}
+#     def __reduce__(self):
+#         def reduce():
+#             x = dill.dumps(5)
+#             return dill.loads(x)
+#         return (reduce, ())
+#
+# class Foo:
+#     def __init__(self, x):
+#         self.x = x
+#     def __getstate__(self):
+#         return {'x': dill.dumps(self.x)}
+#     def __reduce__(self):
+#         def reduce():
+#             x = dill.dumps(Foo(4))
+#             return dill.loads(x)
+#         return (reduce, ())
+#
+# f = Foo('foo')
+# fs = dill.dumps(f)
+# dill.loads(fs)
