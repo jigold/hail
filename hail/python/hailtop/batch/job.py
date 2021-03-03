@@ -1,17 +1,13 @@
 import re
 import dill
-import cloudpickle
 import os
 import functools
 from io import BytesIO
-from typing import Union, Optional, Dict, List, Set, Tuple, Callable
+from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any
 import hail as hl
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .exceptions import BatchException
-
-
-dill.detect.trace(True)
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -599,34 +595,6 @@ class BashJob(Job):
         return self
 
 
-def wrapped_python_function(f):
-    def wrapped(*args, **kwargs):
-        newargs = []
-        for arg in args:
-            try:
-                arg = arg._load_value()
-            except:
-                pass
-            # if isinstance(arg, _resource.PythonResult):
-            #     arg = arg._load_value()
-            # elif isinstance(arg, _resource.ResourceFile):
-            #     arg = arg._load_value()
-            newargs.append(arg)
-        newkwargs = dict()
-        for key, arg in kwargs:
-            try:
-                arg = arg._load_value()
-            except:
-                pass
-            # if isinstance(arg, _resource.PythonResult):
-            #     arg = arg._load_value()
-            # elif isinstance(arg, _resource.ResourceFile):
-            #     arg = arg._load_value()
-            newkwargs[key] = arg
-        return f(*newargs, **newkwargs)
-    return wrapped
-
-
 class PythonJob(Job):
     def __init__(self,
                  batch: 'batch.Batch',
@@ -634,7 +602,7 @@ class PythonJob(Job):
                  attributes: Optional[Dict[str, str]] = None,
                  shell: Optional[str] = None):
         super().__init__(batch, name, attributes, shell)
-        self._functions = []
+        self._functions: List[Tuple[_resource.PythonResult, Callable, Tuple[Any, ...], Dict[str, Any]]] = []
         self._image = batch._python_image
 
     def _get_resource(self, item: str) -> '_resource.Resource':
@@ -648,24 +616,15 @@ class PythonJob(Job):
         if not callable(unapplied):
             raise BatchException(f'unapplied must be a callable function. Found {type(unapplied)}.')
 
-        # def wrapped():
-        #     newargs = []
-        #     for arg in args:
-        #         if isinstance(arg, _resource.PythonResult):
-        #             arg = arg._load_value()
-        #         elif isinstance(arg, _resource.ResourceFile):
-        #             arg = arg._load_value()
-        #         newargs.append(arg)
-        #     newkwargs = dict()
-        #     for key, arg in kwargs:
-        #         if isinstance(arg, _resource.PythonResult):
-        #             arg = arg._load_value()
-        #         elif isinstance(arg, _resource.ResourceFile):
-        #             arg = arg._load_value()
-        #         newkwargs[key] = arg
-        #     return unapplied(*newargs, **newkwargs)
+        for arg in args:
+            if isinstance(arg, Job):
+                raise BatchException(f'arguments to a PythonJob cannot be other job objects.')
 
-        self._functions.append((result, wrapped_python_function(unapplied), args, kwargs))
+        for value in kwargs.values():
+            if isinstance(value, Job):
+                raise BatchException(f'arguments to a PythonJob cannot be other job objects.')
+
+        self._functions.append((result, unapplied, args, kwargs))
 
         def handle_arg(r):
             if r._source != self:
@@ -693,25 +652,47 @@ class PythonJob(Job):
 
         return self
 
-    def _compile(self, tmpdir):
+    def _compile(self, local_tmpdir, remote_tmpdir):
         for result, unapplied, args, kwargs in self._functions:
             self._mentioned.add(result)
 
+            def prepare_argument_for_serialization(arg):
+                if isinstance(arg, _resource.PythonResult):
+                    return ('py_path', arg._get_path(local_tmpdir))
+                if isinstance(arg, _resource.ResourceFile):
+                    return ('path', arg._get_path(local_tmpdir))
+                if isinstance(arg, _resource.ResourceGroup):
+                    return ('dict_path', {name: resource._get_path(local_tmpdir)
+                                          for name, resource in arg._resources})
+                return ('value', arg)
+
+            def deserialize_argument(arg):
+                typ, val = arg
+                if typ == 'py_path':
+                    return dill.load(open(val))
+                if typ in ('path', 'dict_path'):
+                    return val
+                assert typ == 'value'
+                return val
+
+            args = [prepare_argument_for_serialization(arg) for arg in args]
+            kwargs = {kw: prepare_argument_for_serialization(arg) for kw, arg in kwargs.items()}
+
+            def wrap(f):
+                @functools.wraps(f)
+                def wrapped(*args, **kwargs):
+                    args = [deserialize_argument(arg) for arg in args]
+                    kwargs = {kw: deserialize_argument(arg) for kw, arg in kwargs.items()}
+                    return f(*args, **kwargs)
+                return wrapped
+
             pipe = BytesIO()
-            # dill.dump(functools.partial(str, args[0]), pipe, recurse=True)  # this works
-            #dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
-            cloudpickle.dump(functools.partial(unapplied, *args, **kwargs), pipe)
+            dill.dump(functools.partial(wrap(unapplied), *args, **kwargs), pipe)
             pipe.seek(0)
 
-            job_path = os.path.dirname(result._get_path(tmpdir))
+            job_path = os.path.dirname(result._get_path(remote_tmpdir))
             code_path = f'{job_path}/code.p'
 
-            # FIXME: replace with file system robust upload
-            # hl.hadoop_open was getting pickle errors in pprint
-            # with open(code_path, 'wb') as f:
-            #     f.write(pipe.getvalue())
-
-            # self._batch.gcs.write_gs_file_from_file_like_object(code_path, pipe)
             with hl.hadoop_open(code_path, 'wb') as f:
                 f.write(pipe.getvalue())
 
@@ -723,31 +704,30 @@ class PythonJob(Job):
             if result._json:
                 self._mentioned.add(result._json)
                 json_write = f'''
-with open(os.environ[\\"{result._json}\\"], \\"w\\") as out:
-   out.write(json.dumps(result))
+            with open(os.environ[\\"{result._json}\\"], \\"w\\") as out:
+                out.write(repr(result))
 '''
 
             str_write = ''
             if result._str:
                 self._mentioned.add(result._str)
                 str_write = f'''
-with open(os.environ[\\"{result._str}\\"], \\"w\\") as out:
-   out.write(str(result))
+            with open(os.environ[\\"{result._str}\\"], \\"w\\") as out:
+                out.write(repr(result))
 '''
 
             repr_write = ''
             if result._repr:
                 self._mentioned.add(result._repr)
                 repr_write = f'''
-with open(os.environ[\\"{result._repr}\\"], \\"w\\") as out:
-   out.write(repr(result))
+            with open(os.environ[\\"{result._repr}\\"], \\"w\\") as out:
+                out.write(repr(result))
 '''
 
             self._command.append(f'''python3 -c "
 import os
 import base64
 import dill
-import cloudpickle
 import traceback
 import json
 import sys
@@ -755,15 +735,13 @@ import sys
 with open(os.environ[\\"{result}\\"], \\"wb\\") as dill_out:
     try:
         with open(os.environ[\\"{code}\\"], \\"rb\\") as f:
-            result = cloudpickle.load(f)()
-            cloudpickle.dump(result, dill_out)
-            #result = dill.load(f)()
-            #dill.dump(result, dill_out, recurse=True)
+            result = dill.load(f)()
+            dill.dump(result, dill_out, recurse=True)
+            {json_write}
+            {str_write}
+            {repr_write}
     except Exception as e:
         traceback.print_exc()
         sys.exit()
-        # dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), dill_out, recurse=True)
-{json_write}
-{str_write}
-{repr_write}
+        dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), dill_out, recurse=True)
 "''')

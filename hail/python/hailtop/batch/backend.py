@@ -195,7 +195,7 @@ class LocalBackend(Backend):
 
         for job in batch._jobs:
             if isinstance(job, _job.PythonJob):
-                job._compile(tmpdir)
+                job._compile(tmpdir, tmpdir)
 
             os.makedirs(f'{tmpdir}/{job._job_id}/', exist_ok=True)
 
@@ -244,8 +244,8 @@ class LocalBackend(Backend):
             try:
                 sp.check_call(script, shell=True)
             except sp.CalledProcessError as e:
-                # print(e)
-                # print(e.output)
+                print(e)
+                print(e.output)
                 raise
             finally:
                 if delete_scratch_on_exit:
@@ -452,7 +452,7 @@ class ServiceBackend(Backend):
 
         for job in batch._jobs:
             if isinstance(job, _job.PythonJob):
-                job._compile(remote_tmpdir)
+                job._compile(local_tmpdir, remote_tmpdir)
 
             inputs = [x for r in job._inputs for x in copy_input(r)]
 

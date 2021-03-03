@@ -1,5 +1,5 @@
 import os
-import concurrent
+import sys
 import re
 from typing import Optional, Dict, Union, List, Any, Set
 
@@ -125,17 +125,11 @@ class Batch:
             if isinstance(self._backend, _backend.ServiceBackend):
                 image_repository = self._backend._image_repository
                 if image_repository is None:
-                    raise BatchException(f'Must define `image_repository` when using the ServiceBackend with Python jobs')
+                    raise BatchException(f'Must define `image_repository` when using the ServiceBackend with Python jobs and building an image locally')
                 python_image = f'{self._backend._image_repository}/{python_image}'
         self._python_image = python_image
 
         self._python_requirements = python_requirements or []
-        if 'dill' not in self._python_requirements:
-            self._python_requirements.append('dill')
-        if 'cloudpickle' not in self._python_requirements:
-            self._python_requirements.append('cloudpickle')
-        # if 'hail' not in self._python_requirements:
-        #     self._python_requirements.append('hail')
         self._docker_build_dir = docker_build_dir
 
     def new_job(self,
@@ -491,7 +485,14 @@ class Batch:
         """
 
         if self._n_python_jobs > 0 and self._build_python_image:
+            version = sys.version_info
+            if version.major != 3 or version.minor not in (6, 7, 8):
+                raise ValueError(
+                    f'You must specify a Python image if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})')
+            base_image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+
             _utils.build_python_image(self._docker_build_dir,
+                                      base_image,
                                       self._python_image,
                                       python_requirements=self._python_requirements,
                                       verbose=verbose)
