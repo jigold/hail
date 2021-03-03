@@ -1,5 +1,6 @@
 import re
 import dill
+# import cloudpickle
 import os
 import functools
 from io import BytesIO
@@ -699,6 +700,7 @@ class PythonJob(Job):
             pipe = BytesIO()
             # dill.dump(functools.partial(str, args[0]), pipe, recurse=True)  # this works
             dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
+            # cloudpickle.dump(functools.partial(unapplied, *args, **kwargs), pipe)
             pipe.seek(0)
 
             job_path = os.path.dirname(result._get_path(tmpdir))
@@ -745,17 +747,22 @@ with open(os.environ[\\"{result._repr}\\"], \\"w\\") as out:
 import os
 import base64
 import dill
+import cloudpickle
 import traceback
 import json
+import sys
 
 with open(os.environ[\\"{result}\\"], \\"wb\\") as dill_out:
     try:
         with open(os.environ[\\"{code}\\"], \\"rb\\") as f:
+            #result = cloudpickle.load(f)()
+            #cloudpickle.dump(result, dill_out)
             result = dill.load(f)()
             dill.dump(result, dill_out, recurse=True)
     except Exception as e:
         traceback.print_exc()
-        dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), dill_out, recurse=True)
+        sys.exit()
+        # dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), dill_out, recurse=True)
 {json_write}
 {str_write}
 {repr_write}

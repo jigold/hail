@@ -132,6 +132,10 @@ class Batch:
         self._python_requirements = python_requirements or []
         if 'dill' not in self._python_requirements:
             self._python_requirements.append('dill')
+        if 'cloudpickle' not in self._python_requirements:
+            self._python_requirements.append('cloudpickle')
+        # if 'hail' not in self._python_requirements:
+        #     self._python_requirements.append('hail')
         self._docker_build_dir = docker_build_dir
 
     def new_job(self,

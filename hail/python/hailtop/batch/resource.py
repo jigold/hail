@@ -1,6 +1,7 @@
 import abc
 import os
-import dill
+# import dill
+import cloudpickle
 from shlex import quote as shq
 from typing import Optional, Set
 
@@ -299,7 +300,8 @@ class ResourceGroup(Resource):
 
 def deserialize_object(uid):
     with open(os.environ[uid], 'rb') as f:
-        x = dill.load(f)()
+        x = cloudpickle.load(f)()
+        # x = dill.load(f)()
     return x
 
 
@@ -383,7 +385,8 @@ class PythonResult(Resource, str):
 
     def _load_value(self):
         with open(os.environ[self._uid], 'rb') as f:
-            x = dill.load(f)()
+            x = cloudpickle.load(f)()
+            # x = dill.load(f)()
         return x
 
     # def __getnewargs__(self):

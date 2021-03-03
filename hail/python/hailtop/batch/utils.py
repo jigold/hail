@@ -32,6 +32,9 @@ def build_python_image(build_dir: str,
     with open(python_requirements_file, 'w') as f:
         f.write('\n'.join(python_requirements) + '\n')
 
+    source_dir = '/Users/jigold/hail/hail/python'
+    os.system(f'cp -R {source_dir} {docker_path}')
+
     with open(f'{docker_path}/Dockerfile', 'w') as f:
         f.write(f'''
 FROM {base_image}
@@ -40,6 +43,10 @@ COPY requirements.txt .
 
 RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
+
+COPY python /python/
+
+RUN pip install /hailtop
 ''')
 
     sync_check_shell_output(f'docker build -t {dest_image} {docker_path}', echo=verbose)
