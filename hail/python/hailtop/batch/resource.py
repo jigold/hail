@@ -86,10 +86,16 @@ class ResourceFile(Resource, str):
     def __getstate__(self):
         return {'_uid': self._uid}
 
-    def __reduce__(self):
-        def reduce():
-            return os.environ[self._uid]
-        return (reduce, ())
+    def __setstate__(self, state):
+        self._uid = state['_uid']
+
+    def _load_value(self):
+        return os.environ[self._uid]
+
+    # def __reduce__(self):
+    #     def reduce():
+    #         return os.environ[self._uid]
+    #     return (reduce, ())
 
 
 class InputResourceFile(ResourceFile):
@@ -286,9 +292,9 @@ class ResourceGroup(Resource):
 
     def __getstate__(self):
         return {'resources': self._resources}
-
-    def __reduce__(self):
-        return (dict, (self._resources,))
+    #
+    # def __reduce__(self):
+    #     return (dict, (self._resources,))
 
 
 def deserialize_object(uid):

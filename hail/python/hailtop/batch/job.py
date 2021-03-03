@@ -1,12 +1,16 @@
 import re
 import dill
+import os
 import functools
 from io import BytesIO
 from typing import Union, Optional, Dict, List, Set, Tuple, Callable
-# import hail as hl
+import hail as hl
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .exceptions import BatchException
+
+
+dill.detect.trace(True)
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -594,6 +598,34 @@ class BashJob(Job):
         return self
 
 
+def wrapped_python_function(f):
+    def wrapped(*args, **kwargs):
+        newargs = []
+        for arg in args:
+            try:
+                arg = arg._load_value()
+            except:
+                pass
+            # if isinstance(arg, _resource.PythonResult):
+            #     arg = arg._load_value()
+            # elif isinstance(arg, _resource.ResourceFile):
+            #     arg = arg._load_value()
+            newargs.append(arg)
+        newkwargs = dict()
+        for key, arg in kwargs:
+            try:
+                arg = arg._load_value()
+            except:
+                pass
+            # if isinstance(arg, _resource.PythonResult):
+            #     arg = arg._load_value()
+            # elif isinstance(arg, _resource.ResourceFile):
+            #     arg = arg._load_value()
+            newkwargs[key] = arg
+        return f(*newargs, **newkwargs)
+    return wrapped
+
+
 class PythonJob(Job):
     def __init__(self,
                  batch: 'batch.Batch',
@@ -615,22 +647,24 @@ class PythonJob(Job):
         if not callable(unapplied):
             raise BatchException(f'unapplied must be a callable function. Found {type(unapplied)}.')
 
-        def wrapped():
-            def f(*args, **kwargs):
-                newargs = []
-                for arg in args:
-                    if isinstance(arg, _resource.PythonResult):
-                        arg = arg._load_value()
-                    newargs.append(arg)
-                newkwargs = dict()
-                for key, arg in kwargs:
-                    if isinstance(arg, _resource.PythonResult):
-                        arg = arg._load_value()
-                    newkwargs[key] = arg
-                return unapplied(*newargs, **newkwargs)
-            return f
+        # def wrapped():
+        #     newargs = []
+        #     for arg in args:
+        #         if isinstance(arg, _resource.PythonResult):
+        #             arg = arg._load_value()
+        #         elif isinstance(arg, _resource.ResourceFile):
+        #             arg = arg._load_value()
+        #         newargs.append(arg)
+        #     newkwargs = dict()
+        #     for key, arg in kwargs:
+        #         if isinstance(arg, _resource.PythonResult):
+        #             arg = arg._load_value()
+        #         elif isinstance(arg, _resource.ResourceFile):
+        #             arg = arg._load_value()
+        #         newkwargs[key] = arg
+        #     return unapplied(*newargs, **newkwargs)
 
-        self._functions.append((result, wrapped, args, kwargs))
+        self._functions.append((result, wrapped_python_function(unapplied), args, kwargs))
 
         def handle_arg(r):
             if r._source != self:
@@ -663,20 +697,21 @@ class PythonJob(Job):
             self._mentioned.add(result)
 
             pipe = BytesIO()
-            # dill.dump(functools.partial(str, 5), pipe, recurse=True)  # this works
+            # dill.dump(functools.partial(str, args[0]), pipe, recurse=True)  # this works
             dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
             pipe.seek(0)
 
-            code_path = f'{tmpdir}/code.p'
+            job_path = os.path.dirname(result._get_path(tmpdir))
+            code_path = f'{job_path}/code.p'
 
             # FIXME: replace with file system robust upload
             # hl.hadoop_open was getting pickle errors in pprint
-            with open(code_path, 'wb') as f:
-                f.write(pipe.getvalue())
+            # with open(code_path, 'wb') as f:
+            #     f.write(pipe.getvalue())
 
             # self._batch.gcs.write_gs_file_from_file_like_object(code_path, pipe)
-            # with hl.hadoop_open(code_path, 'wb') as f:
-            #     f.write(pipe.getvalue())
+            with hl.hadoop_open(code_path, 'wb') as f:
+                f.write(pipe.getvalue())
 
             code = self._batch.read_input(code_path)
             self._add_inputs(code)
@@ -717,7 +752,6 @@ with open(os.environ[\\"{result}\\"], \\"wb\\") as dill_out:
     try:
         with open(os.environ[\\"{code}\\"], \\"rb\\") as f:
             result = dill.load(f)()
-            print(result)
             dill.dump(result, dill_out, recurse=True)
     except Exception as e:
         traceback.print_exc()
