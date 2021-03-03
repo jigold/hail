@@ -669,7 +669,7 @@ class PythonJob(Job):
             def deserialize_argument(arg):
                 typ, val = arg
                 if typ == 'py_path':
-                    return dill.load(open(val))
+                    return dill.load(open(val, 'rb'))
                 if typ in ('path', 'dict_path'):
                     return val
                 assert typ == 'value'
