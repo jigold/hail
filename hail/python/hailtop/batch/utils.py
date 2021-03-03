@@ -46,7 +46,7 @@ RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
 
 COPY python /python/
 
-RUN pip install /hailtop
+RUN pip install /python/
 ''')
 
     sync_check_shell_output(f'docker build -t {dest_image} {docker_path}', echo=verbose)
