@@ -1,7 +1,4 @@
 import abc
-import os
-# import dill
-import cloudpickle
 from shlex import quote as shq
 from typing import Optional, Set
 
@@ -83,20 +80,6 @@ class ResourceFile(Resource, str):
 
     def __repr__(self):
         return self._uid  # pylint: disable=no-member
-
-    def __getstate__(self):
-        return {'_uid': self._uid}
-
-    def __setstate__(self, state):
-        self._uid = state['_uid']
-
-    def _load_value(self):
-        return os.environ[self._uid]
-
-    # def __reduce__(self):
-    #     def reduce():
-    #         return os.environ[self._uid]
-    #     return (reduce, ())
 
 
 class InputResourceFile(ResourceFile):
@@ -293,16 +276,6 @@ class ResourceGroup(Resource):
 
     def __getstate__(self):
         return {'resources': self._resources}
-    #
-    # def __reduce__(self):
-    #     return (dict, (self._resources,))
-
-
-def deserialize_object(uid):
-    with open(os.environ[uid], 'rb') as f:
-        x = cloudpickle.load(f)()
-        # x = dill.load(f)()
-    return x
 
 
 class PythonResult(Resource, str):
@@ -379,56 +352,3 @@ class PythonResult(Resource, str):
 
     def __repr__(self):
         return self._uid  # pylint: disable=no-member
-
-    def __getstate__(self):
-        return {'_uid': self._uid}
-
-    def _load_value(self):
-        with open(os.environ[self._uid], 'rb') as f:
-            x = cloudpickle.load(f)()
-            # x = dill.load(f)()
-        return x
-
-    # def __getnewargs__(self):
-    #     def reduce():
-    #         with open(os.environ[self._uid], 'rb') as f:
-    #             x = dill.load(f)()
-    #         return x
-    #     return (reduce, ())
-
-    # def __reduce__(self):
-    #     def reduce():
-    #         with open(os.environ[self._uid], 'rb') as f:
-    #             x = dill.load(f)()
-    #         return x
-    #     return (reduce, ())
-
-# def reduce(v):
-#     return 5
-#
-#
-# class Foo:
-#     def __init__(self, x):
-#         self.x = x
-#     def __getstate__(self):
-#         return {'x': dill.dumps(self.x)}
-#     def __reduce__(self):
-#         def reduce():
-#             x = dill.dumps(5)
-#             return dill.loads(x)
-#         return (reduce, ())
-#
-# class Foo:
-#     def __init__(self, x):
-#         self.x = x
-#     def __getstate__(self):
-#         return {'x': dill.dumps(self.x)}
-#     def __reduce__(self):
-#         def reduce():
-#             x = dill.dumps(Foo(4))
-#             return dill.loads(x)
-#         return (reduce, ())
-#
-# f = Foo('foo')
-# fs = dill.dumps(f)
-# dill.loads(fs)

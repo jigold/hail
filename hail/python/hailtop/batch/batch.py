@@ -121,7 +121,7 @@ class Batch:
 
         self._build_python_image = (python_image is None)
         if python_image is None:
-            python_image = f'batch-{secret_alnum_string(8, case="lower")}'
+            python_image = f'batch-python-{secret_alnum_string(8, case="lower")}'
             if isinstance(self._backend, _backend.ServiceBackend):
                 image_repository = self._backend._image_repository
                 if image_repository is None:

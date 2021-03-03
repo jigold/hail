@@ -16,12 +16,13 @@ def build_python_image(build_dir: str,
                        dest_image: str,
                        python_requirements: Optional[List[str]] = None,
                        verbose: bool = True):
+    print(f'building docker image {dest_image}')
 
     version = sys.version_info
     if version.major != 3 or version.minor not in (6, 7, 8):
         raise ValueError(
             f'You must specify an image if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})')
-    base_image = f'python:{version.major}.{version.minor}'
+    base_image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
 
     docker_path = f'{build_dir}/docker'
     shutil.rmtree(docker_path)
@@ -32,9 +33,6 @@ def build_python_image(build_dir: str,
     with open(python_requirements_file, 'w') as f:
         f.write('\n'.join(python_requirements) + '\n')
 
-    source_dir = '/Users/jigold/hail/hail/python'
-    os.system(f'cp -R {source_dir} {docker_path}')
-
     with open(f'{docker_path}/Dockerfile', 'w') as f:
         f.write(f'''
 FROM {base_image}
@@ -43,10 +41,6 @@ COPY requirements.txt .
 
 RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
-
-COPY python /python/
-
-RUN pip install /python/
 ''')
 
     sync_check_shell_output(f'docker build -t {dest_image} {docker_path}', echo=verbose)
@@ -54,6 +48,8 @@ RUN pip install /python/
     image_split = dest_image.rsplit('/', 1)
     if len(image_split) == 2:
         sync_check_shell_output(f'docker push {dest_image}', echo=verbose)
+
+    print(f'finished building docker image {dest_image}')
 
 
 def concatenate(b: '_batch.Batch', files: List[ResourceFile], image: str = None, branching_factor: int = 100) -> ResourceFile:
