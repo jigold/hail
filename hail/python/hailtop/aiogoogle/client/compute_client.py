@@ -5,7 +5,7 @@ from .base_client import BaseClient
 from hailtop.utils import sleep_and_backoff
 
 
-def request_with_wait_for_done(request_f, path, params: Mapping[str, Any] = None, **kwargs):
+async def request_with_wait_for_done(request_f, path, params: Mapping[str, Any] = None, **kwargs):
     assert 'params' not in kwargs
 
     if params is None:
@@ -74,13 +74,13 @@ class ComputeClient(BaseClient):
         return PagedIterator(self, path, params, kwargs)
 
     async def create_disk(self, path: str, *, params: Mapping[str, Any] = None, **kwargs):
-        return request_with_wait_for_done(self.post, path, params, **kwargs)
+        return await request_with_wait_for_done(self.post, path, params, **kwargs)
 
     async def attach_disk(self, path: str, *, params: Mapping[str, Any] = None, **kwargs):
-        return request_with_wait_for_done(self.post, path, params, **kwargs)
+        return await request_with_wait_for_done(self.post, path, params, **kwargs)
 
     async def detach_disk(self, path: str, *, params: Mapping[str, Any] = None, **kwargs):
-        return request_with_wait_for_done(self.post, path, params, **kwargs)
+        return await request_with_wait_for_done(self.post, path, params, **kwargs)
 
     async def delete_disk(self, path: str, *, params: Mapping[str, Any] = None, **kwargs):
-        return request_with_wait_for_done(self.delete, path, params, **kwargs)
+        return await request_with_wait_for_done(self.delete, path, params, **kwargs)
