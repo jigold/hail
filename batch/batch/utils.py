@@ -142,23 +142,22 @@ def storage_gib_to_bytes(storage_gib):
     return math.ceil(storage_gib * 1024**3)
 
 
-def convert_storage_gib_to_bytes(storage_gib):
-    return math.ceil(storage_gib * 1024**3)
-
-
-def is_valid_cores_mcpu(cores_mcpu):
-    cores = cores_mcpu / 1000
-    if cores <= 0:
+def is_valid_cores_mcpu(cores_mcpu: int):
+    if cores_mcpu <= 0:
         return False
-    power = math.log2(cores)
-    if math.floor(power) != math.ceil(power):
+    quarter_core_mcpu = cores_mcpu * 4
+    if quarter_core_mcpu % 1000 != 0:
         return False
-    return -2 <= power
+    quarter_cores = quarter_core_mcpu // 1000
+    return quarter_cores & (quarter_cores - 1) == 0
 
 
 class Box:
     def __init__(self, value):
         self.value = value
+
+    def __str__(self):
+        return f'{self.value}'
 
 
 class WindowFractionCounter:

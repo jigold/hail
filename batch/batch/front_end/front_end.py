@@ -700,6 +700,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 del resources['storage']
                 req_storage_bytes = parse_storage_in_bytes(resources['req_storage'])
 
+                if not req_storage_bytes:
+                    raise web.HTTPBadRequest(
+                        reason=f'bad resource request for job {id}: '
+                        f'storage must be convertable to bytes; '
+                        f'found {resources["req_storage"]}'
+                    )
+
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
                 inst_coll_name = None

@@ -10,8 +10,6 @@ from hailtop import aiotools, aiogoogle
 from hailtop.utils import periodically_call
 
 from ..batch_configuration import PROJECT, DEFAULT_NAMESPACE
-from ..disk import Disk
-
 from .zone_monitor import ZoneMonitor
 from .instance_collection_manager import InstanceCollectionManager
 
@@ -161,7 +159,7 @@ timestamp >= "{mark}"
                 instance = self.inst_coll_manager.get_instance(instance_name)
                 if instance is None:
                     try:
-                        await Disk.delete_disk(self.compute_client, disk['name'], zone)
+                        await self.compute_client.delete_disk(f'/zones/{zone}/disks/{disk["name"]}')
                     except aiohttp.ClientResponseError as e:
                         if e.status == 404:
                             continue

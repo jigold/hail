@@ -46,11 +46,6 @@ def first_extant_file(*files):
     return None
 
 
-def is_power_of_two(x):
-    power = math.log2(x)
-    return math.ceil(power) == math.floor(power)
-
-
 def cost_str(cost):
     if cost is None:
         return None

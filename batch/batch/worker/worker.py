@@ -18,10 +18,9 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import (time_msecs, request_retry_transient_errors,
-                           sleep_and_backoff, retry_all_errors, check_shell,
-                           CalledProcessError, check_shell_output, is_google_registry_image,
-                           find_spark_home)
+from hailtop.utils import (time_msecs, request_retry_transient_errors, sleep_and_backoff,
+                           retry_all_errors, is_google_registry_image, find_spark_home,
+                           sync_check_shell, CalledProcessError)
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes, parse_storage_in_bytes)
@@ -34,20 +33,19 @@ import hailtop.aiogoogle as aiogoogle
 from hailtop.config import DeployConfig
 from hailtop.hail_logging import configure_logging
 
-from ..disk import Disk
 from ..utils import (adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes,
                      adjust_cores_for_packability, adjust_cores_for_storage_request,
                      round_storage_bytes_to_gib, cores_mcpu_to_storage_bytes)
-from ..semaphore import FIFOWeightedSemaphore, FIFOWeightedSemaphoreFull
+from ..semaphore import FIFOWeightedSemaphore
 from ..log_store import LogStore
 from ..globals import (HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION, RESERVED_STORAGE_GB_PER_CORE,
                        MAX_PERSISTENT_SSD_SIZE_GIB)
 from ..batch_format_version import BatchFormatVersion
 from ..worker_config import WorkerConfig
 from ..public_gcr_images import public_gcr_images
-from ..utils import convert_storage_gib_to_bytes
+from ..utils import storage_gib_to_bytes, Box
 
-from .flock import Flock
+from .disk import Disk
 
 # uvloop.install()
 
@@ -429,11 +427,10 @@ class Container:
             self.overlay_path = merged_overlay_path[:-7].replace(WORKER_DATA_DISK_MOUNT, '/host')
             os.makedirs(f'{self.overlay_path}/', exist_ok=True)
 
-            async with Flock('/xfsquota/projects', pool=worker.pool):
-                with open('/xfsquota/projects', 'a') as f:
-                    f.write(f'{self.job.project_id}:{self.overlay_path}\n')
+            with open('/xfsquota/projects', 'a') as f:
+                f.write(f'{self.job.project_id}:{self.overlay_path}\n')
 
-            await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/')
+            sync_check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/')
 
             async with self.step('starting'):
                 await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
@@ -490,8 +487,7 @@ class Container:
     async def delete_container(self):
         if self.overlay_path:
             path = self.overlay_path.replace('/', r'\/')
-            async with Flock('/xfsquota/projects', pool=worker.pool):
-                await check_shell(f"sed -i '/:{path}/d' /xfsquota/projects")
+            sync_check_shell(f"sed -i '/:{path}/d' /xfsquota/projects")
 
         if self.container:
             try:
@@ -640,7 +636,7 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
     error = 0
     while True:
         try:
-            return await check_shell(f'''
+            return sync_check_shell(f'''
 /usr/bin/gcsfuse \
     -o {",".join(options)} \
     --file-mode 770 \
@@ -764,7 +760,11 @@ class Job:
                 self.data_disk_storage_in_gib = storage_in_gib
             else:
                 self.external_storage_in_gib = storage_in_gib
-                self.data_disk_storage_in_gib = min(5, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE)
+                # The reason for not giving each job 5 Gi (for example) is the
+                # maximum number of simultaneous jobs on a worker is 64 which
+                # basically fills the disk not allowing for caches etc. Most jobs
+                # would need an external disk in that case.
+                self.data_disk_storage_in_gib = min(RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE)
 
         self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib)
 
@@ -917,32 +917,36 @@ class DockerJob(Job):
         self.containers = containers
 
     async def setup_io(self):
-        try:
-            if not worker_config.job_private:
-                log.info(f'requested {self.external_storage_in_gib}Gi from worker data disk storage with {worker.storage_sem.value}Gi ')
-                worker.storage_sem.acquire_nowait(self.external_storage_in_gib)
-        except FIFOWeightedSemaphoreFull:
-            log.info(f'worker data disk storage is full: {self.external_storage_in_gib}Gi requested and {worker.storage_sem.value}Gi remaining')
-            uid = self.token[:20]
-            self.disk = Disk(zone=ZONE,
-                             project=PROJECT,
-                             instance_name=NAME,
-                             name=f'batch-disk-{uid}',
-                             compute_client=worker.compute_client,
-                             size_in_gb=self.external_storage_in_gib,
-                             mount_path=self.io_host_path())
-            labels = {
-                'namespace': NAMESPACE,
-                'batch': '1',
-                'instance-name': NAME,
-                'uid': uid
-            }
-            await self.disk.create(labels=labels)
-            log.info(f'created disk {self.disk.name} for job {self.id}')
-        else:
-            log.info(f'acquired {self.external_storage_in_gib}Gi from worker data disk storage with {worker.storage_sem.value}Gi remaining')
-            self.disk = None
-            os.makedirs(self.io_host_path())
+        if not worker_config.job_private:
+            if worker.data_disk_space_remaining.value < self.external_storage_in_gib:
+                log.info(f'worker data disk storage is full: {self.external_storage_in_gib}Gi requested and {worker.data_disk_space_remaining}Gi remaining')
+
+                # disk name must be 63 characters or less
+                # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
+                # under the information for the name field
+                uid = self.token[:20]
+                self.disk = Disk(zone=ZONE,
+                                 project=PROJECT,
+                                 instance_name=NAME,
+                                 name=f'batch-disk-{uid}',
+                                 compute_client=worker.compute_client,
+                                 size_in_gb=self.external_storage_in_gib,
+                                 mount_path=self.io_host_path())
+                labels = {
+                    'namespace': NAMESPACE,
+                    'batch': '1',
+                    'instance-name': NAME,
+                    'uid': uid
+                }
+                await self.disk.create(labels=labels)
+                log.info(f'created disk {self.disk.name} for job {self.id}')
+                return
+
+            worker.data_disk_space_remaining.value -= self.external_storage_in_gib
+            log.info(f'acquired {self.external_storage_in_gib}Gi from worker data disk storage with {worker.data_disk_space_remaining}Gi remaining')
+
+        assert self.disk is None, self.disk
+        os.makedirs(self.io_host_path())
 
     async def run(self, worker):
         async with worker.cpu_sem(self.cpu_in_mcpu):
@@ -958,20 +962,19 @@ class DockerJob(Job):
 
                 await self.setup_io()
 
-                async with Flock('/xfsquota/projid', pool=worker.pool):
-                    with open('/xfsquota/projid', 'a') as f:
-                        f.write(f'{self.project_name}:{self.project_id}\n')
+                with open('/xfsquota/projid', 'a') as f:
+                    f.write(f'{self.project_name}:{self.project_id}\n')
+
+                with open('/xfsquota/projects', 'a') as f:
+                    f.write(f'{self.project_id}:{self.scratch}\n')
 
                 if not self.disk:
-                    async with Flock('/xfsquota/projects', pool=worker.pool):
-                        with open('/xfsquota/projects', 'a') as f:
-                            f.write(f'{self.project_id}:{self.scratch}\n')
-                    data_disk_storage_in_bytes = convert_storage_gib_to_bytes(self.external_storage_in_gib + self.data_disk_storage_in_gib)
+                    data_disk_storage_in_bytes = storage_gib_to_bytes(self.external_storage_in_gib + self.data_disk_storage_in_gib)
                 else:
-                    data_disk_storage_in_bytes = convert_storage_gib_to_bytes(self.data_disk_storage_in_gib)
+                    data_disk_storage_in_bytes = storage_gib_to_bytes(self.data_disk_storage_in_gib)
 
-                await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
-                await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_name}" /host/')
+                sync_check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
+                sync_check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_name}" /host/')
 
                 if self.secrets:
                     for secret in self.secrets:
@@ -1023,14 +1026,14 @@ class DockerJob(Job):
                 self.state = 'error'
                 self.error = traceback.format_exc()
             finally:
-                try:
-                    if self.disk:
+                if self.disk:
+                    try:
                         await self.disk.delete()
                         log.info(f'deleted disk {self.disk.name} for {self.id}')
-                    else:
-                        worker.storage_sem.release(self.external_storage_in_gib)
-                except Exception:
-                    log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
+                    except Exception:
+                        log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
+                else:
+                    worker.data_disk_space_remaining.value += self.external_storage_in_gib
 
                 self.end_time = time_msecs()
 
@@ -1044,16 +1047,12 @@ class DockerJob(Job):
                         for b in self.gcsfuse:
                             bucket = b['bucket']
                             mount_path = self.gcsfuse_path(bucket)
-                            await check_shell(f'fusermount -u {mount_path}')
+                            sync_check_shell(f'fusermount -u {mount_path}')
                             log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
 
-                    await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
-
-                    async with Flock('/xfsquota/projid', pool=worker.pool):
-                        await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
-
-                    async with Flock('/xfsquota/projects', pool=worker.pool):
-                        await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+                    sync_check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
+                    sync_check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+                    sync_check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
 
                     shutil.rmtree(self.scratch, ignore_errors=True)
                 except Exception:
@@ -1136,16 +1135,14 @@ class JVMJob(Job):
 
                 os.makedirs(f'{self.scratch}/')
 
-                async with Flock('/xfsquota/projid', pool=worker.pool):
-                    with open('/xfsquota/projid', 'a') as f:
-                        f.write(f'{self.project_name}:{self.project_id}\n')
+                with open('/xfsquota/projid', 'a') as f:
+                    f.write(f'{self.project_name}:{self.project_id}\n')
 
-                async with Flock('/xfsquota/projects', pool=worker.pool):
-                    with open('/xfsquota/projects', 'a') as f:
-                        f.write(f'{self.project_id}:{self.scratch}\n')
+                with open('/xfsquota/projects', 'a') as f:
+                    f.write(f'{self.project_id}:{self.scratch}\n')
 
-                await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
-                await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_name}" /host/')
+                sync_check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
+                sync_check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_name}" /host/')
 
                 if self.secrets:
                     for secret in self.secrets:
@@ -1173,14 +1170,9 @@ class JVMJob(Job):
 
                 log.info(f'{self}: cleaning up')
                 try:
-                    await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
-
-                    async with Flock('/xfsquota/projid', pool=worker.pool):
-                        await check_shell(f"sed     -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
-
-                    async with Flock('/xfsquota/projects', pool=worker.pool):
-                        await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
-
+                    sync_check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
+                    sync_check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+                    sync_check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
                     shutil.rmtree(self.scratch, ignore_errors=True)
                 except Exception:
                     log.exception('while deleting volumes')
@@ -1222,7 +1214,7 @@ class Worker:
         self.cores_mcpu = CORES * 1000
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
-        self.storage_sem = FIFOWeightedSemaphore(UNRESERVED_WORKER_DATA_DISK_SIZE_GB)
+        self.data_disk_space_remaining = Box(UNRESERVED_WORKER_DATA_DISK_SIZE_GB)
         self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
         self.stop_event = asyncio.Event()
@@ -1360,7 +1352,7 @@ class Worker:
                 stopped = False
                 idle_duration = time_msecs() - self.last_updated
                 while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:
-                    log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration} free worker data disk storage {self.storage_sem.value}Gi')
+                    log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration} free worker data disk storage {self.data_disk_space_remaining.value}Gi')
                     try:
                         await asyncio.wait_for(self.stop_event.wait(), 15)
                         stopped = True

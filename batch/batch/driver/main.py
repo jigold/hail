@@ -448,7 +448,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             set_message(session,
                         f'PD SSD must be at least {min_disk_storage} GB',
                         'error')
-            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
     max_instances = validate_int(
         session,

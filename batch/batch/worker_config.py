@@ -1,5 +1,4 @@
 import re
-import math
 from collections import defaultdict
 
 from .globals import WORKER_CONFIG_VERSION
@@ -118,9 +117,9 @@ class WorkerConfig:
             is_valid &= resource['name'] in valid_resources
         return is_valid
 
-    def resources(self, cpu_in_mcpu, memory_in_bytes, storage_in_gb):
-        assert memory_in_bytes % (1024 * 1024) == 0
-        assert math.floor(storage_in_gb) == math.ceil(storage_in_gb)
+    def resources(self, cpu_in_mcpu, memory_in_bytes, storage_in_gib):
+        assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes
+        assert isinstance(storage_in_gib, int), storage_in_gib
 
         resources = []
 
@@ -135,7 +134,7 @@ class WorkerConfig:
 
         # storage is in units of MiB
         resources.append({'name': 'disk/pd-ssd/1',
-                          'quantity': storage_in_gb * 1024})
+                          'quantity': storage_in_gib * 1024})
 
         quantities = defaultdict(lambda: 0)
         for disk in self.disks:
