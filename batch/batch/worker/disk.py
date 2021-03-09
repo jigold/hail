@@ -29,8 +29,6 @@ class Disk:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.delete()
-        if exc_val:
-            raise exc_val
 
     async def create(self, labels=None):
         await self._create(labels)
