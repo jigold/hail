@@ -190,7 +190,7 @@ def test_attached_disk(client):
                            resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(status, j.log())
+    assert status['state'] == 'Success', str((status, j.log()))
 
 
 def test_unsubmitted_state(client):
