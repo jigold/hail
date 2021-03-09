@@ -19,7 +19,6 @@ import google.auth.exceptions
 import google.api_core.exceptions
 import time
 import weakref
-import math
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 

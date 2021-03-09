@@ -1509,6 +1509,8 @@ class Worker:
                 'key.json')
             self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool,
                                       project=PROJECT, credentials=credentials)
+
+            credentials = aiogoogle.Credentials.from_file('key.json')
             self.compute_client = aiogoogle.ComputeClient(PROJECT, credentials=credentials)
 
             resp = await request_retry_transient_errors(

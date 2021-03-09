@@ -700,7 +700,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 del resources['storage']
                 req_storage_bytes = parse_storage_in_bytes(resources['req_storage'])
 
-                if not req_storage_bytes:
+                if req_storage_bytes is None:
                     raise web.HTTPBadRequest(
                         reason=f'bad resource request for job {id}: '
                         f'storage must be convertable to bytes; '
