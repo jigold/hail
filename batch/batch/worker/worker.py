@@ -969,6 +969,8 @@ class DockerJob(Job):
                     f.write(f'{self.project_id}:{self.scratch}\n')
 
                 if not self.disk:
+                    with open('/xfsquota/projects', 'a') as f:
+                        f.write(f'{self.project_id}:{self.scratch}\n')
                     data_disk_storage_in_bytes = storage_gib_to_bytes(self.external_storage_in_gib + self.data_disk_storage_in_gib)
                 else:
                     data_disk_storage_in_bytes = storage_gib_to_bytes(self.data_disk_storage_in_gib)
