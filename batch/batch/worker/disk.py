@@ -42,7 +42,7 @@ class Disk:
 
     async def _format(self):
         await asyncio.sleep(10)
-        await check_shell(f'df -hT; ls /dev/disk/by-id/')
+        await check_shell(f'df -hT; lsblk; ls /dev/disk/by-id/')
         await check_shell(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}', echo=True)
         await check_shell(f'mkdir -p {self.mount_path}', echo=True)
         await check_shell(f'mount -o discard,defaults {self.disk_path} {self.mount_path}', echo=True)
