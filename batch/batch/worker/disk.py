@@ -41,9 +41,9 @@ class Disk:
 
     async def _format(self):
         await check_shell(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}', echo=True)
-        await check_shell(f'mkdir -p {self.mount_path}')
-        await check_shell(f'mount -o discard,defaults {self.disk_path} {self.mount_path}')
-        await check_shell(f'chmod a+w {self.mount_path}')
+        await check_shell(f'mkdir -p {self.mount_path}', echo=True)
+        await check_shell(f'mount -o discard,defaults {self.disk_path} {self.mount_path}', echo=True)
+        await check_shell(f'chmod a+w {self.mount_path}', echo=True)
 
     async def _create(self, labels=None):
         async with LoggingTimer(f'creating disk {self.name}'):
@@ -57,8 +57,9 @@ class Disk:
                 'labels': labels
             }
 
-            await self.compute_client.create_disk(f'/zones/{self.zone}/disks',
-                                                  json=config)
+            resp = await self.compute_client.create_disk(f'/zones/{self.zone}/disks',
+                                                         json=config)
+            log.info(resp)
 
     async def _attach(self):
         async with LoggingTimer(f'attaching disk {self.name} to {self.instance_name}'):
@@ -68,17 +69,20 @@ class Disk:
                 'deviceName': self.name
             }
 
-            await self.compute_client.attach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk',
-                                                  json=config)
+            resp = await self.compute_client.attach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk',
+                                                         json=config)
+            log.info(resp)
 
     async def _detach(self):
         async with LoggingTimer(f'detaching disk {self.name} from {self.instance_name}'):
-            await self.compute_client.detach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk',
-                                                  params={'deviceName': self.name})
+            resp = await self.compute_client.detach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk',
+                                                         params={'deviceName': self.name})
+            log.info(resp)
 
     async def _delete(self):
         async with LoggingTimer(f'deleting disk {self.name}'):
-            await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
+            resp = await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
+            log.info(resp)
 
     def __str__(self):
         return self.name
