@@ -1,7 +1,7 @@
 import logging
 import asyncio
 
-from hailtop.utils import check_shell, LoggingTimer
+from hailtop.utils import check_shell, check_shell_output, LoggingTimer
 
 log = logging.getLogger('disk')
 
@@ -22,7 +22,7 @@ class Disk:
         self.size_in_gb = size_in_gb
         self.mount_path = mount_path
 
-        self.disk_path = f'/dev/disk/by-id/google-{self.name}'
+        self.disk_path = f'/disks/google-{self.name}'
 
     async def __aenter__(self, labels=None):
         await self.create(labels)
@@ -42,11 +42,11 @@ class Disk:
 
     async def _format(self):
         await asyncio.sleep(10)
-        await check_shell(f'df -hT; lsblk; ls /dev/disk/by-id/')
-        await check_shell(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}', echo=True)
-        await check_shell(f'mkdir -p {self.mount_path}', echo=True)
-        await check_shell(f'mount -o discard,defaults {self.disk_path} {self.mount_path}', echo=True)
-        await check_shell(f'chmod a+w {self.mount_path}', echo=True)
+        await check_shell_output(f'df -hT; lsblk; ls /disks/', echo=True)
+        await check_shell_output(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}', echo=True)
+        await check_shell_output(f'mkdir -p {self.mount_path}', echo=True)
+        await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}', echo=True)
+        await check_shell_output(f'chmod a+w {self.mount_path}', echo=True)
 
     async def _create(self, labels=None):
         async with LoggingTimer(f'creating disk {self.name}'):
