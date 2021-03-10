@@ -1,7 +1,6 @@
 import logging
-import asyncio
 
-from hailtop.utils import check_shell, check_shell_output, LoggingTimer
+from hailtop.utils import check_shell_output, LoggingTimer
 
 log = logging.getLogger('disk')
 
@@ -58,9 +57,8 @@ class Disk:
                 'labels': labels
             }
 
-            resp = await self.compute_client.create_disk(f'/zones/{self.zone}/disks',
-                                                         json=config)
-            log.info(resp)
+            await self.compute_client.create_disk(f'/zones/{self.zone}/disks',
+                                                  json=config)
 
     async def _attach(self):
         async with LoggingTimer(f'attaching disk {self.name} to {self.instance_name}'):
@@ -70,20 +68,17 @@ class Disk:
                 'deviceName': self.name
             }
 
-            resp = await self.compute_client.attach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk',
-                                                         json=config)
-            log.info(resp)
+            await self.compute_client.attach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk',
+                                                  json=config)
 
     async def _detach(self):
         async with LoggingTimer(f'detaching disk {self.name} from {self.instance_name}'):
-            resp = await self.compute_client.detach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk',
-                                                         params={'deviceName': self.name})
-            log.info(resp)
+            await self.compute_client.detach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk',
+                                                  params={'deviceName': self.name})
 
     async def _delete(self):
         async with LoggingTimer(f'deleting disk {self.name}'):
-            resp = await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
-            log.info(resp)
+            await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
 
     def __str__(self):
         return self.name
