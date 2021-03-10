@@ -22,7 +22,7 @@ class Disk:
         self.size_in_gb = size_in_gb
         self.mount_path = mount_path
 
-        self.disk_path = f'/disks/google-{self.name}'
+        self.disk_path = f'/dev/disk/by-id/google-{self.name}'
 
     async def __aenter__(self, labels=None):
         await self.create(labels)
@@ -41,7 +41,6 @@ class Disk:
         await self._delete()
 
     async def _format(self):
-        await check_shell_output(f'df -hT; lsblk; ls /disks/')
         await check_shell_output(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}')
         await check_shell_output(f'mkdir -p {self.mount_path}')
         await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}')

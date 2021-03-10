@@ -276,7 +276,7 @@ docker run \
 -v /gcsfuse:/gcsfuse:shared \
 -v /xfsquota:/xfsquota \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
---mount type=bind,source=/dev/disk/by-id,target=/disks \
+--mount type=bind,source=/dev,target=/dev \
 -p 5000:5000 \
 --device /dev/fuse \
 --device $XFS_DEVICE \

@@ -964,9 +964,6 @@ class DockerJob(Job):
 
                 with open('/xfsquota/projid', 'a') as f:
                     f.write(f'{self.project_name}:{self.project_id}\n')
-                #
-                # with open('/xfsquota/projects', 'a') as f:
-                #     f.write(f'{self.project_id}:{self.scratch}\n')
 
                 if not self.disk:
                     with open('/xfsquota/projects', 'a') as f:
