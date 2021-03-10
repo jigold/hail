@@ -348,11 +348,12 @@ class Job:
         *G*, *Gi*, *T*, *Ti*, *P*, and *Pi*. Omitting a suffix means
         the value is in bytes.
 
-        For the :class:`.ServiceBackend`, by default every job gets 5 Gi
-        per core requested for the root file system `/` with a maximum of 5 Gi.
-        If you need additional storage, you can explicitly request more storage
-        using this method and the extra storage space will be mounted at `/io`.
-        Batch automatically writes all :class:`.ResourceFile` to `/io`.
+        For the :class:`.ServiceBackend`, jobs requesting one or more cores receive
+        5 GiB of storage for the root file system `/`. Jobs requesting a fraction of a core
+        receive the same fraction of 5 GiB of storage. If you need additional storage, you
+        can explicitly request more storage using this method and the extra storage space
+        will be mounted at `/io`. Batch automatically writes all :class:`.ResourceFile` to
+        `/io`.
 
         The default storage size is 10 Gi. The minimum storage size is 0 Gi and the
         maximum storage size is 64 Ti. If storage is set to a value between 0 Gi

@@ -160,9 +160,10 @@ is standard. If a job is scheduled on this machine, then the cost per core hour 
 
 .. note::
 
-    The default storage per job is 5 Gi per core requested up to a maximum of 5 Gi. If you need more storage than this,
+    The storage for the root file system (`/`) is 5 Gi per job for jobs with at least 1 core. If a job requests less
+    than 1 core, then it receives that fraction of 5 Gi. If you need more storage than this,
     you can request more storage explicitly with the :meth:`.Job.storage` method. The minimum storage request is 10 GB
-    which can be incremented in units of 1 GB maxing out at 64 TB.
+    which can be incremented in units of 1 GB maxing out at 64 TB. The additional storage is mounted at `/io`.
 
 .. note::
 
