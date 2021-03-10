@@ -280,6 +280,7 @@ docker run \
 -p 5000:5000 \
 --device /dev/fuse \
 --device $XFS_DEVICE \
+--device /dev \
 --cap-add SYS_ADMIN \
 --security-opt apparmor:unconfined \
 --network batch-worker \

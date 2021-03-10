@@ -41,12 +41,11 @@ class Disk:
         await self._delete()
 
     async def _format(self):
-        await asyncio.sleep(10)
-        await check_shell_output(f'df -hT; lsblk; ls /disks/', echo=True)
-        await check_shell_output(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}', echo=True)
-        await check_shell_output(f'mkdir -p {self.mount_path}', echo=True)
-        await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}', echo=True)
-        await check_shell_output(f'chmod a+w {self.mount_path}', echo=True)
+        await check_shell_output(f'df -hT; lsblk; ls /disks/')
+        await check_shell_output(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}')
+        await check_shell_output(f'mkdir -p {self.mount_path}')
+        await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}')
+        await check_shell_output(f'chmod a+w {self.mount_path}')
 
     async def _create(self, labels=None):
         async with LoggingTimer(f'creating disk {self.name}'):
