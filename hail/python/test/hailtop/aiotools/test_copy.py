@@ -2,10 +2,11 @@ import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
+import aiohttp
 import pytest
 from hailtop.utils import url_scheme, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer, FileAndDirectoryError
-from hailtop.aiogoogle import StorageClient, GoogleStorageAsyncFS
+from hailtop.aiogoogle import GoogleStorageAsyncFS
 
 from .generate_copy_test_specs import (
     run_test_spec, create_test_file, create_test_dir)
@@ -60,6 +61,7 @@ async def router_filesystem(request):
 
             assert not await fs.isdir(file_base)
             assert not await fs.isdir(gs_base)
+
 
 async def fresh_dir(fs, bases, scheme):
     token = secrets.token_hex(16)
@@ -136,6 +138,7 @@ class RaisesOrGS:
 
         # suppress exception
         return True
+
 
 @pytest.mark.asyncio
 async def test_copy_doesnt_exist(copy_test_context):
@@ -416,3 +419,66 @@ async def test_copy_src_parts(copy_test_context):
 
     await expect_file(fs, f'{dest_base}file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}subdir/file2', 'src/a/subdir/file2')
+
+
+@pytest.mark.asyncio
+async def test_user_download_has_no_permissions_file(router_filesystem):
+    sema, fs, bases = router_filesystem
+
+    src = f'gs://hail-services-no-sa-access/a'
+    dest_base = await fresh_dir(fs, bases, 'file')
+
+    try:
+        await fs.copy(sema, Transfer(src, dest_base))
+    except aiohttp.ClientResponseError as e:
+        if e.status == 403:
+            assert True
+        raise e
+
+
+@pytest.mark.asyncio
+async def test_user_download_has_no_permissions_directory(router_filesystem):
+    sema, fs, bases = router_filesystem
+
+    src = f'gs://hail-services-no-sa-access/src'
+    dest_base = await fresh_dir(fs, bases, 'file')
+
+    try:
+        await fs.copy(sema, Transfer(src, dest_base))
+    except aiohttp.ClientResponseError as e:
+        if e.status == 403:
+            assert True
+        raise e
+
+
+@pytest.mark.asyncio
+async def test_user_upload_has_no_permissions_file(router_filesystem):
+    sema, fs, bases = router_filesystem
+
+    src_base = await fresh_dir(fs, bases, 'file')
+    await create_test_file(fs, 'src', src_base, 'a')
+    dest_base = f'gs://hail-services-no-sa-access/a'
+
+    try:
+        await fs.copy(sema, Transfer(f'{src_base}a/', dest_base))
+    except aiohttp.ClientResponseError as e:
+        if e.status == 403:
+            assert True
+        raise e
+
+
+@pytest.mark.asyncio
+async def test_user_upload_has_no_permissions_directory(router_filesystem):
+    sema, fs, bases = router_filesystem
+
+    src_base = await fresh_dir(fs, bases, 'file')
+    await create_test_dir(fs, 'src', src_base, 'a/')
+
+    dest_base = 'gs://hail-services-no-sa-access/'
+
+    try:
+        await fs.copy(sema, Transfer(f'{src_base}a', dest_base))
+    except aiohttp.ClientResponseError as e:
+        if e.status == 403:
+            assert True
+        raise e

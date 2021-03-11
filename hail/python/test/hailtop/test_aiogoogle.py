@@ -1,7 +1,5 @@
 import os
 import secrets
-import shutil
-from itertools import accumulate
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest

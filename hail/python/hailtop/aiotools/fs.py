@@ -608,6 +608,9 @@ class SourceCopier:
             self.src_is_file = False
             await self.release_barrier()
             return
+        except:
+            await self.release_barrier()
+            raise
 
         self.src_is_file = True
         await self.release_barrier_and_wait()
@@ -634,6 +637,9 @@ class SourceCopier:
             self.src_is_dir = False
             await self.release_barrier()
             return
+        except:
+            await self.release_barrier()
+            raise
 
         self.src_is_dir = True
         await self.release_barrier_and_wait()
@@ -672,15 +678,16 @@ class SourceCopier:
                 self.copy_as_file(sema, source_report, return_exceptions), self.copy_as_dir(sema, source_report, return_exceptions),
                 return_exceptions=True)
 
+            for result in results:
+                if isinstance(result, Exception):
+                    raise result
+
             assert self.pending == 0
             assert (self.src_is_file is None) == self.src.endswith('/')
             assert self.src_is_dir is not None
 
             if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
                 raise FileNotFoundError(self.src)
-            for result in results:
-                if isinstance(result, Exception):
-                    raise result
         except Exception as e:
             if return_exceptions:
                 source_report.set_exception(e)
