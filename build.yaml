@@ -702,11 +702,11 @@ steps:
    dockerFile: batch/Dockerfile.worker
    contextPath: .
    publishAs: batch-worker
-   inputs:
-     - from: /just-jar/hail.jar
-       to: /batch/hail.jar
-   dependsOn:
-     - build_hail_jar_only
+#   inputs:
+#     - from: /just-jar/hail.jar
+#       to: /batch/hail.jar
+#   dependsOn:
+#     - build_hail_jar_only
  - kind: buildImage
    name: service_java_run_base_image
    dockerFile: docker/Dockerfile.service-java-run-base
@@ -2144,14 +2144,14 @@ steps:
       for: alive
    dependsOn:
     - default_ns
-    - deploy_router
+#    - deploy_router
     - deploy_batch_sa
-    - create_accounts
+#    - create_accounts
     - batch_image
     - batch_worker_image
     - batch_database
-    - deploy_auth
-    - create_certs
+#    - deploy_auth
+#    - create_certs
  - kind: runImage
    name: create_billing_projects
    image:

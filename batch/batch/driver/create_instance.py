@@ -271,7 +271,7 @@ docker run \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /usr/bin/docker:/usr/bin/docker \
 -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
--v /batch:/batch \
+-v /batch:/batch:shared \
 -v /logs:/logs \
 -v /gcsfuse:/gcsfuse:shared \
 -v /xfsquota:/xfsquota \
