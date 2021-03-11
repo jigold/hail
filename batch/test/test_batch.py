@@ -775,12 +775,7 @@ def test_pool_highmem_instance(client):
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
-
-    # in test, highmem is 2 cores and standard is 1 core
-    if SCOPE == 'deploy':
-        assert 'standard' in status['status']['worker'], str(status)
-    else:
-        assert 'highmem' in status['status']['worker'], str(status)
+    assert 'standard' in status['status']['worker'], str(status)
 
 
 def test_pool_highcpu_instance(client):
@@ -806,12 +801,7 @@ def test_pool_highcpu_instance(client):
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
-
-    # in test, highmem is 2 cores where is standard is 1 core
-    if SCOPE == 'deploy':
-        assert 'standard' in status['status']['worker'], str(status)
-    else:
-        assert 'highcpu' in status['status']['worker'], str(status)
+    assert 'standard' in status['status']['worker'], str(status)
 
 
 def test_job_private_instance_preemptible(client):
