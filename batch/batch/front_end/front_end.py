@@ -722,7 +722,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'cpu={resources["req_cpu"]}, '
                         f'memory={resources["req_memory"]}, '
                         f'storage={resources["req_storage"]}, '
-                        f'preemptible={resources["preemptible"]}, '
+                        f'preemptible={preemptible}, '
                         f'machine_type={machine_type}')
 
                 inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
