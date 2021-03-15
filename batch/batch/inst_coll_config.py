@@ -88,7 +88,8 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
         self.max_live_instances = max_live_instances
 
     def convert_requests_to_resources(self, machine_type, storage_bytes):
-        storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes)
+        # minimum storage for a GCE instance is 10Gi
+        storage_gib = max(10, requested_storage_bytes_to_actual_storage_gib(storage_bytes))
 
         machine_type_dict = machine_type_to_dict(machine_type)
         cores = int(machine_type_dict['cores'])
