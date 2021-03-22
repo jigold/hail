@@ -473,6 +473,7 @@ class SourceCopier:
 
         self.src_is_file = None
         self.src_is_dir = None
+        self.encountered_error = False
 
         self.pending = 2
         self.barrier = asyncio.Event()
@@ -608,6 +609,10 @@ class SourceCopier:
             self.src_is_file = False
             await self.release_barrier()
             return
+        except:
+            self.encountered_error = True
+            await self.release_barrier()
+            raise
 
         self.src_is_file = True
         await self.release_barrier_and_wait()
@@ -634,6 +639,10 @@ class SourceCopier:
             self.src_is_dir = False
             await self.release_barrier()
             return
+        except:
+            self.encountered_error = True
+            await self.release_barrier()
+            raise
 
         self.src_is_dir = True
         await self.release_barrier_and_wait()
@@ -673,11 +682,13 @@ class SourceCopier:
                 return_exceptions=True)
 
             assert self.pending == 0
-            assert (self.src_is_file is None) == self.src.endswith('/')
-            assert self.src_is_dir is not None
 
-            if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
-                raise FileNotFoundError(self.src)
+            if not self.encountered_error:
+                assert (self.src_is_file is None) == self.src.endswith('/')
+                assert self.src_is_dir is not None
+                if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
+                    raise FileNotFoundError(self.src)
+
             for result in results:
                 if isinstance(result, Exception):
                     raise result
