@@ -659,6 +659,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                         size = await status.size()
                         if size != 0:
                             raise FileAndDirectoryError(url)
+                        continue
                     yield GoogleStorageFileListEntry(url, item, status)
 
     async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
@@ -686,6 +687,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                         size = await status.size()
                         if size != 0:
                             raise FileAndDirectoryError(url)
+                        continue
                     yield GoogleStorageFileListEntry(url, item, status)
 
     async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
