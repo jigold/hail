@@ -285,8 +285,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: batch
-  minReplicas: 3
-  maxReplicas: 10
+  minReplicas: 1
+  maxReplicas: 1
   metrics:
    - type: Resource
      resource:
@@ -298,7 +298,7 @@ kind: PodDisruptionBudget
 metadata:
   name: batch
 spec:
-  minAvailable: 2
+  minAvailable: 1
   selector:
     matchLabels:
       app: batch
