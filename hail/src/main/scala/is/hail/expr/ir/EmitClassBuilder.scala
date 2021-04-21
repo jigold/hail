@@ -470,8 +470,8 @@ class EmitClassBuilder[C](
       Code.checkcast[T](
         Code.invokeScalaObject1[String, PType](
           IRParser.getClass, "parsePType", t.toString)))
-    pTypeMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[T](setup)).get.asInstanceOf[Code[T]]
+    Code.checkcast[T](pTypeMap.getOrElseUpdate(t,
+      genLazyFieldThisRef[T](setup)).get)
   }
 
   def getType[T <: Type : TypeInfo](t: T): Code[T] = {
@@ -480,8 +480,8 @@ class EmitClassBuilder[C](
       Code.checkcast[T](
         Code.invokeScalaObject1[String, Type](
           IRParser.getClass, "parseType", t.parsableString())))
-    typMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[T](setup)).get.asInstanceOf[Code[T]]
+    Code.checkcast[T](typMap.getOrElseUpdate(t,
+      genLazyFieldThisRef[T](setup)).get)
   }
 
   def getOrdering(t1: SType,
@@ -685,7 +685,7 @@ class EmitClassBuilder[C](
     val literalsBc = if (hasLiterals)
       ctx.backend.broadcast(encodeLiterals())
     else
-      // if there are no literals, there might not be a HailContext
+    // if there are no literals, there might not be a HailContext
       null
 
     val references: Array[ReferenceGenome] = if (hasReferences)
@@ -796,7 +796,7 @@ object EmitFunctionBuilder {
   )(implicit fti: TypeInfo[F]): EmitFunctionBuilder[F] = {
     val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val cb = modb.genEmitClass[F](baseName)
-        val apply = cb.newEmitMethod("apply", argInfo, returnInfo)
+    val apply = cb.newEmitMethod("apply", argInfo, returnInfo)
     new EmitFunctionBuilder(apply)
   }
 
@@ -1021,15 +1021,15 @@ class EmitMethodBuilder[C](
       cb.define(label)
       f(cb)
       // assert(!cb.isOpenEnded)
-        /*
-        FIXME: The above assertion should hold, but currently does not. This is
-        likely due to client code with patterns like the following, which incorrectly
-        leaves the code builder open-ended:
+      /*
+      FIXME: The above assertion should hold, but currently does not. This is
+      likely due to client code with patterns like the following, which incorrectly
+      leaves the code builder open-ended:
 
-        cb.ifx(b,
-          cb.goto(L1),
-          cb.goto(L2))
-         */
+      cb.ifx(b,
+        cb.goto(L1),
+        cb.goto(L2))
+       */
     }
   }
 

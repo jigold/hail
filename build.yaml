@@ -546,6 +546,16 @@ steps:
       cpu: "2"
       memory: standard
   - kind: buildImage2
+    name: qob_vep_image_grch37
+    dockerFile: /io/repo/docker/vep/Dockerfile.GRCh37
+    contextPath: /io/repo/docker/vep/
+    publishAs: vep-grch37
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - merge_code
+  - kind: buildImage2
     name: monitoring_image
     dockerFile: /io/repo/monitoring/Dockerfile
     contextPath: /io/repo

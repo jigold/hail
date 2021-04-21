@@ -325,6 +325,49 @@ class ServiceBackend(Backend):
         assert len(r.jirs) == 0
         return r(finalize_randomness(ir))
 
+    async def _submit_batch(self, build_batch_f, name, *, progress: Optional[BatchProgressBar] = None, **batch_args):
+        timings = Timings()
+
+        with timings.step("submit batch"):
+            token = batch_args.get('token') or secret_alnum_string()
+            batch_attributes = batch_args.get('attributes', {})
+            if 'name' not in batch_attributes:
+                batch_attributes = {**batch_attributes, 'name': self.name_prefix + name}
+            bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
+            build_batch_f(bb, self.flags)
+            b = await bb.submit(disable_progress_bar=True)
+
+        with timings.step("wait batch"):
+            try:
+                if self.disable_progress_bar is not True:
+                    deploy_config = get_deploy_config()
+                    url = deploy_config.external_url('batch', f'/batches/{b.id}/jobs/1')
+                    print(f'Submitted batch {b.id}, see {url}')
+
+                status = await b.wait(description=name,
+                                      disable_progress_bar=self.disable_progress_bar,
+                                      progress=progress)
+            except Exception:
+                await b.cancel()
+                raise
+
+        with timings.step("parse status"):
+            if status['n_succeeded'] != status['n_jobs']:
+                failing_job = [job async for job in b.jobs('!success')][0]
+                failing_job = await b.get_job(failing_job['job_id'])
+                job_status = await failing_job.status()
+                if 'status' in job_status:
+                    if 'error' in job_status['status']:
+                        job_status['status']['error'] = yaml_literally_shown_str(job_status['status']['error'].strip())
+                logs = await failing_job.log()
+                for k in logs:
+                    logs[k] = yaml_literally_shown_str(logs[k].strip())
+                message = {'batch_status': status,
+                           'job_status': job_status,
+                           'log': logs}
+                log.error(yaml.dump(message))
+                raise FatalError(message)
+
     async def _rpc(self,
                    name: str,
                    inputs: Callable[[afs.WritableStream, str], Awaitable[None]],

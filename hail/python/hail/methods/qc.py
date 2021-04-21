@@ -1,14 +1,27 @@
+import copy
+
 import hail as hl
 from collections import Counter
 import os
+import json
+from shlex import quote as shq
+
 from typing import Tuple, List, Union
+
+from hailtop.utils import async_to_blocking, secret_alnum_string
+from hailtop.config import get_deploy_config
+import hailtop.batch_client as bc
+
+from hail.backend.service_backend import ServiceBackend
 from hail.typecheck import typecheck, oneof, anytype, nullable
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import divide_null, guess_cloud_spark_provider
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.ir import TableToTableApply
+
 from .misc import require_biallelic, require_row_key_variant, require_col_key_str, require_table_key_variant
+from ..utils.misc import java_typ_to_dtyp
 
 
 @typecheck(mt=MatrixTable, name=str)
@@ -491,13 +504,128 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     return glob, per_sample.cols(), per_variant.rows()
 
 
+def _service_vep(ht, config, block_size, csq, tolerate_parse_error):
+    token = secret_alnum_string(16)
+
+    backend = hl.context.current_backend()
+    assert isinstance(backend, hl.backend.service_backend.ServiceBackend)
+
+    tmp_dir = hl.backend.service_backend.tmp_dir()
+
+    vep_input_path = f'{tmp_dir}/vep/inputs/{token}.vcf'
+    vep_output_path = f'{tmp_dir}/vep/outputs/{token}'
+
+    hl.export_vcf(ht, vep_input_path, parallel='header_per_shard')
+
+    with hl.hadoop_open(config, 'r') as f:
+        local_config = json.loads(f.read())
+        image = local_config['image']
+        data_bucket = local_config['data_bucket']
+        data_mount = local_config['data_mount']
+        region = local_config['region']
+        env = local_config['env']
+
+    if csq:
+        vep_typ = hl.tstr
+    else:
+        vep_json_schema = local_config.get('vep_json_schema')
+        if vep_json_schema is None:
+            raise ValueError("'vep_json_schema' not found in config.")
+        vep_typ = java_typ_to_dtyp(vep_json_schema)
+
+    def build_vep_batch(bb: bc.aioclient.BatchBuilder, flags):
+        requester_pays_project = flags.get('gcs_requester_pays_project')
+
+        if csq:
+            csq_command = local_config['csq_header_command']
+            local_output_file = '/io/output'
+
+            local_env = copy.deepcopy(env)
+            local_env['VEP_BLOCK_SIZE'] = str(block_size)
+            local_env['VEP_DATA_MOUNT'] = shq(data_mount)
+            local_env['VEP_CONSEQUENCE'] = str(int(csq))
+            local_env['VEP_TOLERATE_PARSE_ERROR'] = str(int(tolerate_parse_error))
+            local_env['VEP_PART_ID'] = '-1'
+            local_env['VEP_INPUT_FILE'] = 'null'
+            local_env['VEP_OUTPUT_FILE'] = local_output_file
+
+            bb.create_job(image,
+                          csq_command,
+                          attributes={'name': 'csq-header'},
+                          resources={'cpu': '1', 'memory': 'standard'},
+                          cloudfuse=[(data_bucket, data_mount, True)],
+                          output_files=[(local_output_file, f'{vep_output_path}/csq-header')],
+                          regions=[region],
+                          requester_pays_project=requester_pays_project,
+                          env=local_config['env'],
+                          )
+
+        for f in hl.hadoop_ls(vep_input_path):
+            path = f['path']
+            part_name = os.path.basename(path)
+            if not part_name.startswith('part-'):
+                continue
+            part_id = int(part_name.split('-')[1])
+
+            run_vep_command = local_config['command']
+
+            local_input_file = '/io/input'
+            local_output_file = '/io/output.gz'
+
+            local_env = copy.deepcopy(env)
+            local_env['VEP_BLOCK_SIZE'] = str(block_size)
+            local_env['VEP_PART_ID'] = str(part_id)
+            local_env['VEP_DATA_MOUNT'] = shq(data_mount)
+            local_env['VEP_CONSEQUENCE'] = str(int(csq))
+            local_env['VEP_TOLERATE_PARSE_ERROR'] = str(int(tolerate_parse_error))
+            local_env['VEP_INPUT_FILE'] = local_input_file
+            local_env['VEP_OUTPUT_FILE'] = local_output_file
+
+            bb.create_job(image,
+                          run_vep_command,
+                          attributes={'name': f'vep-{part_id}'},
+                          resources={'cpu': '1', 'memory': 'standard'},
+                          input_files=[(path, local_input_file)],
+                          output_files=[(local_output_file, f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
+                          cloudfuse=[(data_bucket, data_mount, True)],
+                          regions=[region],
+                          requester_pays_project=requester_pays_project,
+                          env=local_env,
+                          )
+
+    async_to_blocking(backend._submit_batch(
+        build_vep_batch, 'vep(...)', attributes={'vep': '1', 'token': token}, cancel_after_n_failures=1
+    ))
+
+    annotations = hl.import_table(f'{vep_output_path}/annotations/*',
+                                  key='variant',
+                                  types={'variant': hl.tstr,
+                                         'vep': vep_typ,
+                                         'vep_proc_id': hl.tstruct(part_id=hl.tint,
+                                                                   block_id=hl.tint)},
+                                  force=True)
+
+    reference_genome = ht.locus.dtype.reference_genome.name
+    annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
+
+    if csq:
+        with hl.hadoop_open(f'{vep_output_path}/csq-header') as f:
+            vep_csq_header = f.read().rstrip()
+    else:
+        vep_csq_header = ''
+
+    annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
+    return annotations
+
+
 @typecheck(dataset=oneof(Table, MatrixTable),
            config=nullable(str),
            block_size=int,
            name=str,
            csq=bool,
            tolerate_parse_error=bool)
-def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='vep', csq=False, *, tolerate_parse_error=False):
+def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='vep', csq=False,
+        tolerate_parse_error=False):
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -531,7 +659,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     there are detailed instructions below.
 
     The format of the configuration file is JSON, and :func:`.vep`
-    expects a JSON object with three fields:
+    expects a JSON object with three fields when using the Spark backend:
 
     - `command` (array of string) -- The VEP command line to run.  The string literal `__OUTPUT_FORMAT_FLAG__` is replaced with `--json` or `--vcf` depending on `csq`.
     - `env` (object) -- A map of environment variables to values to add to the environment when invoking the command.  The value of each object member must be a string.
@@ -567,6 +695,32 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
      - ``GRCh37``: ``gs://hail-us-vep/vep85-loftee-gcloud.json``
      - ``GRCh38``: ``gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json``
 
+    The config file when using the service backend must contain the following fields:
+
+     - `command` (array of string) -- The command line to run for a VEP job for a partition.
+     - `csq_header_command` (array of string) -- The command line to run when generating the consequence header.
+     - `env` (object) -- A map of environment variables to values to add to the environment when invoking the command.  The value of each object member must be a string.
+     - `vep_json_schema` (string): The type of the VEP JSON schema (as produced by the VEP when invoked with the `--json` option).  Note: This is the old-style 'parseable' Hail type syntax.  This will change.
+     - `image` (string) -- The docker image to run VEP.
+     - `data_bucket` (string) -- The location where the VEP data is stored.
+     - `data_mount` (string) -- The location in the container where the data should be mounted.
+     - `region` (string) -- The cloud region in which to run VEP jobs.
+
+    The following environment variables are added to the job's environment based on the input to the vep command:
+
+     - `VEP_BLOCK_SIZE` - block size
+     - `VEP_PART_ID` - partition id
+     - `VEP_DATA_MOUNT` - location where the vep data is mounted (same as `data_mount` in the config)
+     - `VEP_CONSEQUENCE` - integer equal to 0 or 1 on whether `csq` is False or True
+     - `VEP_TOLERATE_PARSE_ERROR` - integer equal to 0 or 1 on whether `tolerate_parse_error` is False or True
+     - `VEP_JSON_SCHEMA` - type of the vep JSON schema (same as `vep_json_schema` in the config)
+
+    The VEP input VCF shard is available at `/io/input`. Hail expects an output TSV file with VEP data at `/io/output.gz`.
+
+    The following configuration files are available:
+
+     - (``GRCh37``, ``gcp``, ``us-central1``): ``gs://hail-common/qob-vep/qob-vep-config-grch37.json``
+
      If no config file is specified, this function will check to see if environment variable `VEP_CONFIG_URI` is set with a path to a config file.
 
     **Annotations**
@@ -600,6 +754,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
         Dataset with new row-indexed field `name` containing VEP annotations.
 
     """
+
     if config is None:
         maybe_cloud_spark_provider = guess_cloud_spark_provider()
         maybe_config = os.getenv("VEP_CONFIG_URI")
@@ -619,12 +774,17 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
         ht = dataset.select()
 
     ht = ht.distinct()
-    annotations = Table(TableToTableApply(ht._tir,
-                                          {'name': 'VEP',
-                                           'config': config,
-                                           'csq': csq,
-                                           'blockSize': block_size,
-                                           'tolerateParseError': tolerate_parse_error})).persist()
+
+    is_service_backend = isinstance(Env.backend(), ServiceBackend)
+    if is_service_backend:
+        annotations = _service_vep(ht, config, block_size, csq, tolerate_parse_error)
+    else:
+        annotations = Table(TableToTableApply(ht._tir,
+                                              {'name': 'VEP',
+                                               'config': config,
+                                               'csq': csq,
+                                               'blockSize': block_size,
+                                               'tolerateParseError': tolerate_parse_error})).persist()
 
     if csq:
         dataset = dataset.annotate_globals(
