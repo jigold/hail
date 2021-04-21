@@ -8,6 +8,8 @@ BASE_IMAGE := $(DOCKER_PREFIX)/base:$(TOKEN)
 SERVICE_BASE_IMAGE := $(DOCKER_PREFIX)/service-base:$(TOKEN)
 HAIL_PUBLIC_IMAGE := $(DOCKER_PREFIX)/hail-public:$(TOKEN)
 GENETICS_PUBLIC_IMAGE := $(DOCKER_PREFIX)/genetics-public:$(TOKEN)
+VEP_GRCH37_IMAGE := $(DOCKER_PREFIX)/vep-grch37:$(TOKEN)
+VEP_GRCH38_IMAGE := $(DOCKER_PREFIX)/vep-grch38:$(TOKEN)
 
 .PHONY: hail-ubuntu hail-ubuntu-image-ref
 hail-ubuntu: hail-ubuntu-image-ref
@@ -51,3 +53,11 @@ generate-pip-lockfile:
 .PHONY: clean
 clean:
 	rm -f base hail-ubuntu-image-ref base service-base
+
+.PHONY: vep-grch37
+vep-grch37:
+	../docker-build.sh vep Dockerfile.GRCh37 $(VEP_GRCH37_IMAGE) "konradjk/vep85_loftee:1.0.3"
+
+.PHONY: vep-grch38
+vep-grch38:
+	../docker-build.sh vep Dockerfile.GRCh38 $(VEP_GRCH38_IMAGE) "konradjk/vep95_loftee:0.2"
