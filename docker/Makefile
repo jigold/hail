@@ -8,6 +8,7 @@ BASE_IMAGE := $(DOCKER_PREFIX)/base:$(TOKEN)
 SERVICE_BASE_IMAGE := $(DOCKER_PREFIX)/service-base:$(TOKEN)
 HAIL_PUBLIC_IMAGE := $(DOCKER_PREFIX)/hail-public:$(TOKEN)
 GENETICS_PUBLIC_IMAGE := $(DOCKER_PREFIX)/genetics-public:$(TOKEN)
+VEP_GRCH37_IMAGE := $(DOCKER_PREFIX)/vep-grch37:$(TOKEN)
 
 .PHONY: hail-ubuntu hail-ubuntu-image-ref
 hail-ubuntu: hail-ubuntu-image-ref
@@ -34,6 +35,10 @@ service-base-image-ref: base hail_version
 	python3 ../ci/jinja2_render.py '{"base_image":{"image":"'$$(cat base-image-ref)'"}}' Dockerfile.service-base Dockerfile.service-base.out
 	../docker-build.sh .. docker/Dockerfile.service-base.out $(SERVICE_BASE_IMAGE)
 	echo $(SERVICE_BASE_IMAGE) > $@
+
+.PHONY: vep-grch37
+vep-grch37:
+	../docker-build.sh vep Dockerfile.GRCh37 $(VEP_GRCH37_IMAGE) "konradjk/vep85_loftee:1.0.3"
 
 .PHONY: deploy
 deploy: build
