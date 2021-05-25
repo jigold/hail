@@ -375,15 +375,16 @@ class OnlineBoundedGather2:
             return
 
         # shut down the pending tasks
-        tasks = []
+        finished = []
         for _, t in self._pending.items():
             if not t.done():
                 t.cancel()
-            tasks.append(t)
+            else:
+                finished.append(t)
         self._pending = None
 
-        if tasks:
-            await asyncio.wait(tasks)
+        if finished:
+            await asyncio.wait(finished)
 
         self._done_event.set()
 
@@ -524,11 +525,14 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
     finally:
         _, exc, _ = sys.exc_info()
         if exc is not None:
+            finished = []
             for task in tasks:
                 if not task.done():
                     task.cancel()
-            if tasks:
-                await asyncio.wait(tasks)
+                else:
+                    finished.append(task)
+            if finished:
+                await asyncio.wait(finished)
 
 
 async def bounded_gather2(sema: asyncio.Semaphore, *aws, return_exceptions: bool = False, cancel_on_error: bool = False):
