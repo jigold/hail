@@ -2279,7 +2279,7 @@ steps:
 #      - create_accounts
       - batch_image
       - batch_worker_image
-#      - batch_database
+      - batch_database
 #      - deploy_auth
 #      - create_certs
   - kind: runImage
