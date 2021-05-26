@@ -440,8 +440,17 @@ class OnlineBoundedGather2:
 
         self._subsema.release()
         try:
-            await asyncio.wait(tasks)
+            await asyncio.gather(*tasks)
         finally:
+            finished = []
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+                else:
+                    finished.append(task)
+            if finished:
+                await asyncio.wait(finished)
+
             await self._subsema.acquire()
 
     async def __aenter__(self) -> 'OnlineBoundedGather2':
@@ -459,6 +468,7 @@ class OnlineBoundedGather2:
                 self._exception = exc_val
                 await self._shutdown()
             else:
+                print(f'discarding exception {exc_val}')
                 log.info('discarding exception', exc_info=exc_val)
 
         # wait for done and not pending _done_event.wait can return
@@ -470,6 +480,7 @@ class OnlineBoundedGather2:
             await self._done_event.wait()
 
         if self._exception:
+            print(self._exception)
             raise self._exception
 
 
@@ -490,6 +501,7 @@ async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *aws):
                 return (await aw, None)
         except:
             _, exc, _ = sys.exc_info()
+            print(exc)
             return (None, exc)
 
     return await asyncio.gather(*[asyncio.create_task(run_with_sema_return_exceptions(aw)) for aw in aws])
@@ -524,6 +536,7 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
         return await asyncio.gather(*tasks)
     finally:
         _, exc, _ = sys.exc_info()
+        print(exc)
         if exc is not None:
             finished = []
             for task in tasks:
