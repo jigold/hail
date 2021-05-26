@@ -375,16 +375,10 @@ class OnlineBoundedGather2:
             return
 
         # shut down the pending tasks
-        finished = []
         for _, t in self._pending.items():
             if not t.done():
                 t.cancel()
-            else:
-                finished.append(t)
         self._pending = None
-
-        if finished:
-            await asyncio.wait(finished)
 
         self._done_event.set()
 
@@ -441,9 +435,6 @@ class OnlineBoundedGather2:
         self._subsema.release()
         try:
             await asyncio.wait(tasks)
-        except asyncio.CancelledError:
-            assert self._exception is not None
-            raise self._exception
         finally:
             await self._subsema.acquire()
 
@@ -523,23 +514,38 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
 
     tasks = [asyncio.create_task(run_with_subsema(aw)) for aw in aws]
 
-    if not cancel_on_error:
-        return await asyncio.gather(*tasks)
+    if cancel_on_error:
+        return_when = asyncio.FIRST_EXCEPTION
+    else:
+        return_when = asyncio.ALL_COMPLETED
 
-    try:
-        return await asyncio.gather(*tasks)
-    finally:
-        _, exc, _ = sys.exc_info()
-        print(exc)
-        if exc is not None:
-            finished = []
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-                else:
-                    finished.append(task)
-            if finished:
-                await asyncio.wait(finished)
+    done, pending = await asyncio.wait(tasks, return_when=return_when)
+
+    for p in pending:
+        p.cancel()
+
+    for d in done:
+        if d.exception():
+            raise d.exception()
+
+
+    # if cancel_on_error:
+    #     return await asyncio.gather(*tasks)
+    #
+    # try:
+    #     return await asyncio.gather(*tasks)
+    # finally:
+    #     _, exc, _ = sys.exc_info()
+    #     print(exc)
+    #     if exc is not None:
+    #         finished = []
+    #         for task in tasks:
+    #             if not task.done():
+    #                 task.cancel()
+    #             else:
+    #                 finished.append(task)
+    #         if finished:
+    #             await asyncio.wait(finished)
 
 
 async def bounded_gather2(sema: asyncio.Semaphore, *aws, return_exceptions: bool = False, cancel_on_error: bool = False):
