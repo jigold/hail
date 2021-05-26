@@ -440,17 +440,11 @@ class OnlineBoundedGather2:
 
         self._subsema.release()
         try:
-            await asyncio.gather(*tasks)
+            await asyncio.wait(tasks)
+        except asyncio.CancelledError:
+            assert self._exception is not None
+            raise self._exception
         finally:
-            finished = []
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-                else:
-                    finished.append(task)
-            if finished:
-                await asyncio.wait(finished)
-
             await self._subsema.acquire()
 
     async def __aenter__(self) -> 'OnlineBoundedGather2':
