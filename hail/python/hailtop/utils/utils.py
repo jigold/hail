@@ -375,9 +375,13 @@ class OnlineBoundedGather2:
             return
 
         # shut down the pending tasks
+        cancelled_tasks = []
         for _, t in self._pending.items():
             if not t.done():
                 t.cancel()
+                cancelled_tasks.append(t)
+        await asyncio.wait(cancelled_tasks)
+
         self._pending = None
 
         self._done_event.set()
@@ -403,12 +407,13 @@ class OnlineBoundedGather2:
                     await f(*args, **kwargs)
             except asyncio.CancelledError:
                 pass
-            except:
+            except Exception as e:
                 if self._exception is None:
                     _, exc, _ = sys.exc_info()
                     self._exception = exc
                     await self._shutdown()
                 else:
+                    print(f'discarding exception {e}')
                     log.info('discarding exception', exc_info=True)
 
             if self._pending is None:
@@ -523,9 +528,11 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
 
     for p in pending:
         p.cancel()
+    await asyncio.wait(pending)
 
     for d in done:
         if d.exception():
+            print(f'{d} {d.exception()}')
             raise d.exception()
 
 
