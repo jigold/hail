@@ -48,7 +48,7 @@ class Disk:
             await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}')
             await check_shell_output(f'chmod a+w {self.mount_path}')
 
-        await retry_all_errors_n_times(3, msg=f'error while formatting disk {self.name}')(format_disk)
+        await retry_all_errors_n_times(max_errors=10, msg=f'error while formatting disk {self.name}', error_logging_interval=3)(format_disk)
 
     async def _create(self, labels=None):
         async with LoggingTimer(f'creating disk {self.name}'):
