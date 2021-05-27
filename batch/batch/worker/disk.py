@@ -1,6 +1,6 @@
 import logging
 
-from hailtop.utils import check_shell_output, LoggingTimer
+from hailtop.utils import check_shell_output, LoggingTimer, sleep_and_backoff, retry_all_errors_n_times
 
 log = logging.getLogger('disk')
 
@@ -42,10 +42,13 @@ class Disk:
             await self._delete()
 
     async def _format(self):
-        await check_shell_output(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}')
-        await check_shell_output(f'mkdir -p {self.mount_path}')
-        await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}')
-        await check_shell_output(f'chmod a+w {self.mount_path}')
+        async def format_disk():
+            await check_shell_output(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}')
+            await check_shell_output(f'mkdir -p {self.mount_path}')
+            await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}')
+            await check_shell_output(f'chmod a+w {self.mount_path}')
+
+        await retry_all_errors_n_times(3, msg=f'error while formatting disk {self.name}')(format_disk)
 
     async def _create(self, labels=None):
         async with LoggingTimer(f'creating disk {self.name}'):
