@@ -6,6 +6,9 @@ from concurrent.futures import ThreadPoolExecutor
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
 from hailtop.aiogoogle import GoogleStorageAsyncFS
 
+import os
+os.environ['PYTHONASYNCIODEBUG'] = '1'
+
 
 async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, List[Transfer]]) -> None:
     if requester_pays_project:
