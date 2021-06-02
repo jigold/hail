@@ -412,7 +412,7 @@ class OnlineBoundedGather2:
                 if self._exception is None:
                     _, exc, _ = sys.exc_info()
                     self._exception = exc
-                    await self._shutdown()
+                    await asyncio.shield(self._shutdown())
                 else:
                     log.info('discarding exception', exc_info=True)
 
