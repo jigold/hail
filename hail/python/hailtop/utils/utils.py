@@ -497,6 +497,7 @@ async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *aws):
                 return (await aw, None)
         except:
             _, exc, _ = sys.exc_info()
+            log.exception(exc)
             return (None, exc)
 
     return await asyncio.gather(*[asyncio.create_task(run_with_sema_return_exceptions(aw)) for aw in aws])
