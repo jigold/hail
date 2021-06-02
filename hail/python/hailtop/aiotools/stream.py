@@ -6,6 +6,10 @@ from concurrent.futures import ThreadPoolExecutor
 import janus
 from hailtop.utils import blocking_to_async
 
+import logging
+
+log = logging.getLogger('stream')
+
 
 class ReadableStream(abc.ABC):
     def __init__(self):
@@ -116,11 +120,19 @@ class _WritableStreamFromBlocking(WritableStream):
         return self._f.writable()
 
     async def write(self, b: bytes) -> int:
-        return await blocking_to_async(self._thread_pool, self._f.write, b)
+        try:
+            return await blocking_to_async(self._thread_pool, self._f.write, b)
+        except:
+            log.exception('error in write WritableStreamFromBlocking')
+            raise
 
     async def _wait_closed(self) -> None:
-        await blocking_to_async(self._thread_pool, self._f.close)
-        del self._f
+        try:
+            await blocking_to_async(self._thread_pool, self._f.close)
+            del self._f
+        except:
+            log.exception('error in _wait_closed WritableStreamFromBlocking')
+            raise
 
 
 def blocking_readable_stream_to_async(thread_pool: ThreadPoolExecutor, f: BinaryIO) -> _ReadableStreamFromBlocking:

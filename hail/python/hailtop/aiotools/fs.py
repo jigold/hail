@@ -15,6 +15,10 @@ from hailtop.utils import (
     time_msecs, humanize_timedelta_msecs, OnlineBoundedGather2)
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
+import logging
+
+log = logging.getLogger('fs')
+
 
 class FileStatus(abc.ABC):
     @abc.abstractmethod
@@ -264,10 +268,14 @@ class LocalMultiPartCreate(MultiPartCreate):
         self._num_parts = num_parts
 
     async def create_part(self, number: int, start: int):  # pylint: disable=unused-argument
-        assert 0 <= number < self._num_parts
-        f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'r+b')
-        f.seek(start)
-        return blocking_writable_stream_to_async(self._fs._thread_pool, cast(BinaryIO, f))
+        try:
+            assert 0 <= number < self._num_parts
+            f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'r+b')
+            f.seek(start)
+            return blocking_writable_stream_to_async(self._fs._thread_pool, cast(BinaryIO, f))
+        except Exception:
+            log.exception('in localmultipartcreate create_part')
+            raise
 
     async def __aenter__(self) -> 'LocalMultiPartCreate':
         return self
@@ -277,6 +285,7 @@ class LocalMultiPartCreate(MultiPartCreate):
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
         if exc_val:
+            log.info(f'exc_val in __aexit__ of local multipart create {exc_type} {exc_val} {exc_tb}')
             try:
                 await self._fs.remove(self._path)
             except FileNotFoundError:

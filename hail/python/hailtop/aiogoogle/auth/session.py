@@ -7,6 +7,10 @@ from hailtop.utils import request_retry_transient_errors, RateLimit, RateLimiter
 from .credentials import Credentials
 from .access_token import AccessToken
 
+import logging
+
+log = logging.getLogger('session')
+
 SessionType = TypeVar('SessionType', bound='BaseSession')
 
 
@@ -94,7 +98,10 @@ class Session(BaseSession):
         retry = kwargs.pop('retry', True)
         if retry:
             return await request_retry_transient_errors(self._session, method, url, **kwargs)
-        return await self._session.request(method, url, **kwargs)
+        try:
+            return await self._session.request(method, url, **kwargs)
+        except Exception as e:
+            log.exception(f'while making request {e}')
 
     async def close(self) -> None:
         if hasattr(self, '_session'):
