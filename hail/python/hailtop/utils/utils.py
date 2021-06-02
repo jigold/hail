@@ -533,10 +533,18 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
         _, exc, _ = sys.exc_info()
         if exc is not None:
             for task in tasks:
-                if not task.done():
-                    task.cancel()
+                try:
+                    if not task.done():
+                        task.cancel()
+                except Exception as e:
+                    log.exception('while cancelling tasks')
+                    print(e)
             if tasks:
-                await asyncio.wait(tasks)
+                try:
+                    await asyncio.wait(tasks)
+                except Exception as e:
+                    log.exception('while waiting on tasks')
+                    print(e)
 
 
 async def bounded_gather2(sema: asyncio.Semaphore, *aws, return_exceptions: bool = False, cancel_on_error: bool = False):
