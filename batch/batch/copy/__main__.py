@@ -7,6 +7,12 @@ from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
 from hailtop.aiogoogle import GoogleStorageAsyncFS
 
 
+import tracemalloc
+
+
+tracemalloc.start()
+
+
 async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, List[Transfer]]) -> None:
     if requester_pays_project:
         params = {'userProject': requester_pays_project}
@@ -18,6 +24,7 @@ async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, 
             async with sema:
                 copy_report = await fs.copy(sema, transfer)
                 copy_report.summarize()
+
 
 async def main() -> None:
     try:
