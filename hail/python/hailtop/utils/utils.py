@@ -379,6 +379,9 @@ class OnlineBoundedGather2:
         for _, t in self._pending.items():
             if not t.done():
                 t.cancel()
+            if self._exception is not None:
+                print(self._exception)
+                log.info(self._exception)
             tasks.append(t)
         self._pending = None
 
@@ -411,6 +414,8 @@ class OnlineBoundedGather2:
             except:
                 if self._exception is None:
                     _, exc, _ = sys.exc_info()
+                    log.info(exc)
+                    print(exc)
                     self._exception = exc
                     await self._shutdown()
                 else:
@@ -458,6 +463,7 @@ class OnlineBoundedGather2:
                 self._exception = exc_val
                 await self._shutdown()
             else:
+                print(self._exception)
                 log.info('discarding exception', exc_info=exc_val)
 
         # wait for done and not pending _done_event.wait can return
@@ -469,6 +475,8 @@ class OnlineBoundedGather2:
             await self._done_event.wait()
 
         if self._exception:
+            print(self._exception)
+            log.info(self._exception)
             raise self._exception
 
 
