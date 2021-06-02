@@ -19,15 +19,17 @@ async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, 
                 copy_report = await fs.copy(sema, transfer)
                 copy_report.summarize()
 
-
 async def main() -> None:
-    assert len(sys.argv) == 3
-    requster_pays_project = json.loads(sys.argv[1])
-    files = json.loads(sys.argv[2])
+    try:
+        assert len(sys.argv) == 3
+        requster_pays_project = json.loads(sys.argv[1])
+        files = json.loads(sys.argv[2])
 
-    await copy(
-        requster_pays_project, [Transfer(f['from'], f['to'], treat_dest_as=Transfer.DEST_IS_TARGET) for f in files]
-    )
+        await copy(
+            requster_pays_project, [Transfer(f['from'], f['to'], treat_dest_as=Transfer.DEST_IS_TARGET) for f in files]
+        )
+    finally:
+        print(sys.exc_info())
 
 
 if __name__ == '__main__':
