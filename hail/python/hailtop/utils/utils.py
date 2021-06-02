@@ -523,6 +523,7 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
         return await asyncio.gather(*tasks)
     finally:
         _, exc, _ = sys.exc_info()
+        log.info(f'exc in boundedgather2_raise_exceptions {exc}')
         if exc is not None:
             for task in tasks:
                 if not task.done():
