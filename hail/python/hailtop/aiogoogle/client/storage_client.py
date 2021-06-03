@@ -152,6 +152,7 @@ class _TaskManager:
                         exc_tb: Optional[TracebackType]) -> None:
         if not self._task.done():
             if exc_val:
+                log.info(f'cancelling task {self._task} {self._task.get_stack()}')
                 self._task.cancel()
                 try:
                     await self._task

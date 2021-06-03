@@ -378,6 +378,7 @@ class OnlineBoundedGather2:
         tasks = []
         for _, t in self._pending.items():
             if not t.done():
+                log.info(f'cancelling task {t} {t.get_stack()}')
                 t.cancel()
             tasks.append(t)
         self._pending = None
@@ -523,10 +524,11 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
         return await asyncio.gather(*tasks)
     finally:
         _, exc, _ = sys.exc_info()
-        log.info(f'exc in boundedgather2_raise_exceptions {exc}')
+        log.exception(f'exc in boundedgather2_raise_exceptions {exc}', exc_info=True)
         if exc is not None:
             for task in tasks:
                 if not task.done():
+                    log.info(f'cancelling task {task} {task.get_stack()}')
                     task.cancel()
             if tasks:
                 await asyncio.wait(tasks)
