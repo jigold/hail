@@ -9,10 +9,10 @@ from hailtop.hail_logging import configure_logging
 
 configure_logging()
 
-import tracemalloc
-
-
-tracemalloc.start()
+# import tracemalloc
+#
+#
+# tracemalloc.start()
 
 
 async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, List[Transfer]]) -> None:

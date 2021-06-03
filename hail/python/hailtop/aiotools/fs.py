@@ -260,7 +260,7 @@ class LocalFileListEntry(FileListEntry):
             self._status = LocalStatFileStatus(await blocking_to_async(self._thread_pool, self._entry.stat))
         return self._status
 
-
+import traceback
 class LocalMultiPartCreate(MultiPartCreate):
     def __init__(self, fs: 'LocalAsyncFS', path: str, num_parts: int):
         self._fs = fs
@@ -285,7 +285,7 @@ class LocalMultiPartCreate(MultiPartCreate):
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
         if exc_val:
-            log.info(f'exc_val in __aexit__ of local multipart create {exc_type} {exc_val} {exc_tb}')
+            log.info(f'exc_val in __aexit__ of local multipart create {exc_type} {exc_val} {exc_tb} {traceback.print_tb(exc_tb)}')
             try:
                 await self._fs.remove(self._path)
             except FileNotFoundError:

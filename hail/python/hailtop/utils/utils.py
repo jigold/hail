@@ -385,6 +385,8 @@ class OnlineBoundedGather2:
 
         if tasks:
             await asyncio.wait(tasks)
+            for task in tasks:
+                log.info(f'task after wait {task} {task.done()} {task.get_stack()}')
 
         self._done_event.set()
 
@@ -495,6 +497,15 @@ async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *aws):
     return await asyncio.gather(*[asyncio.create_task(run_with_sema_return_exceptions(aw)) for aw in aws])
 
 
+def _handle_task_result(task: asyncio.Task) -> None:
+    try:
+        task.result()
+    except asyncio.CancelledError:
+        pass
+    except Exception:  # pylint: disable=broad-except
+        log.exception(f'Exception raised by task = {task!r} {task.get_stack()}')
+
+
 async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel_on_error: bool = False):
     '''Run the awaitables aws as tasks with parallelism bounded by sema,
     which should be asyncio.Semaphore whose initial value is the level
@@ -516,6 +527,8 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
             return await aw
 
     tasks = [asyncio.create_task(run_with_subsema(aw)) for aw in aws]
+    for t in tasks:
+        t.add_done_callback(_handle_task_result)
 
     if not cancel_on_error:
         return await asyncio.gather(*tasks)
@@ -531,7 +544,11 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
                     log.info(f'cancelling task {task} {task.get_stack()}')
                     task.cancel()
             if tasks:
+                for task in tasks:
+                    log.info(f'task before wait {task} {task.done()} {task.get_stack()}')
                 await asyncio.wait(tasks)
+                for task in tasks:
+                    log.info(f'task after wait {task} {task.done()} {task.get_stack()}')
 
 
 async def bounded_gather2(sema: asyncio.Semaphore, *aws, return_exceptions: bool = False, cancel_on_error: bool = False):
@@ -693,6 +710,7 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
         try:
             return await f(*args, **kwargs)
         except Exception as e:
+            log.exception(f'error retry_transient_errors {e}')
             if not is_transient_error(e):
                 raise
             errors += 1
@@ -728,6 +746,7 @@ async def request_raise_transient_errors(session, method, url, **kwargs):
     try:
         return await session.request(method, url, **kwargs)
     except Exception as e:
+        log.exception(f'error while request {e}')
         if is_transient_error(e):
             log.exception('request failed with transient exception: {method} {url}')
             raise web.HTTPServiceUnavailable()

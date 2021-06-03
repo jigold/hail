@@ -154,10 +154,12 @@ class _TaskManager:
             if exc_val:
                 log.info(f'cancelling task {self._task} {self._task.get_stack()}')
                 self._task.cancel()
+                log.info(f'cancelled task {self._task} {self._task.get_stack()}')
                 try:
                     await self._task
                 except:
                     _, exc, _ = sys.exc_info()
+                    log.info(f'sys.exc_info() in __aexit__ _TaskManager {sys.exc_info()} {exc} {exc_val}')
                     if exc is not exc_val:
                         log.warning('dropping preempted task exception', exc_info=True)
             else:
@@ -256,7 +258,11 @@ class ResumableInsertObjectStream(WritableStream):
                                   retry=False)) as put_task:
             for chunk in self._write_buffer.chunks(n):
                 async with _TaskManager(it.feed(chunk)) as feed_task:
-                    done, _ = await asyncio.wait([put_task, feed_task], return_when=asyncio.FIRST_COMPLETED)
+                    done, pending = await asyncio.wait([put_task, feed_task], return_when=asyncio.FIRST_COMPLETED)
+                    # for d in done:
+                    #     log.info(f'in _write_chunk_1 done {d} {d.get_stack()}')
+                    # for p in pending:
+                    #     log.info(f'in _write_chunk_1 pending {p} {p.get_stack()}')
                     if feed_task not in done:
                         msg = 'resumable upload chunk PUT request finished before writing data'
                         log.warning(msg)
@@ -265,6 +271,9 @@ class ResumableInsertObjectStream(WritableStream):
             await it.stop()
 
             resp = await put_task
+            # log.info(f'in _write_chunk_1 {put_task} {put_task.get_stack()}')
+            # log.info(f'in _write_chunk_1 {feed_task} {feed_task.get_stack()}')
+
             if resp.status >= 200 and resp.status < 300:
                 assert self._closed
                 assert total_size is not None
