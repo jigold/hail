@@ -524,7 +524,12 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
 
     async def run_with_subsema(aw):
         async with subsema:
-            return await aw
+            try:
+                return await aw
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                log.exception(f'inside run with subsema')
 
     tasks = [asyncio.create_task(run_with_subsema(aw)) for aw in aws]
     for t in tasks:
