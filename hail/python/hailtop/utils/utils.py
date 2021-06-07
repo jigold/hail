@@ -129,9 +129,7 @@ def async_to_blocking(coro):
 
 async def blocking_to_async(thread_pool, fun, *args, **kwargs):
     return await asyncio.get_event_loop().run_in_executor(
-        None, lambda: fun(*args, **kwargs))
-    # return await asyncio.get_event_loop().run_in_executor(
-    #     thread_pool, lambda: fun(*args, **kwargs))
+        thread_pool, lambda: fun(*args, **kwargs))
 
 
 async def bounded_gather(*pfs, parallelism=10, return_exceptions=False):
