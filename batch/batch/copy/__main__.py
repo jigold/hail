@@ -53,6 +53,19 @@ async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, 
                 copy_report.summarize()
 
 
+class Task(asyncio.tasks.Task):
+    def __init__(self, coro, *, loop=None):
+        super().__init__(coro, loop=loop)
+        self.name = coro.cr_code.co_name
+        self.file_name = coro.cr_code.co_filename
+        self.line_number = coro.cr_code.co_firstlineno
+        self.origin = coro.cr_origin
+
+
+def request_task_factory(loop, coro):
+    return Task(coro, loop=loop)
+
+
 async def main() -> None:
     task_manager = BackgroundTaskManager()
 
@@ -72,4 +85,9 @@ async def main() -> None:
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    try:
+        loop.set_task_factory(request_task_factory)
+        loop.run_until_complete(main())
+    finally:
+        loop.close()
