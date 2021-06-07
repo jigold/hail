@@ -5,6 +5,7 @@ import asyncio
 import resource
 import logging
 import humanize
+import aiohttp
 from bounded_pool_executor import BoundedThreadPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
@@ -49,12 +50,17 @@ async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, 
         params = {'userProject': requester_pays_project}
     else:
         params = None
-    with BoundedThreadPoolExecutor(max_workers=10) as thread_pool:
-        async with RouterAsyncFS('file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params)]) as fs:
+    # with ThreadPoolExecutor()
+    thread_pool = BoundedThreadPoolExecutor(max_workers=10)
+    try:
+        async with RouterAsyncFS('file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params,
+                                                                                          timeout=aiohttp.ClientTimeout(total=5))]) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
                 copy_report = await fs.copy(sema, transfer)
                 copy_report.summarize()
+    finally:
+        thread_pool.shutdown(wait=False)
 
 
 class Task(asyncio.tasks.Task):
