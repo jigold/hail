@@ -541,11 +541,11 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
 
     try:
         return await asyncio.gather(*tasks)
-    except concurrent.futures._base.CancelledError as exc:
-        for task in tasks:
-            if task.cancelled():
-                log.info(f'{type(exc)} {task.name} {task.file_name} {task.line_number} {task.origin}')
-        raise
+    # except concurrent.futures._base.CancelledError as exc:
+    #     for task in tasks:
+    #         if task.cancelled():
+    #             log.info(f'{type(exc)} {task.name} {task.file_name} {task.line_number} {task.origin}')
+    #     raise
     finally:
         _, exc, _ = sys.exc_info()
         log.exception(f'exc in boundedgather2_raise_exceptions {exc}', exc_info=True)
