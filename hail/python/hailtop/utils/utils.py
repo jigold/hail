@@ -594,6 +594,8 @@ def is_transient_error(e):
         return True
     if isinstance(e, requests.exceptions.ConnectionError):
         return True
+    if isinstance(e, concurrent.futures._base.TimeoutError):
+        return True
     if isinstance(e, socket.timeout):
         return True
     if isinstance(e, socket.gaierror):
