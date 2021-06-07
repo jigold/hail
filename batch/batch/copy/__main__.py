@@ -49,7 +49,7 @@ async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, 
         params = {'userProject': requester_pays_project}
     else:
         params = None
-    with BoundedThreadPoolExecutor() as thread_pool:
+    with BoundedThreadPoolExecutor(max_workers=10) as thread_pool:
         async with RouterAsyncFS('file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params)]) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
