@@ -28,11 +28,13 @@ class MemoryMonitor:
     async def measure_usage(self):
         max_usage = 0
         while self.keep_measuring:
+            usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
             max_usage = max(
                 max_usage,
-                resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                usage
             )
-            log.info(f'max memory usage {humanize.naturalsize(max_usage * 1024, binary=True)}')
+            log.info(f'memory usage {humanize.naturalsize(usage * 1024, binary=True)} '
+                     f'max memory usage {humanize.naturalsize(max_usage * 1024, binary=True)}')
             await asyncio.sleep(15)
 
         return max_usage
