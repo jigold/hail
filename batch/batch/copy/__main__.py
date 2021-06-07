@@ -5,6 +5,7 @@ import asyncio
 import resource
 import logging
 import humanize
+from bounded_pool_executor import BoundedThreadPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
 from hailtop.aiogoogle import GoogleStorageAsyncFS
@@ -48,7 +49,7 @@ async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, 
         params = {'userProject': requester_pays_project}
     else:
         params = None
-    with ThreadPoolExecutor() as thread_pool:
+    with BoundedThreadPoolExecutor() as thread_pool:
         async with RouterAsyncFS('file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params)]) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
