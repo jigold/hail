@@ -28,13 +28,16 @@ class MemoryMonitor:
     async def measure_usage(self):
         max_usage = 0
         while self.keep_measuring:
-            usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-            max_usage = max(
-                max_usage,
-                usage
-            )
-            log.info(f'memory usage {humanize.naturalsize(usage * 1024, binary=True)} '
-                     f'max memory usage {humanize.naturalsize(max_usage * 1024, binary=True)}')
+            try:
+                usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                max_usage = max(
+                    max_usage,
+                    usage
+                )
+                log.info(f'memory usage {humanize.naturalsize(usage * 1024, binary=True)} '
+                         f'max memory usage {humanize.naturalsize(max_usage * 1024, binary=True)}')
+            except Exception:
+                log.exception(f'while measuring usage')
             await asyncio.sleep(15)
 
         return max_usage
@@ -80,7 +83,7 @@ async def main() -> None:
             requster_pays_project, [Transfer(f['from'], f['to'], treat_dest_as=Transfer.DEST_IS_TARGET) for f in files]
         )
     finally:
-        print(sys.exc_info())
+        log.info(sys.exc_info())
         task_manager.shutdown()
 
 
