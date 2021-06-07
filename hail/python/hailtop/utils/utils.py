@@ -429,57 +429,50 @@ class OnlineBoundedGather2:
             raise self._exception
 
 
-async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *aws):
-    '''Run the awaitables aws as tasks with parallelism bounded by sema,
-    which should be asyncio.Semaphore whose initial value is the level
-    of parallelism.
+async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *pfs):
+    '''Run the partial functions `pfs` as tasks with parallelism bounded
+    by `sema`, which should be `asyncio.Semaphore` whose initial value
+    is the desired level of parallelism.
 
-    The return value is the list of awaitable results as pairs: the
-    pair (value, None) if the awaitable returned value or (None, exc)
-    if the awaitable raised the exception exc.
+    The return value is the list of partial function results as pairs:
+    the pair `(value, None)` if the partial function returned value or
+    `(None, exc)` if the partial function raised the exception `exc`.
+
     '''
-    async def run_with_sema_return_exceptions(aw):
+    async def run_with_sema_return_exceptions(pf):
         try:
             async with sema:
-                return (await aw, None)
+                return (await pf(), None)
         except:
             _, exc, _ = sys.exc_info()
             return (None, exc)
 
-    tasks = [asyncio.create_task(run_with_sema_return_exceptions(aw)) for aw in aws]
+    tasks = [asyncio.create_task(run_with_sema_return_exceptions(pf)) for pf in pfs]
     async with WithoutSemaphore(sema):
         return await asyncio.gather(*tasks)
 
 
-def _handle_task_result(task: asyncio.Task) -> None:
-    try:
-        task.result()
-    except asyncio.CancelledError:
-        pass
-    except Exception:  # pylint: disable=broad-except
-        log.exception(f'Exception raised by task = {task!r} {task.get_stack()}')
+async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False):
+    '''Run the partial functions `pfs` as tasks with parallelism bounded
+    by `sema`, which should be `asyncio.Semaphore` whose initial value
+    is the level of parallelism.
 
+    The return value is the list of partial function results.
 
-async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel_on_error: bool = False):
-    '''Run the awaitables aws as tasks with parallelism bounded by sema,
-    which should be asyncio.Semaphore whose initial value is the level
-    of parallelism.
-
-    The return value is the list of awaitable results.
-
-    The first exception raised by an awaitable is raised by
+    The first exception raised by a partial function is raised by
     bounded_gather2_raise_exceptions.
 
-    If cancel_on_error is False (the default), the remaining
-    awaitables continue to run with bounded parallelism.  If
+    If cancel_on_error is False (the default), the remaining partial
+    functions continue to run with bounded parallelism.  If
     cancel_on_error is True, the unfinished tasks are all cancelled.
+
     '''
 
-    async def run_with_sema(aw):
+    async def run_with_sema(pf):
         async with sema:
-            return await aw
+            return await pf()
 
-    tasks = [asyncio.create_task(run_with_sema(aw)) for aw in aws]
+    tasks = [asyncio.create_task(run_with_sema(pf)) for pf in pfs]
 
     if not cancel_on_error:
         async with WithoutSemaphore(sema):
@@ -501,10 +494,10 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
                     await asyncio.wait(tasks)
 
 
-async def bounded_gather2(sema: asyncio.Semaphore, *aws, return_exceptions: bool = False, cancel_on_error: bool = False):
+async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool = False, cancel_on_error: bool = False):
     if return_exceptions:
-        return await bounded_gather2_return_exceptions(sema, *aws)
-    return await bounded_gather2_raise_exceptions(sema, *aws, cancel_on_error=cancel_on_error)
+        return await bounded_gather2_return_exceptions(sema, *pfs)
+    return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
 
 RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
