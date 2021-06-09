@@ -17,11 +17,10 @@ configure_logging()
 
 log = logging.getLogger('copy')
 
-# import tracemalloc
-#
-#
-# tracemalloc.start()
+import tracemalloc
 
+
+tracemalloc.start()
 
 
 class MemoryMonitor:
@@ -39,6 +38,13 @@ class MemoryMonitor:
                 )
                 log.info(f'memory usage {humanize.naturalsize(usage * 1024, binary=True)} '
                          f'max memory usage {humanize.naturalsize(max_usage * 1024, binary=True)}')
+
+                snapshot = tracemalloc.take_snapshot()
+                top_stats = snapshot.statistics('lineno')
+
+                log.info("[ Top 10 ]")
+                for stat in top_stats[:10]:
+                    log.info(stat)
             except Exception:
                 log.exception(f'while measuring usage')
             await asyncio.sleep(15)
