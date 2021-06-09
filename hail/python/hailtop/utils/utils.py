@@ -487,7 +487,7 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel
         if exc is not None:
             for task in tasks:
                 if not task.done():
-                    log.info(f'cancelling task {task} {task.get_stack()}')
+                    # log.info(f'cancelling task {task} {task.get_stack()}')
                     task.cancel()
             if tasks:
                 async with WithoutSemaphore(sema):

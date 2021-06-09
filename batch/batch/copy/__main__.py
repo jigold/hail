@@ -51,17 +51,24 @@ async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, 
         params = {'userProject': requester_pays_project}
     else:
         params = None
-    # with ThreadPoolExecutor()
-    thread_pool = BoundedThreadPoolExecutor(max_workers=10)
-    try:
-        async with RouterAsyncFS('file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params,
-                                                                                          timeout=aiohttp.ClientTimeout(total=5))]) as fs:
+    with ThreadPoolExecutor() as thread_pool:
+        async with RouterAsyncFS('file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params)]) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
                 copy_report = await fs.copy(sema, transfer)
                 copy_report.summarize()
-    finally:
-        thread_pool.shutdown(wait=False)
+
+    # with ThreadPoolExecutor()
+    # thread_pool = BoundedThreadPoolExecutor(max_workers=10)
+    # try:
+    #     async with RouterAsyncFS('file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params,
+    #                                                                                       timeout=aiohttp.ClientTimeout(total=5))]) as fs:
+    #         sema = asyncio.Semaphore(50)
+    #         async with sema:
+    #             copy_report = await fs.copy(sema, transfer)
+    #             copy_report.summarize()
+    # finally:
+    #     thread_pool.shutdown(wait=False)
 
 
 class Task(asyncio.tasks.Task):
@@ -96,9 +103,10 @@ async def main() -> None:
 
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    try:
-        loop.set_task_factory(request_task_factory)
-        loop.run_until_complete(main())
-    finally:
-        loop.close()
+    asyncio.run(main())
+    # loop = asyncio.get_event_loop()
+    # try:
+    #     # loop.set_task_factory(request_task_factory)
+    #     loop.run_until_complete(main())
+    # finally:
+    #     loop.close()

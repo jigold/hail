@@ -45,7 +45,7 @@ class Disk:
                 await self._delete()
 
     async def _unmount(self):
-        await check_shell_output(f'umount {self.disk_path}')
+        await check_shell_output(f'umount -v {self.disk_path} {self.mount_path}')
 
     async def _format(self):
         await check_shell_output(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}')
