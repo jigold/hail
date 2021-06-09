@@ -328,8 +328,8 @@ class LocalAsyncFS(AsyncFS):
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:  # pylint: disable=unused-argument
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'wb')
-        return blocking_writable_stream_to_async(self._thread_pool, f)
-    # return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
+        # return blocking_writable_stream_to_async(self._thread_pool, f)
+        return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
     async def multi_part_create(
             self,
