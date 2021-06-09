@@ -197,6 +197,17 @@ tag syslog
 </source>
 EOF
 
+sudo tee /etc/google-fluentd/config.d/dmesg.conf <<EOF
+<source>
+@type tail
+format syslog
+path /var/log/dmesg
+pos_file /var/lib/google-fluentd/pos/dmesg.pos
+read_from_head true
+tag dmesg
+</source>
+EOF
+
 sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF
 <source>
 @type tail
