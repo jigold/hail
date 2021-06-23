@@ -452,46 +452,86 @@ async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *pfs):
         return await asyncio.gather(*tasks)
 
 
-async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False):
-    '''Run the partial functions `pfs` as tasks with parallelism bounded
-    by `sema`, which should be `asyncio.Semaphore` whose initial value
-    is the level of parallelism.
+async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False, n_workers: int = 50):
+    q = asyncio.Queue()
+    cancelled = False
+    exception = None
 
-    The return value is the list of partial function results.
+    for pf in pfs:
+        q.put_nowait(pf)
 
-    The first exception raised by a partial function is raised by
-    bounded_gather2_raise_exceptions.
+    async def new_worker(q):
+        nonlocal exception, cancelled
+        while True:
+            async with sema:
+                pf = q.get_nowait()
+                try:
+                    if not cancelled:
+                        try:
+                            await pf()
+                        except Exception as e:
+                            if exception is None:
+                                exception = e
+                            if cancel_on_error:
+                                cancelled = True
+                finally:
+                    q.task_done()
 
-    If cancel_on_error is False (the default), the remaining partial
-    functions continue to run with bounded parallelism.  If
-    cancel_on_error is True, the unfinished tasks are all cancelled.
+    workers = []
+    for i in range(n_workers):
+        worker = asyncio.create_task(new_worker(q))
+        workers.append(worker)
 
-    '''
+    async with WithoutSemaphore(sema):
+        await q.join()
 
-    async def run_with_sema(pf):
-        async with sema:
-            return await pf()
+    for worker in workers:
+        worker.cancel()
+    await asyncio.wait(workers)
 
-    tasks = [asyncio.create_task(run_with_sema(pf)) for pf in pfs]
+    if exception:
+        raise exception
 
-    if not cancel_on_error:
-        async with WithoutSemaphore(sema):
-            return await asyncio.gather(*tasks)
-
-    try:
-        async with WithoutSemaphore(sema):
-            return await asyncio.gather(*tasks)
-    finally:
-        _, exc, _ = sys.exc_info()
-        log.exception(f'exc in boundedgather2_raise_exceptions {exc}', exc_info=True)
-        if exc is not None:
-            for task in tasks:
-                if not task.done():
-                    # log.info(f'cancelling task {task} {task.get_stack()}')
-                    task.cancel()
-            if tasks:
-                async with WithoutSemaphore(sema):
-                    await asyncio.wait(tasks)
+# async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False):
+#     '''Run the partial functions `pfs` as tasks with parallelism bounded
+#     by `sema`, which should be `asyncio.Semaphore` whose initial value
+#     is the level of parallelism.
+#
+#     The return value is the list of partial function results.
+#
+#     The first exception raised by a partial function is raised by
+#     bounded_gather2_raise_exceptions.
+#
+#     If cancel_on_error is False (the default), the remaining partial
+#     functions continue to run with bounded parallelism.  If
+#     cancel_on_error is True, the unfinished tasks are all cancelled.
+#
+#     '''
+#
+#     async def run_with_sema(pf):
+#         async with sema:
+#             return await pf()
+#
+#     tasks = [asyncio.create_task(run_with_sema(pf)) for pf in pfs]
+#
+#     if not cancel_on_error:
+#         async with WithoutSemaphore(sema):
+#             return await asyncio.gather(*tasks)
+#
+#     try:
+#         async with WithoutSemaphore(sema):
+#             return await asyncio.gather(*tasks)
+#     finally:
+#         _, exc, _ = sys.exc_info()
+#         log.exception(f'exc in boundedgather2_raise_exceptions {exc}', exc_info=True)
+#         if exc is not None:
+#             for task in tasks:
+#                 if not task.done():
+#                     # log.info(f'cancelling task {task} {task.get_stack()}')
+#                     task.cancel()
+#             if tasks:
+#                 async with WithoutSemaphore(sema):
+#                     await asyncio.wait(tasks)
 
 
 async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool = False, cancel_on_error: bool = False):
