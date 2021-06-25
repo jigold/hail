@@ -54,6 +54,7 @@ class Pool(InstanceCollection):
         self.boot_disk_size_gb = config.boot_disk_size_gb
         self.max_instances = config.max_instances
         self.max_live_instances = config.max_live_instances
+        self.frozen = config.frozen
 
     async def async_init(self):
         log.info(f'initializing {self}')
@@ -88,6 +89,7 @@ class Pool(InstanceCollection):
             'standing_worker_cores': self.standing_worker_cores,
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
+            'frozen': self.frozen,
         }
 
     async def configure(
@@ -100,6 +102,7 @@ class Pool(InstanceCollection):
         standing_worker_cores,
         max_instances,
         max_live_instances,
+        frozen,
     ):
         @transaction(self.db)
         async def update(tx):
@@ -123,10 +126,10 @@ WHERE name = %s;
             await tx.just_execute(
                 '''
 UPDATE inst_colls
-SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s
+SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s, frozen = %s
 WHERE name = %s;
 ''',
-                (boot_disk_size_gb, max_instances, max_live_instances, self.name),
+                (boot_disk_size_gb, max_instances, max_live_instances, frozen, self.name),
             )
 
         await update()  # pylint: disable=no-value-for-parameter
@@ -139,6 +142,7 @@ WHERE name = %s;
         self.standing_worker_cores = standing_worker_cores
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
+        self.frozen = frozen
 
     def resources_to_cores_mcpu(self, cores_mcpu, memory_bytes, storage_bytes):
         cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes, self.worker_type)
@@ -210,6 +214,10 @@ WHERE name = %s;
         )
 
     async def create_instances(self):
+        if self.frozen:
+            log.info(f'{self} is frozen; skipping creating new instances')
+            return
+
         ready_cores = await self.db.select_and_fetchone(
             '''
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
@@ -362,6 +370,10 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         return result
 
     async def schedule_loop_body(self):
+        if self.pool.frozen:
+            log.info(f'{self.pool} is frozen; skipping scheduling jobs')
+            return True
+
         log.info(f'schedule {self.pool}: starting')
         start = time_msecs()
         n_scheduled = 0

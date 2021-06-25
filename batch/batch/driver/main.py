@@ -482,6 +482,8 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
     enable_standing_worker = 'enable_standing_worker' in post
 
+    frozen = 'frozen' in post
+
     await pool.configure(
         worker_cores,
         boot_disk_size_gb,
@@ -491,6 +493,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         standing_worker_cores,
         max_instances,
         max_live_instances,
+        frozen,
     )
 
     await refresh_inst_colls_on_front_end(app)
@@ -532,7 +535,9 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
         session, url_path, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
     )
 
-    await job_private_inst_manager.configure(boot_disk_size_gb, max_instances, max_live_instances)
+    frozen = 'frozen' in post
+
+    await job_private_inst_manager.configure(boot_disk_size_gb, max_instances, max_live_instances, frozen)
 
     await refresh_inst_colls_on_front_end(app)
 

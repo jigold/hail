@@ -56,6 +56,7 @@ class PoolConfig(InstanceCollectionConfig):
             boot_disk_size_gb=record['boot_disk_size_gb'],
             max_instances=record['max_instances'],
             max_live_instances=record['max_live_instances'],
+            frozen=record['frozen'],
         )
 
     def __init__(
@@ -70,6 +71,7 @@ class PoolConfig(InstanceCollectionConfig):
         boot_disk_size_gb,
         max_instances,
         max_live_instances,
+        frozen,
     ):
         self.name = name
         self.worker_type = worker_type
@@ -81,6 +83,7 @@ class PoolConfig(InstanceCollectionConfig):
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
+        self.frozen = frozen
 
         self.worker_config = WorkerConfig.from_pool_config(self)
 
@@ -106,14 +109,15 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
     @staticmethod
     def from_record(record):
         return JobPrivateInstanceManagerConfig(
-            record['name'], record['boot_disk_size_gb'], record['max_instances'], record['max_live_instances']
+            record['name'], record['boot_disk_size_gb'], record['max_instances'], record['max_live_instances'], record['frozen']
         )
 
-    def __init__(self, name, boot_disk_size_gb, max_instances, max_live_instances):
+    def __init__(self, name, boot_disk_size_gb, max_instances, max_live_instances, frozen):
         self.name = name
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
+        self.frozen = frozen
 
     def convert_requests_to_resources(self, machine_type, storage_bytes):
         # minimum storage for a GCE instance is 10Gi

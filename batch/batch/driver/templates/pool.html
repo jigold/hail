@@ -30,6 +30,14 @@
     <div>Standing worker cores: <input name="standing_worker_cores" value="{{ pool.standing_worker_cores }}" /></div>
     <div>Max instances: <input name="max_instances" value="{{ pool.max_instances }}" /></div>
     <div>Max live instances: <input name="max_live_instances" value="{{ pool.max_live_instances }}" /></div>
+    <div>
+      <label for="frozen" style="color:red; font-weight:bold">Frozen: </label>
+      <input type="checkbox"
+             id="frozen"
+             name="frozen"
+             {% if pool.frozen %}checked{% endif %}
+      value="true" />
+    </div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
     <button>
       Update

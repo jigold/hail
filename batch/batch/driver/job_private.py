@@ -42,6 +42,7 @@ class JobPrivateInstanceManager(InstanceCollection):
         self.boot_disk_size_gb = config.boot_disk_size_gb
         self.max_instances = config.max_instances
         self.max_live_instances = config.max_live_instances
+        self.frozen = config.frozen
 
     async def async_init(self):
         log.info(f'initializing {self}')
@@ -77,26 +78,32 @@ class JobPrivateInstanceManager(InstanceCollection):
             'worker_disk_size_gb': self.boot_disk_size_gb,
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
+            'frozen': self.frozen,
         }
 
-    async def configure(self, boot_disk_size_gb, max_instances, max_live_instances):
+    async def configure(self, boot_disk_size_gb, max_instances, max_live_instances, frozen):
         await self.db.just_execute(
             '''
 UPDATE inst_colls
-SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s
+SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s, frozen = %s
 WHERE name = %s;
 ''',
-            (boot_disk_size_gb, max_instances, max_live_instances, self.name),
+            (boot_disk_size_gb, max_instances, max_live_instances, frozen, self.name),
         )
 
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
+        self.frozen = frozen
 
     async def bump_scheduler(self):
         self.scheduler_state_changed.set()
 
     async def schedule_jobs_loop_body(self):
+        if self.frozen:
+            log.info(f'{self} is frozen; skipping scheduling jobs')
+            return True
+
         log.info(f'starting scheduling jobs for {self}')
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
@@ -277,6 +284,10 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         return (instance, resources)
 
     async def create_instances_loop_body(self):
+        if self.frozen:
+            log.info(f'{self} is frozen; skipping creating new instances')
+            return
+
         log.info(f'create_instances for {self}: starting')
         start = time_msecs()
         n_instances_created = 0

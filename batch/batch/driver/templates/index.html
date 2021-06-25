@@ -15,6 +15,7 @@
     <tr>
       <th>Name</th>
       <th>Worker Type</th>
+      <th>Frozen</th>
       <th>Pending</th>
       <th>Active</th>
       <th>Inactive</th>
@@ -27,6 +28,11 @@
     {% for pool in pools %}
     <tr>
       <td><a href="{{ base_path }}/inst_coll/pool/{{ pool.name }}">{{ pool.name }}</a></td>
+      {% if pool.frozen %}
+      <td class="data-table-bad">{{ pool.frozen }}</td>
+      {% else %}
+      <td>{{ pool.frozen }}</td>
+      {% endif %}
       <td>{{ pool.worker_type }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['pending'] }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['active'] }}</td>
@@ -44,6 +50,7 @@
     <thead>
     <tr>
       <th>Name</th>
+      <th>Frozen</th>
       <th>Pending</th>
       <th>Active</th>
       <th>Inactive</th>
@@ -55,6 +62,11 @@
     <tbody>
     <tr>
       <td><a href="{{ base_path }}/inst_coll/jpim">{{ jpim.name }}</a></td>
+      {% if jpim.frozen %}
+      <td class="data-table-bad">{{ jpim.frozen }}</td>
+      {% else %}
+      <td>{{ jpim.frozen }}</td>
+      {% endif %}
       <td class="numeric-cell">{{ jpim.n_instances_by_state['pending'] }}</td>
       <td class="numeric-cell">{{ jpim.n_instances_by_state['active'] }}</td>
       <td class="numeric-cell">{{ jpim.n_instances_by_state['inactive'] }}</td>
