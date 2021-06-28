@@ -74,9 +74,8 @@ class Disk:
 
     async def _attach(self):
         async with LoggingTimer(f'attaching disk {self.name} to {self.instance_name}'):
-            name = 'foo'  # self.name
             config = {
-                'source': f'/compute/v1/projects/{self.project}/zones/{self.zone}/disks/{name}',
+                'source': f'/compute/v1/projects/{self.project}/zones/{self.zone}/disks/{self.name}',
                 'autoDelete': True,
                 'deviceName': self.name,
             }

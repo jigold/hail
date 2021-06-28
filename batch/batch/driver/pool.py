@@ -264,7 +264,7 @@ GROUP BY user;
         )
 
         if ready_cores_mcpu > 0 and free_cores < 500:
-            await self.create_instances_from_ready_cores(ready_cores_mcpu)
+            await self.create_instances_from_ready_cores(ready_cores_mcpu, zone='us-west4')
 
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
         if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_zone[GCP_ZONE] == 0:

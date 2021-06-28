@@ -20,7 +20,7 @@ async def request_with_wait_for_done(request_f, path, params: MutableMapping[str
 
     delay = 0.2
     while True:
-        log.info("foo")
+        log.info("starting disk request")
         resp = await request_f(path, params=params, **kwargs)
         log.info(f"compute_client resp {resp}")
         if resp['status'] == 'DONE':
