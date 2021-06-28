@@ -84,6 +84,7 @@ class Disk:
             await self.compute_client.attach_disk(
                 f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk', json=config
             )
+        log.info(f'should not be here')
 
     async def _detach(self):
         async with LoggingTimer(f'detaching disk {self.name} from {self.instance_name}'):

@@ -9,6 +9,10 @@ from .access_token import AccessToken
 
 SessionType = TypeVar('SessionType', bound='BaseSession')
 
+import logging
+
+log = logging.getLogger('session')
+
 
 class BaseSession(abc.ABC):
     @abc.abstractmethod
@@ -71,6 +75,7 @@ class Session(BaseSession):
             kwargs['raise_for_status'] = True
         self._params = params
         # self._session = aiohttp.ClientSession(**kwargs)
+        log.info(f'kwargs to session {kwargs}')
         self._session = hailtop.httpx.ClientSession(**kwargs)
         self._access_token = AccessToken(credentials)
 

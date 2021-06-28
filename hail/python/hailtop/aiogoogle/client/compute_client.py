@@ -20,10 +20,9 @@ async def request_with_wait_for_done(request_f, path, params: MutableMapping[str
 
     delay = 0.2
     while True:
-        print("foo")
+        log.info("foo")
         resp = await request_f(path, params=params, **kwargs)
-        print("here")
-        print(resp)
+        log.info(f"compute_client resp {resp}")
         if resp['status'] == 'DONE':
             return resp
         delay = await sleep_and_backoff(delay)

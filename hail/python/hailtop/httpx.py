@@ -59,6 +59,7 @@ class ClientSession(aiohttp.ClientSession):
                 assert resp.reason is not None
                 body = (await resp.read()).decode()
                 resp.release()
+                log.info(f'raising client response error')
                 raise ClientResponseError(
                     resp.request_info,
                     resp.history,
