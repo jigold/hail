@@ -31,7 +31,11 @@ class Disk:
         await self.delete()
 
     async def create(self, labels=None):
-        await self._create(labels)
+        try:
+            await self._create(labels)
+        except Exception as e:
+            log.exception(f'while creating disk {self.name} {e}')
+            raise e
         await self._attach()
         await self._format()
 
@@ -70,7 +74,11 @@ class Disk:
                 'labels': labels,
             }
 
-            await self.compute_client.create_disk(f'/zones/{self.zone}/disks', json=config)
+            try:
+                await self.compute_client.create_disk(f'/zones/{self.zone}/disks', json=config)
+            except Exception as e:
+                log.exception(f'caught exception creating disk {self.name}')
+                raise e
 
     async def _attach(self):
         async with LoggingTimer(f'attaching disk {self.name} to {self.instance_name}'):

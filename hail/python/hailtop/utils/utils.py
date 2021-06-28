@@ -552,6 +552,9 @@ def is_transient_error(e):
     #
     # OSError: [Errno 51] Connect call failed ('35.188.91.25', 443)
     # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
+    log.info(f'is_transient_error {e}')
+    if isinstance(e, hailtop.httpx.ClientResponseError):
+        log.info(f'httpx.ClientResponseError {e.status} {type(e.body)} {e.body}')
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in RETRYABLE_HTTP_STATUS_CODES):
         # nginx returns 502 if it cannot connect to the upstream server
@@ -844,6 +847,8 @@ class LoggingTimer:
         if self.threshold_ms is None or total > self.threshold_ms:
             self.timing['total'] = total
             log.info(f'{self.description} timing {self.timing}')
+        if exc_type is not None:
+            log.exception(f'exiting logging timer {exc_type} {exc} {tb}')
 
 
 def url_basename(url: str) -> str:
