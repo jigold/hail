@@ -44,7 +44,7 @@ class ComputeOperationError(Exception):
 async def request_with_wait_for_done(request_f, path, params: MutableMapping[str, Any] = None, **kwargs):
     assert 'params' not in kwargs
 
-    def _request():
+    async def _request():
         local_params = copy.deepcopy(params)
 
         if local_params is None:
