@@ -561,10 +561,12 @@ def is_transient_error(e):
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
         return True
+    if (isinstance(e, hailtop.aiogoogle.client.compute_client.ComputeOperationError) and (
+            e.status_code == 403 and 'QUOTA_EXCEEDED' in e.error_codes)):
+        return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
-            e.status == 403 and ('rateLimitExceeded' in e.body or
-                                 'QUOTA_EXCEEDED' in e.body or
-                                 re.match(e.body, "Quota.*exceeded"))):
+            e.status == 403 and ('rateLimitExceeded' in e.body
+                                 or 'QUOTA_EXCEEDED' in e.body)):
         return True
     if isinstance(e, aiohttp.ServerTimeoutError):
         return True

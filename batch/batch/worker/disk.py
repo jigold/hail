@@ -74,11 +74,7 @@ class Disk:
                 'labels': labels,
             }
 
-            try:
-                await self.compute_client.create_disk(f'/zones/{self.zone}/disks', json=config)
-            except Exception as e:
-                log.exception(f'caught exception creating disk {self.name}')
-                raise e
+            await self.compute_client.create_disk(f'/zones/{self.zone}/disks', json=config)
 
     async def _attach(self):
         async with LoggingTimer(f'attaching disk {self.name} to {self.instance_name}'):

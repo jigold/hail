@@ -1,32 +1,72 @@
+import copy
 import uuid
 from typing import Mapping, Any, Optional, MutableMapping
 import logging
 
 from .base_client import BaseClient
-from hailtop.utils import sleep_and_backoff
+from hailtop.utils import sleep_and_backoff, retry_transient_errors
 
 log = logging.getLogger('compute_client')
+
+
+class ComputeOperationError(Exception):
+    def __init__(self, resp):
+        self.resp = resp
+
+    @property
+    def status_code(self):
+        return self.resp['httpErrorStatusCode']
+
+    @property
+    def errors(self):
+        error = self.resp.get('error')
+        if error:
+            return error['errors']
+        return None
+
+    @property
+    def error_codes(self):
+        codes = []
+        if self.errors:
+            for e in self.errors:
+                codes.append(e.get('code'))
+        return codes
+
+    @property
+    def error_messages(self):
+        messages = []
+        if self.errors:
+            for e in self.errors:
+                messages.append(e.get('message'))
+        return messages
 
 
 async def request_with_wait_for_done(request_f, path, params: MutableMapping[str, Any] = None, **kwargs):
     assert 'params' not in kwargs
 
-    if params is None:
-        params = {}
+    def _request():
+        local_params = copy.deepcopy(params)
 
-    request_uuid = str(uuid.uuid4())
-    if 'requestId' not in params:
-        params['requestId'] = request_uuid
+        if local_params is None:
+            local_params = {}
 
-    delay = 0.2
-    while True:
-        log.info("starting disk request")
-        resp = await request_f(path, params=params, **kwargs)
-        log.info(f"compute_client resp {resp}")
-        if resp['status'] == 'DONE':
-            log.info(f'done response {resp}')
-            return resp
-        delay = await sleep_and_backoff(delay)
+        request_uuid = str(uuid.uuid4())
+        if 'requestId' not in local_params:
+            local_params['requestId'] = request_uuid
+
+        delay = 0.2
+        while True:
+            log.info("starting disk request")
+            resp = await request_f(path, params=params, **kwargs)
+            log.info(f"compute_client resp {resp}")
+            if resp['status'] == 'DONE':
+                log.info(f'done response {resp}')
+                if resp['httpErrorStatusCode'] >= 400:
+                    raise ComputeOperationError(resp)
+                return resp
+            delay = await sleep_and_backoff(delay)
+
+    await retry_transient_errors(_request)
 
 
 class PagedIterator:
