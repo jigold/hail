@@ -53,13 +53,13 @@ class ClientSession(aiohttp.ClientSession):
         log.info(f"raise_for_status {raise_for_status}")
         resp = await super()._request(method, str_or_url, raise_for_status=False, **kwargs)
         log.info(f'httpx.ClientSession {resp}')
+        log.info(f'resp.status {type(resp.status)} {resp.status}')
+        body = (await resp.read()).decode()
+        log.info(f'resp.body {type(body)} {body}')
         if raise_for_status:
             if resp.status >= 400:
-                log.info(f'resp.status {resp.status}')
                 # reason should always be not None for a started response
                 assert resp.reason is not None
-                body = (await resp.read()).decode()
-                log.info(f'resp.body {body}')
                 resp.release()
                 error = ClientResponseError(
                     resp.request_info,
