@@ -7,6 +7,11 @@ from .tls import internal_client_ssl_context, external_client_ssl_context
 from .config.deploy_config import get_deploy_config
 
 
+import logging
+
+log = logging.getLogger('httpx')
+
+
 class ClientResponseError(aiohttp.ClientResponseError):
     def __init__(self,
                  request_info: aiohttp.RequestInfo,
@@ -45,8 +50,9 @@ class ClientSession(aiohttp.ClientSession):
         **kwargs
     ):
         raise_for_status = kwargs.pop('raise_for_status', self._raise_for_status)
+        log.info(f"raise_for_status {raise_for_status}")
         resp = await super()._request(method, str_or_url, raise_for_status=False, **kwargs)
-        print("SESSION")
+        log.info(f'httpx.ClientSession {resp}')
         if raise_for_status:
             if resp.status >= 400:
                 # reason should always be not None for a started response
