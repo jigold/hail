@@ -70,6 +70,7 @@ class Session(BaseSession):
         if 'raise_for_status' not in kwargs:
             kwargs['raise_for_status'] = True
         self._params = params
+        # self._session = aiohttp.ClientSession(**kwargs)
         self._session = hailtop.httpx.ClientSession(**kwargs)
         self._access_token = AccessToken(credentials)
 

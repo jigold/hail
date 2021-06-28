@@ -20,7 +20,10 @@ async def request_with_wait_for_done(request_f, path, params: MutableMapping[str
 
     delay = 0.2
     while True:
+        print("foo")
         resp = await request_f(path, params=params, **kwargs)
+        print("here")
+        print(resp)
         if resp['status'] == 'DONE':
             return resp
         delay = await sleep_and_backoff(delay)
@@ -64,6 +67,7 @@ class PagedIterator:
 
 class ComputeClient(BaseClient):
     def __init__(self, project, **kwargs):
+        print("HERE")
         super().__init__(f'https://compute.googleapis.com/compute/v1/projects/{project}', **kwargs)
 
     # docs:
