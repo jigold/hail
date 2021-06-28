@@ -52,10 +52,8 @@ class ClientSession(aiohttp.ClientSession):
         raise_for_status = kwargs.pop('raise_for_status', self._raise_for_status)
         log.info(f"raise_for_status {raise_for_status}")
         resp = await super()._request(method, str_or_url, raise_for_status=False, **kwargs)
-        log.info(f'httpx.ClientSession {resp}')
-        log.info(f'resp.status {type(resp.status)} {resp.status}')
         body = (await resp.read()).decode()
-        log.info(f'resp.body {type(body)} {body}')
+        log.info(f'httpx.ClientSession {resp} resp.status {type(resp.status)} {resp.status} resp.body {type(body)} {body}')
         if raise_for_status:
             if resp.status >= 400:
                 # reason should always be not None for a started response
