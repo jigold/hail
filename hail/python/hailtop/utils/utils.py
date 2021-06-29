@@ -551,6 +551,8 @@ def is_transient_error(e):
     #
     # OSError: [Errno 51] Connect call failed ('35.188.91.25', 443)
     # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
+    import hailtop.httpx
+    import hailtop.aiogoogle.client.compute_client
     log.info(f'is_transient_error {e}')
     if isinstance(e, hailtop.httpx.ClientResponseError):
         log.info(f'httpx.ClientResponseError {e.status} {type(e.body)} {e.body}')
