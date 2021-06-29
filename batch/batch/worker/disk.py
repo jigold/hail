@@ -23,6 +23,9 @@ class Disk:
 
         self.disk_path = f'/dev/disk/by-id/google-{self.name}'
 
+        self._created = False
+        self._attached = False
+
     async def __aenter__(self, labels=None):
         await self.create(labels)
         return self
@@ -31,11 +34,7 @@ class Disk:
         await self.delete()
 
     async def create(self, labels=None):
-        try:
-            await self._create(labels)
-        except Exception as e:
-            log.exception(f'while creating disk {self.name} {e}')
-            raise e
+        await self._create(labels)
         await self._attach()
         await self._format()
 
@@ -75,6 +74,7 @@ class Disk:
             }
 
             await self.compute_client.create_disk(f'/zones/{self.zone}/disks', json=config)
+            self._created = True
 
     async def _attach(self):
         async with LoggingTimer(f'attaching disk {self.name} to {self.instance_name}'):
@@ -88,15 +88,21 @@ class Disk:
                 f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk', json=config
             )
 
+            self._attached = True
+
     async def _detach(self):
         async with LoggingTimer(f'detaching disk {self.name} from {self.instance_name}'):
-            await self.compute_client.detach_disk(
-                f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk', params={'deviceName': self.name}
-            )
+            if self._attached:
+                await self.compute_client.detach_disk(
+                    f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk', params={'deviceName': self.name}
+                )
+                self._attached = False
 
     async def _delete(self):
         async with LoggingTimer(f'deleting disk {self.name}'):
-            await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
+            if self._created:
+                await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
+                self._created = False
 
     def __str__(self):
         return self.name

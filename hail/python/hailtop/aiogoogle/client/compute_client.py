@@ -56,17 +56,18 @@ async def request_with_wait_for_done(request_f, path, params: MutableMapping[str
 
         delay = 0.2
         while True:
-            log.info("starting disk request")
-            resp = await request_f(path, params=params, **kwargs)
-            log.info(f"compute_client resp {resp}")
+            log.info(f"starting disk request with requestId {request_uuid}")
+            resp = await request_f(path, params=local_params, **kwargs)
+            log.info(f"{request_uuid} compute_client resp {resp}")
             if resp['status'] == 'DONE':
-                log.info(f'done response {resp}')
                 if resp['httpErrorStatusCode'] >= 400:
                     raise ComputeOperationError(resp)
                 return resp
+            else:
+                log.info(f'operation not finished')
             delay = await sleep_and_backoff(delay)
 
-    await retry_transient_errors(_request)
+    return await retry_transient_errors(_request)
 
 
 class PagedIterator:
