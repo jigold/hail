@@ -11,6 +11,7 @@ log = logging.getLogger('compute_client')
 
 class ComputeOperationError(Exception):
     def __init__(self, resp):
+        super().__init__()
         self.resp = resp
 
     @property
@@ -63,8 +64,7 @@ async def request_with_wait_for_done(request_f, path, params: MutableMapping[str
                 if resp['httpErrorStatusCode'] >= 400:
                     raise ComputeOperationError(resp)
                 return resp
-            else:
-                log.info(f'operation not finished')
+            log.info(f'operation not finished')
             delay = await sleep_and_backoff(delay)
 
     return await retry_transient_errors(_request)
