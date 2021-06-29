@@ -24,7 +24,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
 import hailtop
-import hailtop.aiogoogle.client.compute_client
 
 from .time import time_msecs
 
