@@ -92,17 +92,21 @@ class Disk:
 
     async def _detach(self):
         async with LoggingTimer(f'detaching disk {self.name} from {self.instance_name}'):
-            if self._attached:
-                await self.compute_client.detach_disk(
-                    f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk', params={'deviceName': self.name}
-                )
-                self._attached = False
+            await self.compute_client.detach_disk(
+                f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk', params={'deviceName': self.name}
+            )
+            # if self._attached:
+            #     await self.compute_client.detach_disk(
+            #         f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk', params={'deviceName': self.name}
+            #     )
+            #     self._attached = False
 
     async def _delete(self):
         async with LoggingTimer(f'deleting disk {self.name}'):
-            if self._created:
-                await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
-                self._created = False
+            await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
+            # if self._created:
+            #     await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
+            #     self._created = False
 
     def __str__(self):
         return self.name
