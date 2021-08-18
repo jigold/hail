@@ -72,7 +72,7 @@ from ..inst_coll_config import InstanceCollectionConfigs
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, SCOPE
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type, tasks
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
@@ -1440,33 +1440,41 @@ async def ui_get_job(request, userdata, batch_id):
         del resources['cores_mcpu']
 
     data = []
-    for task in tasks:
-        if container_statuses[task]:
-            for step_name, step_data in container_statuses[task]['timing'].items():
-                plot_dict = {
-                    'title': f'{(batch_id, job_id)}',
-                    'name': task,
-                    'start': datetime.datetime.fromtimestamp(step_data['start_time'] / 1000),
-                    'resource': step_name,
-                }
+    for step in ['input', 'main', 'output']:
+        if container_statuses[step]:
+            for timing_name, timing_data in container_statuses[step]['timing'].items():
+                if timing_data is not None:
+                    plot_dict = {
+                        'Title': f'{(batch_id, job_id)}',
+                        'Step': step,
+                        'Task': timing_name,
+                    }
 
-                if step_data.get('finish_time') is not None:
-                    plot_dict['finish'] = datetime.datetime.fromtimestamp(step_data['finish_time'] / 1000)
+                    if timing_data.get('start_time') is not None:
+                        plot_dict['Start'] = datetime.datetime.fromtimestamp(timing_data['start_time'] / 1000)
 
-                data.append(plot_dict)
+                        finish_time = timing_data.get('finish_time')
+                        if finish_time is None:
+                            finish_time = time_msecs()
+                        plot_dict['Finish'] = datetime.datetime.fromtimestamp(finish_time / 1000)
 
-    df = pd.DataFrame(data)
+                    data.append(plot_dict)
 
-    fig = px.timeline(
-        df,
-        x_start='start',
-        x_end='finish',
-        y='title',
-        color='resource',
-        hover_data=['name'],
-        color_discrete_sequence=px.colors.sequential.dense)
+    if data:
+        df = pd.DataFrame(data)
 
-    plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+        fig = px.timeline(
+            df,
+            x_start='Start',
+            x_end='Finish',
+            y='Step',
+            color='Task',
+            hover_data=['Task'],
+            color_discrete_sequence=px.colors.sequential.dense)
+
+        plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    else:
+        plot_json = None
 
     page_context = {
         'batch_id': batch_id,
