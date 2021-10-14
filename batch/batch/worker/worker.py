@@ -432,9 +432,9 @@ class Container:
 
     async def run(self, worker: 'Worker'):
         try:
-
             async def localize_rootfs():
                 async with image_lock.reader_lock:
+                    log.info(f'container {self} has a reader lock; The image ref counts are: {worker.image_data}')
                     # FIXME Authentication is entangled with pulling images. We need a way to test
                     # that a user has access to a cached image without pulling.
                     await self.pull_image()
@@ -443,10 +443,18 @@ class Container:
                     worker.image_data[self.image_id] += 1
 
                     self.rootfs_path = f'/host/rootfs/{self.image_id}'
+                    log.info(f'waiting to obtain lock for {self.image_id} with container {self}')
                     async with worker.image_data[self.image_id].lock:
+                        log.info(f'container {self} has a lock for {self.image_id} with container {self}')
                         if not os.path.exists(self.rootfs_path):
-                            await asyncio.shield(self.extract_rootfs())
-                            log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
+                            try:
+                                await asyncio.shield(self.extract_rootfs())
+                            except Exception:
+                                log.exception(f'Exception occurred while extracting rootfs for container {self}')
+                                raise
+                            else:
+                                log.info(f'Added expanded image to cache from container {self}: {self.image_ref_str}, ID: {self.image_id}')
+                    log.info(f'container {self} no longer has a lock for {self.image_id} with container {self}')
 
             with self.step('pulling'):
                 await self.run_until_done_or_deleted(localize_rootfs)
@@ -520,6 +528,7 @@ class Container:
 
         try:
             if not is_google_image:
+                log.info(f'pulling non-gcr user image for container {self} with image_ref {self.image_ref_str}')
                 await self.ensure_image_is_pulled()
             elif is_public_image:
                 auth = await self.batch_worker_access_token()
@@ -530,6 +539,7 @@ class Container:
                 # FIXME improve the performance of this with a
                 # per-user image cache.
                 auth = self.current_user_access_token()
+                log.info(f'pulling gcr user image for container {self} with image_ref {self.image_ref_str}')
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                     docker.images.pull, self.image_ref_str, auth=auth
                 )
@@ -539,18 +549,32 @@ class Container:
             elif 'not found: manifest unknown' in e.message:
                 self.short_error = 'image not found'
             raise
+        else:
+            log.info(f'finished pulling image for container {self} with image_ref {self.image_ref_str}')
 
+        log.info(f'started inspecting image {self.image_ref_str} for container {self}')
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+        log.info(f'finished inspecting image {self.image_ref_str} for container {self}')
+
+        prev_image_config = image_configs.get(self.image_ref_str)
+        if prev_image_config and json.loads(image_config)[0] != prev_image_config:
+            log.exception(f'mutated the config for image {self.image_ref_str} while pulling the image without a lock on the image configs')
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def ensure_image_is_pulled(self, auth=None):
         try:
+            log.info(f'beginning get image for container {self} with image_ref_str {self.image_ref_str}')
             await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(docker.images.get, self.image_ref_str)
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                     docker.images.pull, self.image_ref_str, auth=auth
                 )
+            log.exception(f'error while pulling the container for container {self} with image_ref_str {self.image_ref_str}')
+            # raise  # this was missing
+        except Exception:
+            log.exception(f'error while getting image for container {self} with image_ref_str {self.image_ref_str}')
+            raise
 
     async def batch_worker_access_token(self):
         async with await request_retry_transient_errors(
@@ -570,10 +594,14 @@ class Container:
     async def extract_rootfs(self):
         assert self.rootfs_path
         os.makedirs(self.rootfs_path)
-        await check_shell(
-            f'id=$(docker create {self.image_id}) && docker export $id | tar -C {self.rootfs_path} -xf - && docker rm $id'
-        )
-        log.info(f'Extracted rootfs for image {self.image_ref_str}')
+        log.info(f'Begin extracting rootfs for image {self.image_ref_str} for container {self}')
+        try:
+            await check_shell(
+                f'id=$(docker create {self.image_id}) && docker export $id | tar -C {self.rootfs_path} -xf - && docker rm $id'
+            )
+        except Exception:
+            log.exception(f'exception while extracting rootfs for image {self.image_ref_str} to {self.rootfs_path} for container {self}')
+        log.info(f'Extracted rootfs for image {self.image_ref_str} to {self.rootfs_path} for container {self}')
 
     async def setup_overlay(self):
         lower_dir = self.rootfs_path
@@ -582,9 +610,11 @@ class Container:
         merged_dir = f'{self.container_overlay_path}/merged'
         for d in (upper_dir, work_dir, merged_dir):
             os.makedirs(d)
+        log.info(f'begin setting up the overlay for container {self} with image_ref {self.image_ref_str}')
         await check_shell(
             f'mount -t overlay overlay -o lowerdir={lower_dir},upperdir={upper_dir},workdir={work_dir} {merged_dir}'
         )
+        log.info(f'finished setting up the overlay for container {self} with image_ref {self.image_ref_str}')
         self.overlay_mounted = True
 
     async def setup_network_namespace(self):
@@ -604,7 +634,7 @@ class Container:
             await self.write_container_config()
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w') as container_log:
-                    log.info('Creating the crun run process')
+                    log.info(f'Creating the crun run process for container {self}')
                     self.process = await asyncio.create_subprocess_exec(
                         'crun',
                         'run',
@@ -617,7 +647,7 @@ class Container:
                         stderr=container_log,
                     )
                     await self.process.wait()
-                    log.info('crun process completed')
+                    log.info(f'crun process completed for {self}')
         except asyncio.TimeoutError:
             return True
         finally:
@@ -1716,11 +1746,11 @@ class ImageData:
         self.last_accessed = time_msecs()
         return self
 
-    def __str__(self):
+    def __repr__(self):
         return (
             f'ImageData('
-            f'ref_count={self.ref_count}, '
-            f'time_created={time_msecs_str(self.time_created)}, '
+            f'ref_count={self.ref_count},'
+            f'time_created={time_msecs_str(self.time_created)},'
             f'last_accessed={time_msecs_str(self.last_accessed)}'
             f')'
         )
