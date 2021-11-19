@@ -437,7 +437,7 @@ async def dev_deploy_branch(request, userdata):
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
         excluded_steps = params['excluded_steps']
-        extra_code_config = params.get('extra_code_config', {})
+        extra_config = params.get('extra_config', {})
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -458,7 +458,7 @@ async def dev_deploy_branch(request, userdata):
         log.info('dev deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
-    unwatched_branch = UnwatchedBranch(branch, sha, userdata, extra_code_config)
+    unwatched_branch = UnwatchedBranch(branch, sha, userdata, extra_config)
 
     batch_client = app['batch_client']
 
