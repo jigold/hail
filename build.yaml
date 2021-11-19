@@ -491,6 +491,31 @@ steps:
       - service_base_image
       - merge_code
       - auth_database
+  - kind: runImage
+    name: create_dev_namespace_user
+    runIfRequested: true
+    image:
+      valueFrom: service_base_image.image
+    script: |
+      set -ex
+      export HAIL_SOURCE_NAMESPACE=default
+      export HAIL_TARGET_NAMESPACE={{ default_ns.name }}
+      export HAIL_SCOPE={{ scope }}
+      python3 /io/create_dev_namespace_account.py {{ code.username }} {{ code.email }}
+    secrets:
+      - name:
+          valueFrom: auth_database.user_secret_name
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /sql-config
+    inputs:
+      - from: /repo/ci/create_initial_account.py
+        to: /io/create_initial_account.py
+    dependsOn:
+      - default_ns
+      - service_base_image
+      - merge_code
+      - auth_database
   - kind: buildImage2
     name: hail_build_image
     dockerFile: /io/hail/Dockerfile.hail-build
