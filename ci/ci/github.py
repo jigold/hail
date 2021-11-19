@@ -897,11 +897,12 @@ git checkout {shq(self.sha)}
 
 
 class UnwatchedBranch(Code):
-    def __init__(self, branch, sha, userdata):
+    def __init__(self, branch, sha, userdata, extra_config: Dict[str, str]):
         self.branch = branch
         self.user = userdata['username']
         self.namespace = userdata['namespace_name']
         self.sha = sha
+        self.extra_config = extra_config
 
         self.deploy_batch = None
 
@@ -912,7 +913,7 @@ class UnwatchedBranch(Code):
         return f'repos/{self.branch.repo.short_str()}'
 
     def config(self):
-        return {
+        config = {
             'checkout_script': self.checkout_script(),
             'branch': self.branch.name,
             'repo': self.branch.repo.short_str(),
@@ -920,6 +921,8 @@ class UnwatchedBranch(Code):
             'sha': self.sha,
             'user': self.user,
         }
+        config.update(self.extra_config)
+        return config
 
     async def deploy(self, batch_client, steps, excluded_steps=()):
         assert not self.deploy_batch
