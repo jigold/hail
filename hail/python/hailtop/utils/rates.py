@@ -20,3 +20,12 @@ def rate_instance_hour_to_fraction_msec(rate_instance_hour, base):
     rate_instance_sec = rate_instance_hour / 3600
     rate_fraction_sec = rate_instance_sec / base
     return rate_fraction_sec * 0.001
+
+
+def rate_instance_month_to_fraction_msec(rate_instance_month, base):
+    # average number of days per month = 365.25 / 12 = 30.4375
+    avg_n_days_per_month = 30.4375
+    rate_instance_hour = rate_instance_month / avg_n_days_per_month / 24
+    rate_instance_sec = rate_instance_hour / 3600
+    rate_fraction_sec = rate_instance_sec / base
+    return rate_fraction_sec * 0.001

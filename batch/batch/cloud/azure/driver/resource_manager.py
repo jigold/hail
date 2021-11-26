@@ -17,6 +17,7 @@ from ..instance_config import AzureSlimInstanceConfig
 from .create_instance import create_vm_config
 from ..resource_utils import (azure_machine_type_to_worker_type_and_cores, azure_worker_memory_per_core_mib,
                               azure_worker_properties_to_machine_type, azure_local_ssd_size)
+from .product_manager import AzureProductManager
 
 
 log = logging.getLogger('resource_manager')
@@ -35,12 +36,14 @@ class AzureResourceManager(CloudResourceManager):
                  ssh_public_key: str,
                  arm_client: aioazure.AzureResourceManagerClient,  # BORROWED
                  compute_client: aioazure.AzureComputeClient,  # BORROWED
+                 product_manager: AzureProductManager,
                  ):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.ssh_public_key = ssh_public_key
         self.arm_client = arm_client
         self.compute_client = compute_client
+        self.product_manager = product_manager
 
     async def delete_vm(self, instance: Instance):
         try:
@@ -87,14 +90,17 @@ class AzureResourceManager(CloudResourceManager):
                         data_disk_size_gb: int,
                         boot_disk_size_gb: int,
                         job_private: bool,
+                        location: str,
                         ) -> AzureSlimInstanceConfig:
-        return AzureSlimInstanceConfig(
+        return AzureSlimInstanceConfig.create(
+            self.product_manager.latest_product_versions(),
             machine_type,
             preemptible,
             local_ssd_data_disk,
             data_disk_size_gb,
             boot_disk_size_gb,
             job_private,
+            location,
         )
 
     def instance_config_from_dict(self, data: dict) -> AzureSlimInstanceConfig:

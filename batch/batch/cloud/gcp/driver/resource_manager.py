@@ -18,6 +18,7 @@ from ..instance_config import GCPSlimInstanceConfig
 from .create_instance import create_vm_config
 from ..resource_utils import (gcp_machine_type_to_worker_type_and_cores, gcp_worker_memory_per_core_mib,
                               family_worker_type_cores_to_gcp_machine_type, GCP_MACHINE_FAMILY)
+from .product_manager import GCPProductManager
 
 
 log = logging.getLogger('resource_manager')
@@ -33,9 +34,11 @@ class GCPResourceManager(CloudResourceManager):
     def __init__(self,
                  project: str,
                  compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
+                 product_manager: GCPProductManager,
                  ):
         self.compute_client = compute_client
         self.project = project
+        self.product_manager = product_manager
 
     async def delete_vm(self, instance: Instance):
         try:
@@ -80,14 +83,17 @@ class GCPResourceManager(CloudResourceManager):
                         data_disk_size_gb: int,
                         boot_disk_size_gb: int,
                         job_private: bool,
+                        location: str,
                         ) -> GCPSlimInstanceConfig:
-        return GCPSlimInstanceConfig(
+        return GCPSlimInstanceConfig.create(
+            self.product_manager.latest_product_versions(),
             machine_type,
             preemptible,
             local_ssd_data_disk,
             data_disk_size_gb,
             boot_disk_size_gb,
             job_private,
+            location,
         )
 
     def instance_config_from_dict(self, data: dict) -> GCPSlimInstanceConfig:

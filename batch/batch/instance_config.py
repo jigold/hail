@@ -1,13 +1,8 @@
-from typing import Dict, List
-from typing_extensions import TypedDict
+from typing import Dict, List, Sequence
 import abc
 
+from .products import QuantifiedResource, Product
 from .cloud.resource_utils import cores_mcpu_to_memory_bytes
-
-
-class QuantifiedResource(TypedDict):
-    name: str
-    quantity: int
 
 
 def is_power_two(n):
@@ -18,6 +13,19 @@ class InstanceConfig(abc.ABC):
     cloud: str
     cores: int
     job_private: bool
+    products: Sequence[Product]
+
+    @staticmethod
+    @abc.abstractmethod
+    def create(latest_product_versions: Dict[str, str],
+               machine_type: str,
+               preemptible: bool,
+               local_ssd_data_disk: bool,
+               data_disk_size_gb: int,
+               boot_disk_size_gb: int,
+               job_private: bool,
+               location: str) -> 'InstanceConfig':
+        raise NotImplementedError
 
     @abc.abstractmethod
     def worker_type(self) -> str:
@@ -27,13 +35,25 @@ class InstanceConfig(abc.ABC):
     def to_dict(self) -> dict:
         raise NotImplementedError
 
-    @abc.abstractmethod
     def resources(self,
                   cpu_in_mcpu: int,
                   memory_in_bytes: int,
                   extra_storage_in_gib: int,
                   ) -> List[QuantifiedResource]:
-        raise NotImplementedError
+        assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes
+        assert isinstance(extra_storage_in_gib, int), extra_storage_in_gib
+        assert is_power_two(self.cores) and self.cores <= 256, self.cores
+
+        worker_fraction_in_1024ths = 1024 * cpu_in_mcpu // (self.cores * 1000)
+
+        quantified_resources = []
+        for product in self.products:
+            quantified_resource = product.to_quantified_resource(cpu_in_mcpu=cpu_in_mcpu,
+                                                                 memory_in_bytes=memory_in_bytes,
+                                                                 worker_fraction_in_1024ths=worker_fraction_in_1024ths,
+                                                                 external_storage_in_gib=extra_storage_in_gib)
+            quantified_resources.append(quantified_resource)
+        return quantified_resources
 
     def is_valid_configuration(self, valid_resources):
         is_valid = True

@@ -14,6 +14,7 @@ from ...instance_config import QuantifiedResource
 from ...batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
 from ..instance import Instance
 from ..location import CloudLocationMonitor
+from ..product_manager import CloudProductManager
 from ..resource_manager import (CloudResourceManager, VMStateCreating, VMStateRunning,
                                 VMStateTerminated, VMDoesNotExist)
 
@@ -25,11 +26,13 @@ class InstanceCollectionManager:
     def __init__(self,
                  db: Database,  # BORROWED
                  machine_name_prefix: str,
-                 location_monitor: CloudLocationMonitor
+                 location_monitor: CloudLocationMonitor,
+                 product_manager: CloudProductManager,
                  ):
         self.db: Database = db
         self.machine_name_prefix = machine_name_prefix
         self.location_monitor = location_monitor
+        self.product_manager = product_manager
 
         self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
@@ -220,6 +223,7 @@ class InstanceCollection:
             data_disk_size_gb=data_disk_size_gb,
             boot_disk_size_gb=boot_disk_size_gb,
             job_private=job_private,
+            location=location,
         )
         instance = await Instance.create(
             app=app,

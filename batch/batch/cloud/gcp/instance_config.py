@@ -1,13 +1,53 @@
-from typing import List
+from typing import List, Dict
 
-from ...instance_config import InstanceConfig, is_power_two, QuantifiedResource
+from ...instance_config import InstanceConfig
+from .products import (GCPProduct, GCPComputeProduct, GCPMemoryProduct, GCPDiskProduct, GCPExternalDiskProduct,
+                       GCPIPFeeProduct, GCPServiceFeeProduct, gcp_product_from_dict)
 from .resource_utils import gcp_machine_type_to_parts, family_worker_type_cores_to_gcp_machine_type
 
 
-GCP_INSTANCE_CONFIG_VERSION = 4
+GCP_INSTANCE_CONFIG_VERSION = 5
 
 
 class GCPSlimInstanceConfig(InstanceConfig):
+    @staticmethod
+    def create(latest_product_versions: Dict[str, str],
+               machine_type: str,
+               preemptible: bool,
+               local_ssd_data_disk: bool,
+               data_disk_size_gb: int,
+               boot_disk_size_gb: int,
+               job_private: bool,
+               location: str) -> 'GCPSlimInstanceConfig':  # pylint: disable=unused-argument
+        if local_ssd_data_disk:
+            data_disk_product = GCPDiskProduct.new_product(latest_product_versions, 'local-ssd', data_disk_size_gb)
+        else:
+            data_disk_product = GCPDiskProduct.new_product(latest_product_versions, 'pd-ssd', data_disk_size_gb)
+
+        machine_type_parts = gcp_machine_type_to_parts(machine_type)
+        assert machine_type_parts is not None, machine_type
+        instance_family = machine_type_parts.machine_family
+
+        products = [
+            GCPComputeProduct.new_product(latest_product_versions, instance_family, preemptible),
+            GCPMemoryProduct.new_product(latest_product_versions, instance_family, preemptible),
+            GCPDiskProduct.new_product(latest_product_versions, 'pd-ssd', boot_disk_size_gb),
+            data_disk_product,
+            GCPExternalDiskProduct.new_product(latest_product_versions, 'pd-ssd'),
+            GCPIPFeeProduct.new_product(latest_product_versions, 1024),
+            GCPServiceFeeProduct.new_product(latest_product_versions),
+        ]
+
+        return GCPSlimInstanceConfig(
+            machine_type=machine_type,
+            preemptible=preemptible,
+            local_ssd_data_disk=local_ssd_data_disk,
+            data_disk_size_gb=data_disk_size_gb,
+            boot_disk_size_gb=boot_disk_size_gb,
+            job_private=job_private,
+            products=products,
+        )
+
     def __init__(self,
                  machine_type: str,
                  preemptible: bool,
@@ -15,6 +55,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
                  data_disk_size_gb: int,
                  boot_disk_size_gb: int,
                  job_private: bool,
+                 products: List[GCPProduct],
                  ):
         self.cloud = 'gcp'
         self._machine_type = machine_type
@@ -29,6 +70,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
         self._instance_family = machine_type_parts.machine_family
         self._worker_type = machine_type_parts.worker_type
         self.cores = machine_type_parts.cores
+        self.products = products
 
     def worker_type(self) -> str:
         return self._worker_type
@@ -44,26 +86,56 @@ class GCPSlimInstanceConfig(InstanceConfig):
             local_ssd_data_disk = disks[1]['type'] == 'local-ssd'
             data_disk_size_gb = disks[1]['size']
             job_private = data['job-private']
+            preemptible = data['instance']['preemptible']
             machine_type = family_worker_type_cores_to_gcp_machine_type(
                 data['instance']['family'],
                 data['instance']['type'],
                 data['instance']['cores'],
             )
-            return GCPSlimInstanceConfig(
-                machine_type,
-                data['instance']['preemptible'],
-                local_ssd_data_disk,
-                data_disk_size_gb,
-                boot_disk_size_gb,
-                job_private,
-            )
+            instance_family = data['instance']['family']
+        else:
+            machine_type = data['machine_type']
+            preemptible = data['preemptible']
+            local_ssd_data_disk = data['local_ssd_data_disk']
+            data_disk_size_gb = data['data_disk_size_gb']
+            boot_disk_size_gb = data['boot_disk_size_gb']
+            job_private = data['job_private']
+
+            machine_type_parts = gcp_machine_type_to_parts(machine_type)
+            assert machine_type_parts is not None, machine_type
+            instance_family = machine_type_parts.machine_family
+
+        products = data.get('products')
+        if products is None:
+            assert data['version'] < 5, data['version']
+
+            preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
+
+            if local_ssd_data_disk:
+                data_disk_product = GCPDiskProduct('disk/local-ssd/1', data_disk_size_gb)
+            else:
+                data_disk_product = GCPDiskProduct('disk/pd-ssd/1', data_disk_size_gb)
+
+            products = [
+                GCPComputeProduct(f'compute/{instance_family}-{preemptible_str}/1'),
+                GCPMemoryProduct(f'memory/{instance_family}-{preemptible_str}/1'),
+                GCPDiskProduct('disk/pd-ssd/1', boot_disk_size_gb),
+                data_disk_product,
+                GCPExternalDiskProduct('disk/pd-ssd/1'),
+                GCPIPFeeProduct('service-fee/1'),
+                GCPServiceFeeProduct('ip-fee/1024/1'),
+            ]
+        else:
+            products = [gcp_product_from_dict(data) for data in products]
+
         return GCPSlimInstanceConfig(
-            data['machine_type'],
-            data['preemptible'],
-            data['local_ssd_data_disk'],
-            data['data_disk_size_gb'],
-            data['boot_disk_size_gb'],
-            data['job_private'],
+            machine_type,
+            preemptible,
+            local_ssd_data_disk,
+            data_disk_size_gb,
+            boot_disk_size_gb,
+            job_private,
+            products,
         )
 
     def to_dict(self) -> dict:
@@ -75,30 +147,6 @@ class GCPSlimInstanceConfig(InstanceConfig):
             'local_ssd_data_disk': self.local_ssd_data_disk,
             'data_disk_size_gb': self.data_disk_size_gb,
             'boot_disk_size_gb': self.boot_disk_size_gb,
-            'job_private': self.job_private
+            'job_private': self.job_private,
+            'products': [product.to_dict() for product in self.products]
         }
-
-    def resources(self,
-                  cpu_in_mcpu: int,
-                  memory_in_bytes: int,
-                  extra_storage_in_gib: int,
-                  ) -> List[QuantifiedResource]:
-        assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes
-        assert isinstance(extra_storage_in_gib, int), extra_storage_in_gib
-        assert is_power_two(self.cores) and self.cores <= 256, self.cores
-
-        preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'
-        worker_fraction_in_1024ths = 1024 * cpu_in_mcpu // (self.cores * 1000)
-        if self.local_ssd_data_disk:
-            data_disk_product = 'disk/local-ssd/1'
-        else:
-            data_disk_product = 'disk/pd-ssd/1'
-        return [
-            {'name': f'compute/{self._instance_family}-{preemptible}/1', 'quantity': cpu_in_mcpu},
-            {'name': f'memory/{self._instance_family}-{preemptible}/1', 'quantity': memory_in_bytes // 1024 // 1024},
-            {'name': 'disk/pd-ssd/1', 'quantity': self.boot_disk_size_gb * worker_fraction_in_1024ths},  # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
-            {'name': data_disk_product, 'quantity': self.data_disk_size_gb * worker_fraction_in_1024ths},  # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
-            {'name': 'disk/pd-ssd/1', 'quantity': extra_storage_in_gib * 1024},  # storage is in units of MiB
-            {'name': 'service-fee/1', 'quantity': cpu_in_mcpu},
-            {'name': 'ip-fee/1024/1', 'quantity': worker_fraction_in_1024ths},
-        ]

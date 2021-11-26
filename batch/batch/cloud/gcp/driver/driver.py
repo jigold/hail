@@ -12,6 +12,7 @@ from ....inst_coll_config import InstanceCollectionConfigs
 
 from .disks import delete_orphaned_disks
 from .activity_logs import process_activity_log_events_since
+from .product_manager import GCPProductManager
 from .zones import ZoneMonitor
 from .resource_manager import GCPResourceManager
 
@@ -46,8 +47,9 @@ class GCPDriver(CloudDriver):
         )
 
         zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
-        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor)
-        resource_manager = GCPResourceManager(project, compute_client)
+        product_manager = await GCPProductManager.create(db)
+        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, product_manager)
+        resource_manager = GCPResourceManager(project, compute_client, product_manager)
 
         create_pools_coros = [
             Pool.create(app,
@@ -73,12 +75,14 @@ class GCPDriver(CloudDriver):
                            project,
                            namespace,
                            zone_monitor,
+                           product_manager,
                            inst_coll_manager,
                            jpim)
 
         task_manager.ensure_future(periodically_call(15, driver.process_activity_logs))
         task_manager.ensure_future(periodically_call(60, zone_monitor.update_region_quotas))
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_disks))
+        task_manager.ensure_future(periodically_call(60, product_manager.refresh_latest_product_versions))
 
         return driver
 
@@ -90,6 +94,7 @@ class GCPDriver(CloudDriver):
                  project: str,
                  namespace: str,
                  zone_monitor: ZoneMonitor,
+                 product_manager: GCPProductManager,
                  inst_coll_manager: InstanceCollectionManager,
                  job_private_inst_manager: JobPrivateInstanceManager):
         self.db = db
@@ -99,6 +104,7 @@ class GCPDriver(CloudDriver):
         self.project = project
         self.namespace = namespace
         self.zone_monitor = zone_monitor
+        self.product_manager = product_manager
         self.inst_coll_manager = inst_coll_manager
         self.job_private_inst_manager = job_private_inst_manager
 
