@@ -16,6 +16,10 @@ class GCPResourceManager(CloudResourceManager):
         await pm.refresh_latest_resource_versions()
         return pm
 
+    @staticmethod
+    def from_resource_versions_dict(latest_resource_versions: Dict[str, str]) -> 'GCPResourceManager':
+        raise NotImplementedError
+
     def __init__(self, db: Database):
         self.db = db
         self._latest_resource_versions: Dict[str, str] = {}

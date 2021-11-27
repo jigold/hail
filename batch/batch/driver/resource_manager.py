@@ -9,6 +9,11 @@ log = logging.getLogger('resource_manager')
 
 
 class CloudResourceManager(abc.ABC):
+    @staticmethod
+    @abc.abstractmethod
+    def from_resource_versions_dict(data: Dict[str, str]) -> 'CloudResourceManager':
+        raise NotImplementedError
+
     @abc.abstractmethod
     def latest_resource_versions(self) -> Dict[str, str]:
         raise NotImplementedError
