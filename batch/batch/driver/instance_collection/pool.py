@@ -22,7 +22,7 @@ from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...inst_coll_config import PoolConfig
 from ...utils import Box, ExceededSharesCounter
 from ..instance import Instance
-from ..resource_manager import CloudResourceManager
+from ..driver_api import CloudDriverAPI
 from ..job import schedule_job
 
 from .base import InstanceCollectionManager, InstanceCollection
@@ -35,7 +35,7 @@ class Pool(InstanceCollection):
     async def create(app,
                      db: Database,  # BORROWED
                      inst_coll_manager: InstanceCollectionManager,
-                     resource_manager: CloudResourceManager,
+                     resource_manager: CloudDriverAPI,
                      machine_name_prefix: str,
                      config: PoolConfig,
                      async_worker_pool: AsyncWorkerPool,  # BORROWED
@@ -56,7 +56,7 @@ class Pool(InstanceCollection):
                  app,
                  db: Database,  # BORROWED
                  inst_coll_manager: InstanceCollectionManager,
-                 resource_manager: CloudResourceManager,
+                 resource_manager: CloudDriverAPI,
                  machine_name_prefix: str,
                  config: PoolConfig,
                  async_worker_pool: AsyncWorkerPool,  # BORROWED

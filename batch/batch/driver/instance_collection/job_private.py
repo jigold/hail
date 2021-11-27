@@ -25,7 +25,7 @@ from ...instance_config import QuantifiedResource
 
 from ..instance import Instance
 from ..job import mark_job_creating, schedule_job
-from ..resource_manager import CloudResourceManager
+from ..driver_api import CloudDriverAPI
 
 from .base import InstanceCollectionManager, InstanceCollection
 
@@ -37,7 +37,7 @@ class JobPrivateInstanceManager(InstanceCollection):
     async def create(app,
                      db: Database,  # BORROWED
                      inst_coll_manager: InstanceCollectionManager,
-                     resource_manager: CloudResourceManager,
+                     resource_manager: CloudDriverAPI,
                      machine_name_prefix: str,
                      config: JobPrivateInstanceManagerConfig,
                      task_manager: aiotools.BackgroundTaskManager,
@@ -58,7 +58,7 @@ class JobPrivateInstanceManager(InstanceCollection):
                  app,
                  db: Database,  # BORROWED
                  inst_coll_manager: InstanceCollectionManager,
-                 resource_manager: CloudResourceManager,
+                 resource_manager: CloudDriverAPI,
                  machine_name_prefix: str,
                  config: JobPrivateInstanceManagerConfig,
                  task_manager: aiotools.BackgroundTaskManager,

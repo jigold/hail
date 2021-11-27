@@ -12,8 +12,8 @@ from ....driver.driver import CloudDriver
 from ....driver.instance_collection import Pool, JobPrivateInstanceManager, InstanceCollectionManager
 from ....inst_coll_config import InstanceCollectionConfigs
 
-from .product_manager import AzureProductManager
 from .resource_manager import AzureResourceManager
+from .driver_api import AzureDriverAPI
 from .regions import RegionMonitor
 
 
@@ -44,15 +44,15 @@ class AzureDriver(CloudDriver):
         network_client = aioazure.AzureNetworkClient(subscription_id, resource_group, credentials_file=credentials_file)
 
         region_monitor = await RegionMonitor.create(region)
-        product_manager = await AzureProductManager.create(db)
-        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor, product_manager)
-        resource_manager = AzureResourceManager(subscription_id, resource_group, ssh_public_key, arm_client, compute_client, product_manager)
+        resource_manager = await AzureResourceManager.create(db)
+        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor)
+        driver_api = AzureDriverAPI(subscription_id, resource_group, ssh_public_key, arm_client, compute_client, resource_manager)
 
         create_pools_coros = [
             Pool.create(app,
                         db,
                         inst_coll_manager,
-                        resource_manager,
+                        driver_api,
                         machine_name_prefix,
                         config,
                         app['async_worker_pool'],
@@ -62,7 +62,7 @@ class AzureDriver(CloudDriver):
 
         jpim, *_ = await asyncio.gather(
             JobPrivateInstanceManager.create(
-                app, db, inst_coll_manager, resource_manager, machine_name_prefix, inst_coll_configs.jpim_config, task_manager),
+                app, db, inst_coll_manager, driver_api, machine_name_prefix, inst_coll_configs.jpim_config, task_manager),
             *create_pools_coros)
 
         driver = AzureDriver(db,
@@ -80,7 +80,7 @@ class AzureDriver(CloudDriver):
 
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_nics))
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_public_ips))
-        task_manager.ensure_future(periodically_call(60, product_manager.refresh_latest_product_versions))
+        task_manager.ensure_future(periodically_call(60, resource_manager.refresh_latest_resource_versions))
 
         return driver
 
