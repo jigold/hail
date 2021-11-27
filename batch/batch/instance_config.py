@@ -1,7 +1,7 @@
 from typing import Dict, List, Sequence
 import abc
 
-from .products import QuantifiedResource, Product
+from .resources import QuantifiedResource, Resource
 from .cloud.resource_utils import cores_mcpu_to_memory_bytes
 
 
@@ -13,7 +13,7 @@ class InstanceConfig(abc.ABC):
     cloud: str
     cores: int
     job_private: bool
-    products: Sequence[Product]
+    products: Sequence[Resource]
 
     @staticmethod
     @abc.abstractmethod

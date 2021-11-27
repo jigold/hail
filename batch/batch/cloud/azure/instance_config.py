@@ -4,8 +4,8 @@ from hailtop.utils import flatten
 
 from ...instance_config import InstanceConfig
 from .resource_utils import azure_machine_type_to_worker_type_and_cores
-from .products import (AzureProduct, AzureVMProduct, AzureDiskProduct, AzureExternalDiskProduct,
-                       AzureServiceFeeProduct, AzureIPFeeProduct, azure_product_from_dict)
+from .products import (AzureResource, AzureVMResource, AzureDiskResource, AzureExternalDiskResource,
+                       AzureServiceFeeResource, AzureIPFeeResource, azure_resource_from_dict)
 
 
 AZURE_INSTANCE_CONFIG_VERSION = 2
@@ -24,15 +24,15 @@ class AzureSlimInstanceConfig(InstanceConfig):
         if local_ssd_data_disk:
             data_disk_product = None
         else:
-            data_disk_product = AzureDiskProduct.new_product(latest_product_versions, 'P', data_disk_size_gb, location)
+            data_disk_product = AzureDiskResource.new_resource(latest_product_versions, 'P', data_disk_size_gb, location)
 
         products = flatten([
-            AzureVMProduct.new_product(latest_product_versions, machine_type, preemptible, location),
-            AzureDiskProduct.new_product(latest_product_versions, 'P', boot_disk_size_gb, location),
+            AzureVMResource.new_resource(latest_product_versions, machine_type, preemptible, location),
+            AzureDiskResource.new_resource(latest_product_versions, 'P', boot_disk_size_gb, location),
             data_disk_product,
-            AzureExternalDiskProduct.new_product(latest_product_versions, 'P', location),
-            AzureIPFeeProduct.new_product(latest_product_versions, 1024),
-            AzureServiceFeeProduct.new_product(latest_product_versions),
+            AzureExternalDiskResource.new_resource(latest_product_versions, 'P', location),
+            AzureIPFeeResource.new_resource(latest_product_versions, 1024),
+            AzureServiceFeeResource.new_resource(latest_product_versions),
         ])
 
         return AzureSlimInstanceConfig(
@@ -52,7 +52,7 @@ class AzureSlimInstanceConfig(InstanceConfig):
                  data_disk_size_gb: int,
                  boot_disk_size_gb: int,
                  job_private: bool,
-                 products: List[AzureProduct]
+                 products: List[AzureResource]
                  ):
         self.cloud = 'azure'
         self._machine_type = machine_type
@@ -77,7 +77,7 @@ class AzureSlimInstanceConfig(InstanceConfig):
         if products is None:
             assert data['version'] == 1, data['version']
             products = []
-        products = [azure_product_from_dict(data) for data in products]
+        products = [azure_resource_from_dict(data) for data in products]
 
         return AzureSlimInstanceConfig(
             data['machine_type'],

@@ -8,11 +8,11 @@ class QuantifiedResource(TypedDict):
     quantity: int
 
 
-class Product(abc.ABC):
+class Resource(abc.ABC):
     name: str
 
     @staticmethod
-    def latest_product_name(latest_product_versions: Dict[str, str], prefix: str):
+    def latest_resource_name(latest_product_versions: Dict[str, str], prefix: str):
         version = latest_product_versions[prefix]
         return f'{prefix}/{version}'
 
@@ -25,7 +25,7 @@ class Product(abc.ABC):
         return self.name.rsplit('/', maxsplit=1)[1]
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'Product':
+    def from_dict(data: Dict[str, Any]) -> 'Resource':
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -41,7 +41,7 @@ class Product(abc.ABC):
         raise NotImplementedError
 
 
-class DiskProductMixin(Product, abc.ABC):
+class DiskResourceMixin(Resource, abc.ABC):
     storage_in_gib: int
 
     def to_quantified_resource(self,
@@ -54,7 +54,7 @@ class DiskProductMixin(Product, abc.ABC):
         return {'name': self.name, 'quantity': self.storage_in_gib * worker_fraction_in_1024ths}
 
 
-class ExternalDiskProductMixin(Product, abc.ABC):
+class ExternalDiskResourceMixin(Resource, abc.ABC):
     @abc.abstractmethod
     def to_quantified_resource(self,
                                cpu_in_mcpu: int,
@@ -64,7 +64,7 @@ class ExternalDiskProductMixin(Product, abc.ABC):
         raise NotImplementedError
 
 
-class ComputeProductMixin(Product, abc.ABC):
+class ComputeResourceMixin(Resource, abc.ABC):
     def to_quantified_resource(self,
                                cpu_in_mcpu: int,
                                memory_in_bytes: int,
@@ -74,7 +74,7 @@ class ComputeProductMixin(Product, abc.ABC):
         return {'name': self.name, 'quantity': cpu_in_mcpu}
 
 
-class VMProductMixin(Product, abc.ABC):
+class VMResourceMixin(Resource, abc.ABC):
     def to_quantified_resource(self,
                                cpu_in_mcpu: int,
                                memory_in_bytes: int,
@@ -84,7 +84,7 @@ class VMProductMixin(Product, abc.ABC):
         return {'name': self.name, 'quantity': worker_fraction_in_1024ths}
 
 
-class MemoryProductMixin(Product, abc.ABC):
+class MemoryResourceMixin(Resource, abc.ABC):
     def to_quantified_resource(self,
                                cpu_in_mcpu: int,
                                memory_in_bytes: int,
@@ -94,7 +94,7 @@ class MemoryProductMixin(Product, abc.ABC):
         return {'name': self.name, 'quantity': memory_in_bytes // 1024 // 1024}
 
 
-class IPFeeProductMixin(Product, abc.ABC):
+class IPFeeResourceMixin(Resource, abc.ABC):
     def to_quantified_resource(self,
                                cpu_in_mcpu: int,
                                memory_in_bytes: int,
@@ -104,7 +104,7 @@ class IPFeeProductMixin(Product, abc.ABC):
         return {'name': self.name, 'quantity': worker_fraction_in_1024ths}
 
 
-class ServiceFeeProductMixin(Product, abc.ABC):
+class ServiceFeeResourceMixin(Resource, abc.ABC):
     def to_quantified_resource(self,
                                cpu_in_mcpu: int,
                                memory_in_bytes: int,

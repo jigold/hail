@@ -22,5 +22,8 @@ class AzureResourceManager(CloudResourceManager):
     def latest_resource_versions(self) -> Dict[str, str]:
         return self._latest_resource_versions
 
+    def latest_resource_version(self, prefix: str) -> str:
+        return self._latest_resource_versions[prefix]
+
     async def refresh_latest_resource_versions(self):
         self._latest_resource_versions = await refresh_latest_resource_versions(self.db)

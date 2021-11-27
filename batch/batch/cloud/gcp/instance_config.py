@@ -1,8 +1,8 @@
 from typing import List, Dict
 
 from ...instance_config import InstanceConfig
-from .products import (GCPProduct, GCPComputeProduct, GCPMemoryProduct, GCPDiskProduct, GCPExternalDiskProduct,
-                       GCPIPFeeProduct, GCPServiceFeeProduct, gcp_product_from_dict)
+from .resources import (GCPResource, GCPComputeResource, GCPMemoryResource, GCPDiskResource, GCPExternalDiskResource,
+                        GCPIPFeeResource, GCPServiceFeeResource, gcp_resource_from_dict)
 from .resource_utils import gcp_machine_type_to_parts, family_worker_type_cores_to_gcp_machine_type
 
 
@@ -20,22 +20,22 @@ class GCPSlimInstanceConfig(InstanceConfig):
                job_private: bool,
                location: str) -> 'GCPSlimInstanceConfig':  # pylint: disable=unused-argument
         if local_ssd_data_disk:
-            data_disk_product = GCPDiskProduct.new_product(latest_product_versions, 'local-ssd', data_disk_size_gb)
+            data_disk_product = GCPDiskResource.new_resource(latest_product_versions, 'local-ssd', data_disk_size_gb)
         else:
-            data_disk_product = GCPDiskProduct.new_product(latest_product_versions, 'pd-ssd', data_disk_size_gb)
+            data_disk_product = GCPDiskResource.new_resource(latest_product_versions, 'pd-ssd', data_disk_size_gb)
 
         machine_type_parts = gcp_machine_type_to_parts(machine_type)
         assert machine_type_parts is not None, machine_type
         instance_family = machine_type_parts.machine_family
 
         products = [
-            GCPComputeProduct.new_product(latest_product_versions, instance_family, preemptible),
-            GCPMemoryProduct.new_product(latest_product_versions, instance_family, preemptible),
-            GCPDiskProduct.new_product(latest_product_versions, 'pd-ssd', boot_disk_size_gb),
+            GCPComputeResource.new_resource(latest_product_versions, instance_family, preemptible),
+            GCPMemoryResource.new_resource(latest_product_versions, instance_family, preemptible),
+            GCPDiskResource.new_resource(latest_product_versions, 'pd-ssd', boot_disk_size_gb),
             data_disk_product,
-            GCPExternalDiskProduct.new_product(latest_product_versions, 'pd-ssd'),
-            GCPIPFeeProduct.new_product(latest_product_versions, 1024),
-            GCPServiceFeeProduct.new_product(latest_product_versions),
+            GCPExternalDiskResource.new_resource(latest_product_versions, 'pd-ssd'),
+            GCPIPFeeResource.new_resource(latest_product_versions, 1024),
+            GCPServiceFeeResource.new_resource(latest_product_versions),
         ]
 
         return GCPSlimInstanceConfig(
@@ -55,7 +55,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
                  data_disk_size_gb: int,
                  boot_disk_size_gb: int,
                  job_private: bool,
-                 products: List[GCPProduct],
+                 products: List[GCPResource],
                  ):
         self.cloud = 'gcp'
         self._machine_type = machine_type
@@ -112,21 +112,21 @@ class GCPSlimInstanceConfig(InstanceConfig):
             preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
 
             if local_ssd_data_disk:
-                data_disk_product = GCPDiskProduct('disk/local-ssd/1', data_disk_size_gb)
+                data_disk_product = GCPDiskResource('disk/local-ssd/1', data_disk_size_gb)
             else:
-                data_disk_product = GCPDiskProduct('disk/pd-ssd/1', data_disk_size_gb)
+                data_disk_product = GCPDiskResource('disk/pd-ssd/1', data_disk_size_gb)
 
             products = [
-                GCPComputeProduct(f'compute/{instance_family}-{preemptible_str}/1'),
-                GCPMemoryProduct(f'memory/{instance_family}-{preemptible_str}/1'),
-                GCPDiskProduct('disk/pd-ssd/1', boot_disk_size_gb),
+                GCPComputeResource(f'compute/{instance_family}-{preemptible_str}/1'),
+                GCPMemoryResource(f'memory/{instance_family}-{preemptible_str}/1'),
+                GCPDiskResource('disk/pd-ssd/1', boot_disk_size_gb),
                 data_disk_product,
-                GCPExternalDiskProduct('disk/pd-ssd/1'),
-                GCPIPFeeProduct('service-fee/1'),
-                GCPServiceFeeProduct('ip-fee/1024/1'),
+                GCPExternalDiskResource('disk/pd-ssd/1'),
+                GCPIPFeeResource('service-fee/1'),
+                GCPServiceFeeResource('ip-fee/1024/1'),
             ]
         else:
-            products = [gcp_product_from_dict(data) for data in products]
+            products = [gcp_resource_from_dict(data) for data in products]
 
         return GCPSlimInstanceConfig(
             machine_type,

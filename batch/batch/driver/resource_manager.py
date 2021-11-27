@@ -13,6 +13,14 @@ class CloudResourceManager(abc.ABC):
     def latest_resource_versions(self) -> Dict[str, str]:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def latest_resource_version(self, prefix: str) -> str:
+        raise NotImplementedError
+
+    def latest_resource(self, prefix: str) -> str:
+        version = self.latest_resource_version(prefix)
+        return f'{prefix}/{version}'
+
 
 async def refresh_latest_resource_versions(db: Database) -> Dict[str, str]:
     records = db.execute_and_fetchall('SELECT prefix, version FROM latest_resource_versions')

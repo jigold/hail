@@ -2,32 +2,32 @@ import abc
 import re
 from typing import Dict, Any
 
-from ...products import (QuantifiedResource, Product, DiskProductMixin, VMProductMixin, IPFeeProductMixin,
-                         ServiceFeeProductMixin, ExternalDiskProductMixin)
+from ...resources import (QuantifiedResource, Resource, DiskResourceMixin, VMResourceMixin, IPFeeResourceMixin,
+                          ServiceFeeResourceMixin, ExternalDiskResourceMixin)
 from .resource_utils import azure_disk_from_storage_in_gib, valid_azure_disk_names
 
 
-class AzureProduct(Product, abc.ABC):
+class AzureResource(Resource, abc.ABC):
     pass
 
 
-class AzureDiskProduct(DiskProductMixin, AzureProduct):
+class AzureDiskResource(DiskResourceMixin, AzureResource):
     FORMAT_VERSION = 1
     TYPE = 'azure_disk'
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'AzureDiskProduct':
-        assert data['type'] == AzureDiskProduct.TYPE
-        return AzureDiskProduct(data['name'], data['storage_in_gib'])
+    def from_dict(data: Dict[str, Any]) -> 'AzureDiskResource':
+        assert data['type'] == AzureDiskResource.TYPE
+        return AzureDiskResource(data['name'], data['storage_in_gib'])
 
     @staticmethod
-    def new_product(latest_versions: Dict[str, str], disk_type: str, storage_in_gib: int, location: str):
+    def new_resource(latest_versions: Dict[str, str], disk_type: str, storage_in_gib: int, location: str):
         # Azure bills for specific disk sizes so we must round the storage_in_gib to the nearest power of two
         disk = azure_disk_from_storage_in_gib(disk_type, storage_in_gib)
         assert disk, f'disk_type={disk_type} storage_in_gib={storage_in_gib}'
         prefix = f'az/disk/{disk.name}/{location}'
-        name = AzureDiskProduct.latest_product_name(latest_versions, prefix)
-        return AzureDiskProduct(name, storage_in_gib)
+        name = AzureDiskResource.latest_resource_name(latest_versions, prefix)
+        return AzureDiskResource(name, storage_in_gib)
 
     def __init__(self, name: str, storage_in_gib: int):
         self.name = name
@@ -42,17 +42,17 @@ class AzureDiskProduct(DiskProductMixin, AzureProduct):
         }
 
 
-class AzureExternalDiskProduct(ExternalDiskProductMixin, AzureProduct):
+class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
     FORMAT_VERSION = 1
     TYPE = 'azure_external_disk'
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'AzureExternalDiskProduct':
-        assert data['type'] == AzureExternalDiskProduct.TYPE
-        return AzureExternalDiskProduct(data['disk_type'], data['location'], data['latest_disk_versions'])
+    def from_dict(data: Dict[str, Any]) -> 'AzureExternalDiskResource':
+        assert data['type'] == AzureExternalDiskResource.TYPE
+        return AzureExternalDiskResource(data['disk_type'], data['location'], data['latest_disk_versions'])
 
     @staticmethod
-    def new_product(latest_product_versions: Dict[str, str], disk_type: str, location: str):
+    def new_resource(latest_product_versions: Dict[str, str], disk_type: str, location: str):
         def is_disk_product(product_name):
             match = re.fullmatch(rf'az/disk/(?P<name>[^/]+)/{location}', product_name)
             if match is None:
@@ -63,7 +63,7 @@ class AzureExternalDiskProduct(ExternalDiskProductMixin, AzureProduct):
                                 for product_name, version in latest_product_versions.items()
                                 if is_disk_product(product_name)}
 
-        return AzureExternalDiskProduct(disk_type, location, latest_disk_versions)
+        return AzureExternalDiskResource(disk_type, location, latest_disk_versions)
 
     def __init__(self, disk_type: str, location: str, latest_disk_versions: Dict[str, str]):
         self.disk_type = disk_type
@@ -94,21 +94,21 @@ class AzureExternalDiskProduct(ExternalDiskProductMixin, AzureProduct):
         }
 
 
-class AzureVMProduct(VMProductMixin, AzureProduct):
+class AzureVMResource(VMResourceMixin, AzureResource):
     FORMAT_VERSION = 1
     TYPE = 'azure_vm'
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'AzureVMProduct':
-        assert data['type'] == AzureVMProduct.TYPE
-        return AzureVMProduct(data['name'])
+    def from_dict(data: Dict[str, Any]) -> 'AzureVMResource':
+        assert data['type'] == AzureVMResource.TYPE
+        return AzureVMResource(data['name'])
 
     @staticmethod
-    def new_product(latest_versions: Dict[str, str], machine_type: str, preemptible: bool, location: str):
+    def new_resource(latest_versions: Dict[str, str], machine_type: str, preemptible: bool, location: str):
         preemptible_str = 'spot' if preemptible else 'regular'
         prefix = f'az/vm/{machine_type}/{preemptible_str}/{location}'
-        name = AzureVMProduct.latest_product_name(latest_versions, prefix)
-        return AzureVMProduct(name)
+        name = AzureVMResource.latest_resource_name(latest_versions, prefix)
+        return AzureVMResource(name)
 
     def __init__(self, name: str):
         self.name = name
@@ -121,20 +121,20 @@ class AzureVMProduct(VMProductMixin, AzureProduct):
         }
 
 
-class AzureServiceFeeProduct(ServiceFeeProductMixin, AzureProduct):
+class AzureServiceFeeResource(ServiceFeeResourceMixin, AzureResource):
     FORMAT_VERSION = 1
     TYPE = 'azure_service_fee'
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'AzureServiceFeeProduct':
-        assert data['type'] == AzureServiceFeeProduct.TYPE
-        return AzureServiceFeeProduct(data['name'])
+    def from_dict(data: Dict[str, Any]) -> 'AzureServiceFeeResource':
+        assert data['type'] == AzureServiceFeeResource.TYPE
+        return AzureServiceFeeResource(data['name'])
 
     @staticmethod
-    def new_product(latest_versions: Dict[str, str]):
+    def new_resource(latest_versions: Dict[str, str]):
         prefix = 'az/service-fee'
-        name = AzureServiceFeeProduct.latest_product_name(latest_versions, prefix)
-        return AzureServiceFeeProduct(name)
+        name = AzureServiceFeeResource.latest_resource_name(latest_versions, prefix)
+        return AzureServiceFeeResource(name)
 
     def __init__(self, name: str):
         self.name = name
@@ -147,20 +147,20 @@ class AzureServiceFeeProduct(ServiceFeeProductMixin, AzureProduct):
         }
 
 
-class AzureIPFeeProduct(IPFeeProductMixin, AzureProduct):
+class AzureIPFeeResource(IPFeeResourceMixin, AzureResource):
     FORMAT_VERSION = 1
     TYPE = 'azure_ip_fee'
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'AzureIPFeeProduct':
-        assert data['type'] == AzureIPFeeProduct.TYPE
-        return AzureIPFeeProduct(data['name'])
+    def from_dict(data: Dict[str, Any]) -> 'AzureIPFeeResource':
+        assert data['type'] == AzureIPFeeResource.TYPE
+        return AzureIPFeeResource(data['name'])
 
     @staticmethod
-    def new_product(latest_versions: Dict[str, str], base: int):
+    def new_resource(latest_versions: Dict[str, str], base: int):
         prefix = f'az/ip-fee/{base}'
-        name = AzureIPFeeProduct.latest_product_name(latest_versions, prefix)
-        return AzureIPFeeProduct(name)
+        name = AzureIPFeeResource.latest_resource_name(latest_versions, prefix)
+        return AzureIPFeeResource(name)
 
     def __init__(self, name: str):
         self.name = name
@@ -173,15 +173,15 @@ class AzureIPFeeProduct(IPFeeProductMixin, AzureProduct):
         }
 
 
-def azure_product_from_dict(data: dict) -> AzureProduct:
+def azure_resource_from_dict(data: dict) -> AzureResource:
     typ = data['type']
-    if typ == AzureDiskProduct.TYPE:
-        return AzureDiskProduct.from_dict(data)
-    if typ == AzureExternalDiskProduct.TYPE:
-        return AzureExternalDiskProduct.from_dict(data)
-    if typ == AzureVMProduct.TYPE:
-        return AzureVMProduct.from_dict(data)
-    if typ == AzureServiceFeeProduct.TYPE:
-        return AzureServiceFeeProduct.from_dict(data)
-    assert typ == AzureIPFeeProduct.TYPE
-    return AzureIPFeeProduct.from_dict(data)
+    if typ == AzureDiskResource.TYPE:
+        return AzureDiskResource.from_dict(data)
+    if typ == AzureExternalDiskResource.TYPE:
+        return AzureExternalDiskResource.from_dict(data)
+    if typ == AzureVMResource.TYPE:
+        return AzureVMResource.from_dict(data)
+    if typ == AzureServiceFeeResource.TYPE:
+        return AzureServiceFeeResource.from_dict(data)
+    assert typ == AzureIPFeeResource.TYPE
+    return AzureIPFeeResource.from_dict(data)
