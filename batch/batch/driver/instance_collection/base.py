@@ -97,7 +97,7 @@ class InstanceCollection:
     def __init__(self,
                  db: Database,  # BORROWED
                  inst_coll_manager: InstanceCollectionManager,
-                 resource_manager: CloudDriverAPI,
+                 driver_api: CloudDriverAPI,
                  cloud: str,
                  name: str,
                  machine_name_prefix: str,
@@ -108,7 +108,7 @@ class InstanceCollection:
                  ):
         self.db = db
         self.inst_coll_manager = inst_coll_manager
-        self.resource_manager = resource_manager
+        self.driver_api = driver_api
         self.cloud = cloud
         self.name = name
         self.machine_name_prefix = f'{machine_name_prefix}{self.name}-'
@@ -213,7 +213,7 @@ class InstanceCollection:
 
         machine_name = self.generate_machine_name()
         activation_token = secrets.token_urlsafe(32)
-        instance_config = self.resource_manager.instance_config(
+        instance_config = self.driver_api.instance_config(
             machine_type=machine_type,
             preemptible=preemptible,
             local_ssd_data_disk=local_ssd_data_disk,
@@ -234,7 +234,7 @@ class InstanceCollection:
             instance_config=instance_config
         )
         self.add_instance(instance)
-        total_resources_on_instance = await self.resource_manager.create_vm(
+        total_resources_on_instance = await self.driver_api.create_vm(
             file_store=app['file_store'],
             resource_rates=app['resource_rates'],
             machine_name=machine_name,
@@ -263,7 +263,7 @@ class InstanceCollection:
             await instance.deactivate(reason, timestamp)
 
         try:
-            await self.resource_manager.delete_vm(instance)
+            await self.driver_api.delete_vm(instance)
         except VMDoesNotExist:
             log.info(f'{instance} delete already done')
             await self.remove_instance(instance, reason, timestamp)
@@ -282,7 +282,7 @@ class InstanceCollection:
             return
 
         try:
-            vm_state = await self.resource_manager.get_vm_state(instance)
+            vm_state = await self.driver_api.get_vm_state(instance)
         except VMDoesNotExist:
             await self.remove_instance(instance, 'does_not_exist')
             return

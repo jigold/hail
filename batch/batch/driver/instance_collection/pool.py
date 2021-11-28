@@ -35,14 +35,14 @@ class Pool(InstanceCollection):
     async def create(app,
                      db: Database,  # BORROWED
                      inst_coll_manager: InstanceCollectionManager,
-                     resource_manager: CloudDriverAPI,
+                     driver_api: CloudDriverAPI,
                      machine_name_prefix: str,
                      config: PoolConfig,
                      async_worker_pool: AsyncWorkerPool,  # BORROWED
                      task_manager: aiotools.BackgroundTaskManager
                      ) -> 'Pool':
         pool = Pool(
-            app, db, inst_coll_manager, resource_manager, machine_name_prefix, config, async_worker_pool, task_manager)
+            app, db, inst_coll_manager, driver_api, machine_name_prefix, config, async_worker_pool, task_manager)
         log.info(f'initializing {pool}')
 
         async for record in db.select_and_fetchall(
@@ -56,7 +56,7 @@ class Pool(InstanceCollection):
                  app,
                  db: Database,  # BORROWED
                  inst_coll_manager: InstanceCollectionManager,
-                 resource_manager: CloudDriverAPI,
+                 driver_api: CloudDriverAPI,
                  machine_name_prefix: str,
                  config: PoolConfig,
                  async_worker_pool: AsyncWorkerPool,  # BORROWED
@@ -64,7 +64,7 @@ class Pool(InstanceCollection):
                  ):
         super().__init__(db,
                          inst_coll_manager,
-                         resource_manager,
+                         driver_api,
                          config.cloud,
                          config.name,
                          machine_name_prefix,
@@ -160,7 +160,7 @@ class Pool(InstanceCollection):
                               max_idle_time_msecs: Optional[int] = None,
                               location: Optional[str] = None,
                               ):
-        machine_type = self.resource_manager.machine_type(cores, self.worker_type, self.worker_local_ssd_data_disk)
+        machine_type = self.driver_api.machine_type(cores, self.worker_type, self.worker_local_ssd_data_disk)
         _, _ = await self._create_instance(
             app=self.app,
             cores=cores,
