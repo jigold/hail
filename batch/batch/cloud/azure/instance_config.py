@@ -23,14 +23,14 @@ class AzureSlimInstanceConfig(InstanceConfig):
                job_private: bool,
                location: str) -> 'AzureSlimInstanceConfig':
         if local_ssd_data_disk:
-            data_disk_product = None
+            data_disk_resource = None
         else:
-            data_disk_product = AzureDiskResource.new_resource(resource_versions, 'P', data_disk_size_gb, location)
+            data_disk_resource = AzureDiskResource.new_resource(resource_versions, 'P', data_disk_size_gb, location)
 
-        products = flatten([
+        resources = flatten([
             AzureVMResource.new_resource(resource_versions, machine_type, preemptible, location),
             AzureDiskResource.new_resource(resource_versions, 'P', boot_disk_size_gb, location),
-            data_disk_product,
+            data_disk_resource,
             AzureExternalDiskResource.new_resource(resource_versions, 'P', location),
             AzureIPFeeResource.new_resource(resource_versions, 1024),
             AzureServiceFeeResource.new_resource(resource_versions),
@@ -43,7 +43,7 @@ class AzureSlimInstanceConfig(InstanceConfig):
             data_disk_size_gb=data_disk_size_gb,
             boot_disk_size_gb=boot_disk_size_gb,
             job_private=job_private,
-            products=products,
+            resources=resources,
         )
 
     def __init__(self,
@@ -53,7 +53,7 @@ class AzureSlimInstanceConfig(InstanceConfig):
                  data_disk_size_gb: int,
                  boot_disk_size_gb: int,
                  job_private: bool,
-                 products: List[AzureResource]
+                 resources: List[AzureResource]
                  ):
         self.cloud = 'azure'
         self._machine_type = machine_type
@@ -62,7 +62,7 @@ class AzureSlimInstanceConfig(InstanceConfig):
         self.data_disk_size_gb = data_disk_size_gb
         self.job_private = job_private
         self.boot_disk_size_gb = boot_disk_size_gb
-        self.products = products
+        self.resources = resources
 
         worker_type, cores = azure_machine_type_to_worker_type_and_cores(self._machine_type)
 
@@ -74,11 +74,11 @@ class AzureSlimInstanceConfig(InstanceConfig):
 
     @staticmethod
     def from_dict(data: dict) -> 'AzureSlimInstanceConfig':
-        products = data.get('products')
-        if products is None:
+        resources = data.get('resources')
+        if resources is None:
             assert data['version'] == 1, data['version']
-            products = []
-        products = [azure_resource_from_dict(data) for data in products]
+            resources = []
+        resources = [azure_resource_from_dict(resource) for resource in resources]
 
         return AzureSlimInstanceConfig(
             data['machine_type'],
@@ -87,7 +87,7 @@ class AzureSlimInstanceConfig(InstanceConfig):
             data['data_disk_size_gb'],
             data['boot_disk_size_gb'],
             data['job_private'],
-            products,
+            resources,
         )
 
     def to_dict(self) -> dict:
@@ -100,5 +100,5 @@ class AzureSlimInstanceConfig(InstanceConfig):
             'data_disk_size_gb': self.data_disk_size_gb,
             'boot_disk_size_gb': self.boot_disk_size_gb,
             'job_private': self.job_private,
-            'products': [product.to_dict() for product in self.products]
+            'resources': [resource.to_dict() for resource in self.resources]
         }

@@ -21,19 +21,19 @@ class GCPSlimInstanceConfig(InstanceConfig):
                job_private: bool,
                location: str) -> 'GCPSlimInstanceConfig':  # pylint: disable=unused-argument
         if local_ssd_data_disk:
-            data_disk_product = GCPDiskResource.new_resource(resource_versions, 'local-ssd', data_disk_size_gb)
+            data_disk_resource = GCPDiskResource.new_resource(resource_versions, 'local-ssd', data_disk_size_gb)
         else:
-            data_disk_product = GCPDiskResource.new_resource(resource_versions, 'pd-ssd', data_disk_size_gb)
+            data_disk_resource = GCPDiskResource.new_resource(resource_versions, 'pd-ssd', data_disk_size_gb)
 
         machine_type_parts = gcp_machine_type_to_parts(machine_type)
         assert machine_type_parts is not None, machine_type
         instance_family = machine_type_parts.machine_family
 
-        products = [
+        resources = [
             GCPComputeResource.new_resource(resource_versions, instance_family, preemptible),
             GCPMemoryResource.new_resource(resource_versions, instance_family, preemptible),
             GCPDiskResource.new_resource(resource_versions, 'pd-ssd', boot_disk_size_gb),
-            data_disk_product,
+            data_disk_resource,
             GCPExternalDiskResource.new_resource(resource_versions, 'pd-ssd'),
             GCPIPFeeResource.new_resource(resource_versions, 1024),
             GCPServiceFeeResource.new_resource(resource_versions),
@@ -46,7 +46,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             data_disk_size_gb=data_disk_size_gb,
             boot_disk_size_gb=boot_disk_size_gb,
             job_private=job_private,
-            products=products,
+            resources=resources,
         )
 
     def __init__(self,
@@ -56,7 +56,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
                  data_disk_size_gb: int,
                  boot_disk_size_gb: int,
                  job_private: bool,
-                 products: List[GCPResource],
+                 resources: List[GCPResource],
                  ):
         self.cloud = 'gcp'
         self._machine_type = machine_type
@@ -71,7 +71,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
         self._instance_family = machine_type_parts.machine_family
         self._worker_type = machine_type_parts.worker_type
         self.cores = machine_type_parts.cores
-        self.products = products
+        self.resources = resources
 
     def worker_type(self) -> str:
         return self._worker_type
@@ -106,28 +106,28 @@ class GCPSlimInstanceConfig(InstanceConfig):
             assert machine_type_parts is not None, machine_type
             instance_family = machine_type_parts.machine_family
 
-        products = data.get('products')
-        if products is None:
+        resources = data.get('resources')
+        if resources is None:
             assert data['version'] < 5, data['version']
 
             preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
 
             if local_ssd_data_disk:
-                data_disk_product = GCPDiskResource('disk/local-ssd/1', data_disk_size_gb)
+                data_disk_resource = GCPDiskResource('disk/local-ssd/1', data_disk_size_gb)
             else:
-                data_disk_product = GCPDiskResource('disk/pd-ssd/1', data_disk_size_gb)
+                data_disk_resource = GCPDiskResource('disk/pd-ssd/1', data_disk_size_gb)
 
-            products = [
+            resources = [
                 GCPComputeResource(f'compute/{instance_family}-{preemptible_str}/1'),
                 GCPMemoryResource(f'memory/{instance_family}-{preemptible_str}/1'),
                 GCPDiskResource('disk/pd-ssd/1', boot_disk_size_gb),
-                data_disk_product,
+                data_disk_resource,
                 GCPExternalDiskResource('disk/pd-ssd/1'),
                 GCPIPFeeResource('service-fee/1'),
                 GCPServiceFeeResource('ip-fee/1024/1'),
             ]
         else:
-            products = [gcp_resource_from_dict(data) for data in products]
+            resources = [gcp_resource_from_dict(data) for data in resources]
 
         return GCPSlimInstanceConfig(
             machine_type,
@@ -136,7 +136,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             data_disk_size_gb,
             boot_disk_size_gb,
             job_private,
-            products,
+            resources,
         )
 
     def to_dict(self) -> dict:
@@ -149,5 +149,5 @@ class GCPSlimInstanceConfig(InstanceConfig):
             'data_disk_size_gb': self.data_disk_size_gb,
             'boot_disk_size_gb': self.boot_disk_size_gb,
             'job_private': self.job_private,
-            'products': [product.to_dict() for product in self.products]
+            'resources': [resource.to_dict() for resource in self.resources]
         }

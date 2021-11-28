@@ -135,7 +135,7 @@ class AzureDriverAPI(CloudDriverAPI):
         memory_mib = azure_worker_memory_per_core_mib(worker_type) * cores
         memory_in_bytes = memory_mib << 20
         cores_mcpu = cores * 1000
-        total_resources_on_instance = instance_config.resources(
+        total_resources_on_instance = instance_config.quantified_resources(
             cpu_in_mcpu=cores_mcpu, memory_in_bytes=memory_in_bytes, extra_storage_in_gib=0
         )
 
