@@ -93,7 +93,7 @@ class AzureDriverAPI(CloudDriverAPI):
                         location: str,
                         ) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.create(
-            self.resource_manager.latest_resource_versions(),
+            self.resource_manager.resource_versions,
             machine_type,
             preemptible,
             local_ssd_data_disk,

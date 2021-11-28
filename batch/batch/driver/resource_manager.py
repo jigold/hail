@@ -1,5 +1,5 @@
 import abc
-from typing import Dict
+from typing import Dict, Optional
 import logging
 
 from gear import Database
@@ -8,23 +8,37 @@ from gear import Database
 log = logging.getLogger('resource_manager')
 
 
+def resource_version_to_name(prefix: str, version: str) -> str:
+    return f'{prefix}/{version}'
+
+
+class ResourceVersions:
+    def __init__(self, data: Optional[Dict[str, str]] = None):
+        if data is None:
+            data = {}
+        self._resource_versions = data
+
+    def latest_version(self, prefix: str) -> str:
+        return self._resource_versions[prefix]
+
+    def latest_resource_name(self, prefix: str) -> str:
+        version = self.latest_version(prefix)
+        return resource_version_to_name(prefix, version)
+
+    def update(self, data: Dict[str, str]):
+        self._resource_versions = data
+
+    def to_dict(self) -> Dict[str, str]:
+        return self._resource_versions
+
+
 class CloudResourceManager(abc.ABC):
-    @staticmethod
-    @abc.abstractmethod
-    def from_resource_versions_dict(data: Dict[str, str]) -> 'CloudResourceManager':
-        raise NotImplementedError
+    db: Database
+    resource_versions: ResourceVersions
 
-    @abc.abstractmethod
-    def latest_resource_versions(self) -> Dict[str, str]:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def latest_resource_version(self, prefix: str) -> str:
-        raise NotImplementedError
-
-    def latest_resource(self, prefix: str) -> str:
-        version = self.latest_resource_version(prefix)
-        return f'{prefix}/{version}'
+    async def refresh_resource_versions(self):
+        latest_versions = await refresh_latest_resource_versions(self.db)
+        self.resource_versions.update(latest_versions)
 
 
 async def refresh_latest_resource_versions(db: Database) -> Dict[str, str]:

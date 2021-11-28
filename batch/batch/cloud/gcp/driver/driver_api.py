@@ -86,7 +86,7 @@ class GCPDriverAPI(CloudDriverAPI):
                         location: str,
                         ) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.create(
-            self.resource_manager.latest_resource_versions(),
+            self.resource_manager.resource_versions,
             machine_type,
             preemptible,
             local_ssd_data_disk,

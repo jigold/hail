@@ -1,7 +1,7 @@
 import abc
 from typing import Dict, Any
 
-from .driver.resource_manager import GCPResourceManager
+from ...driver.resource_manager import ResourceVersions
 from ...resources import (Resource, DiskResourceMixin, ComputeResourceMixin, MemoryResourceMixin, IPFeeResourceMixin, ServiceFeeResourceMixin,
                           ExternalDiskResourceMixin, QuantifiedResource)
 
@@ -20,8 +20,8 @@ class GCPDiskResource(DiskResourceMixin, GCPResource):
         return GCPDiskResource(data['name'], data['storage_in_gib'])
 
     @staticmethod
-    def new_resource(resource_manager: GCPResourceManager, disk_type: str, storage_in_gib: int):
-        name = resource_manager.latest_resource(f'disk/{disk_type}')
+    def new_resource(resource_versions: ResourceVersions, disk_type: str, storage_in_gib: int):
+        name = resource_versions.latest_resource_name(f'disk/{disk_type}')
         return GCPDiskResource(name, storage_in_gib)
 
     def __init__(self, name: str, storage_in_gib: int):
@@ -47,8 +47,8 @@ class GCPExternalDiskResource(ExternalDiskResourceMixin, GCPResource):
         return GCPExternalDiskResource(data['name'])
 
     @staticmethod
-    def new_resource(resource_manager: GCPResourceManager, disk_type: str):
-        name = resource_manager.latest_resource(f'disk/{disk_type}')
+    def new_resource(resource_versions: ResourceVersions, disk_type: str):
+        name = resource_versions.latest_resource_name(f'disk/{disk_type}')
         return GCPExternalDiskResource(name)
 
     def __init__(self, name: str):
@@ -80,9 +80,9 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
         return GCPComputeResource(data['name'])
 
     @staticmethod
-    def new_resource(resource_manager: GCPResourceManager, instance_family: str, preemptible: bool):
+    def new_resource(resource_versions: ResourceVersions, instance_family: str, preemptible: bool):
         preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
-        name = resource_manager.latest_resource(f'compute/{instance_family}-{preemptible_str}')
+        name = resource_versions.latest_resource_name(f'compute/{instance_family}-{preemptible_str}')
         return GCPComputeResource(name)
 
     def __init__(self, name: str):
@@ -106,9 +106,9 @@ class GCPMemoryResource(MemoryResourceMixin, GCPResource):
         return GCPMemoryResource(data['name'])
 
     @staticmethod
-    def new_resource(resource_manager: GCPResourceManager, instance_family: str, preemptible: bool):
+    def new_resource(resource_versions: ResourceVersions, instance_family: str, preemptible: bool):
         preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
-        name = resource_manager.latest_resource(f'memory/{instance_family}-{preemptible_str}')
+        name = resource_versions.latest_resource_name(f'memory/{instance_family}-{preemptible_str}')
         return GCPMemoryResource(name)
 
     def __init__(self, name: str):
@@ -132,8 +132,8 @@ class GCPServiceFeeResource(ServiceFeeResourceMixin, GCPResource):
         return GCPServiceFeeResource(data['name'])
 
     @staticmethod
-    def new_resource(resource_manager: GCPResourceManager):
-        name = resource_manager.latest_resource('service-fee')
+    def new_resource(resource_versions: ResourceVersions):
+        name = resource_versions.latest_resource_name('service-fee')
         return GCPServiceFeeResource(name)
 
     def __init__(self, name: str):
@@ -157,8 +157,8 @@ class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
         return GCPIPFeeResource(data['name'])
 
     @staticmethod
-    def new_resource(resource_manager: GCPResourceManager, base: int):
-        name = resource_manager.latest_resource(f'ip-fee/{base}')
+    def new_resource(resource_versions: ResourceVersions, base: int):
+        name = resource_versions.latest_resource_name(f'ip-fee/{base}')
         return GCPIPFeeResource(name)
 
     def __init__(self, name: str):

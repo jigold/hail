@@ -1,6 +1,7 @@
 from typing import Dict, List, Sequence
 import abc
 
+from .driver.resource_manager import ResourceVersions
 from .resources import QuantifiedResource, Resource
 from .cloud.resource_utils import cores_mcpu_to_memory_bytes
 
@@ -17,7 +18,7 @@ class InstanceConfig(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def create(latest_product_versions: Dict[str, str],
+    def create(resource_versions: ResourceVersions,
                machine_type: str,
                preemptible: bool,
                local_ssd_data_disk: bool,

@@ -81,7 +81,7 @@ class GCPDriver(CloudDriver):
         task_manager.ensure_future(periodically_call(15, driver.process_activity_logs))
         task_manager.ensure_future(periodically_call(60, zone_monitor.update_region_quotas))
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_disks))
-        task_manager.ensure_future(periodically_call(60, resource_manager.refresh_latest_resource_versions))
+        task_manager.ensure_future(periodically_call(60, resource_manager.refresh_resource_versions))
 
         return driver
 

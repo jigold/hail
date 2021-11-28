@@ -1,11 +1,12 @@
-from typing import List, Dict
+from typing import List
 
 from hailtop.utils import flatten
 
+from ...driver.resource_manager import ResourceVersions
 from ...instance_config import InstanceConfig
 from .resource_utils import azure_machine_type_to_worker_type_and_cores
-from .products import (AzureResource, AzureVMResource, AzureDiskResource, AzureExternalDiskResource,
-                       AzureServiceFeeResource, AzureIPFeeResource, azure_resource_from_dict)
+from .resources import (AzureResource, AzureVMResource, AzureDiskResource, AzureExternalDiskResource,
+                        AzureServiceFeeResource, AzureIPFeeResource, azure_resource_from_dict)
 
 
 AZURE_INSTANCE_CONFIG_VERSION = 2
@@ -13,7 +14,7 @@ AZURE_INSTANCE_CONFIG_VERSION = 2
 
 class AzureSlimInstanceConfig(InstanceConfig):
     @staticmethod
-    def create(latest_product_versions: Dict[str, str],
+    def create(resource_versions: ResourceVersions,
                machine_type: str,
                preemptible: bool,
                local_ssd_data_disk: bool,
@@ -24,15 +25,15 @@ class AzureSlimInstanceConfig(InstanceConfig):
         if local_ssd_data_disk:
             data_disk_product = None
         else:
-            data_disk_product = AzureDiskResource.new_resource(latest_product_versions, 'P', data_disk_size_gb, location)
+            data_disk_product = AzureDiskResource.new_resource(resource_versions, 'P', data_disk_size_gb, location)
 
         products = flatten([
-            AzureVMResource.new_resource(latest_product_versions, machine_type, preemptible, location),
-            AzureDiskResource.new_resource(latest_product_versions, 'P', boot_disk_size_gb, location),
+            AzureVMResource.new_resource(resource_versions, machine_type, preemptible, location),
+            AzureDiskResource.new_resource(resource_versions, 'P', boot_disk_size_gb, location),
             data_disk_product,
-            AzureExternalDiskResource.new_resource(latest_product_versions, 'P', location),
-            AzureIPFeeResource.new_resource(latest_product_versions, 1024),
-            AzureServiceFeeResource.new_resource(latest_product_versions),
+            AzureExternalDiskResource.new_resource(resource_versions, 'P', location),
+            AzureIPFeeResource.new_resource(resource_versions, 1024),
+            AzureServiceFeeResource.new_resource(resource_versions),
         ])
 
         return AzureSlimInstanceConfig(

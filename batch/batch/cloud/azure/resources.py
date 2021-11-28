@@ -2,6 +2,7 @@ import abc
 import re
 from typing import Dict, Any
 
+from ...driver.resource_manager import ResourceVersions, resource_version_to_name
 from ...resources import (QuantifiedResource, Resource, DiskResourceMixin, VMResourceMixin, IPFeeResourceMixin,
                           ServiceFeeResourceMixin, ExternalDiskResourceMixin)
 from .resource_utils import azure_disk_from_storage_in_gib, valid_azure_disk_names
@@ -21,12 +22,11 @@ class AzureDiskResource(DiskResourceMixin, AzureResource):
         return AzureDiskResource(data['name'], data['storage_in_gib'])
 
     @staticmethod
-    def new_resource(latest_versions: Dict[str, str], disk_type: str, storage_in_gib: int, location: str):
+    def new_resource(resource_versions: ResourceVersions, disk_type: str, storage_in_gib: int, location: str):
         # Azure bills for specific disk sizes so we must round the storage_in_gib to the nearest power of two
         disk = azure_disk_from_storage_in_gib(disk_type, storage_in_gib)
         assert disk, f'disk_type={disk_type} storage_in_gib={storage_in_gib}'
-        prefix = f'az/disk/{disk.name}/{location}'
-        name = AzureDiskResource.latest_resource_name(latest_versions, prefix)
+        name = resource_versions.latest_resource_name(f'az/disk/{disk.name}/{location}')
         return AzureDiskResource(name, storage_in_gib)
 
     def __init__(self, name: str, storage_in_gib: int):
@@ -52,7 +52,7 @@ class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
         return AzureExternalDiskResource(data['disk_type'], data['location'], data['latest_disk_versions'])
 
     @staticmethod
-    def new_resource(latest_product_versions: Dict[str, str], disk_type: str, location: str):
+    def new_resource(resource_versions: ResourceVersions, disk_type: str, location: str):
         def is_disk_product(product_name):
             match = re.fullmatch(rf'az/disk/(?P<name>[^/]+)/{location}', product_name)
             if match is None:
@@ -60,7 +60,7 @@ class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
             return match.groupdict()['name'] in valid_azure_disk_names
 
         latest_disk_versions = {product_name: version
-                                for product_name, version in latest_product_versions.items()
+                                for product_name, version in resource_versions.to_dict().items()
                                 if is_disk_product(product_name)}
 
         return AzureExternalDiskResource(disk_type, location, latest_disk_versions)
@@ -82,7 +82,8 @@ class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
         assert disk, f'disk_type={self.disk_type} storage_in_gib={external_storage_in_gib}'
         prefix = f'az/disk/{disk.name}/{self.location}'
         version = self.latest_disk_versions[prefix]
-        return {'name': f'{prefix}/{version}', 'quantity': disk.size_in_gib * 1024}  # storage is in units of MiB
+        name = resource_version_to_name(prefix, version)
+        return {'name': name, 'quantity': disk.size_in_gib * 1024}  # storage is in units of MiB
 
     def to_dict(self):
         return {
@@ -104,10 +105,9 @@ class AzureVMResource(VMResourceMixin, AzureResource):
         return AzureVMResource(data['name'])
 
     @staticmethod
-    def new_resource(latest_versions: Dict[str, str], machine_type: str, preemptible: bool, location: str):
+    def new_resource(resource_versions: ResourceVersions, machine_type: str, preemptible: bool, location: str):
         preemptible_str = 'spot' if preemptible else 'regular'
-        prefix = f'az/vm/{machine_type}/{preemptible_str}/{location}'
-        name = AzureVMResource.latest_resource_name(latest_versions, prefix)
+        name = resource_versions.latest_resource_name(f'az/vm/{machine_type}/{preemptible_str}/{location}')
         return AzureVMResource(name)
 
     def __init__(self, name: str):
@@ -131,9 +131,8 @@ class AzureServiceFeeResource(ServiceFeeResourceMixin, AzureResource):
         return AzureServiceFeeResource(data['name'])
 
     @staticmethod
-    def new_resource(latest_versions: Dict[str, str]):
-        prefix = 'az/service-fee'
-        name = AzureServiceFeeResource.latest_resource_name(latest_versions, prefix)
+    def new_resource(resource_versions: ResourceVersions):
+        name = resource_versions.latest_resource_name('az/service-fee')
         return AzureServiceFeeResource(name)
 
     def __init__(self, name: str):
@@ -157,9 +156,8 @@ class AzureIPFeeResource(IPFeeResourceMixin, AzureResource):
         return AzureIPFeeResource(data['name'])
 
     @staticmethod
-    def new_resource(latest_versions: Dict[str, str], base: int):
-        prefix = f'az/ip-fee/{base}'
-        name = AzureIPFeeResource.latest_resource_name(latest_versions, prefix)
+    def new_resource(resource_versions: ResourceVersions, base: int):
+        name = resource_versions.latest_resource_name(f'az/ip-fee/{base}')
         return AzureIPFeeResource(name)
 
     def __init__(self, name: str):
