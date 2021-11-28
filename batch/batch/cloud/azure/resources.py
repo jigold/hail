@@ -88,7 +88,6 @@ class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
         disk = azure_disk_from_storage_in_gib(self.disk_type, external_storage_in_gib)
         assert disk, f'disk_type={self.disk_type} storage_in_gib={external_storage_in_gib}'
         resource_name = self.disk_name_to_resource_names[disk.name]
-        # FIXME: Should this be quantity of 1?
         return {'name': resource_name, 'quantity': disk.size_in_gib * 1024}  # storage is in units of MiB
 
     def to_dict(self) -> dict:
