@@ -28,7 +28,7 @@ class GCPDiskResource(DiskResourceMixin, GCPResource):
         self.name = name
         self.storage_in_gib = storage_in_gib
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'name': self.name,
@@ -62,7 +62,7 @@ class GCPExternalDiskResource(ExternalDiskResourceMixin, GCPResource):
         del cpu_in_mcpu, memory_in_bytes, worker_fraction_in_1024ths
         return {'name': self.name, 'quantity': external_storage_in_gib * 1024}  # storage is in units of MiB
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'name': self.name,
@@ -88,7 +88,7 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
     def __init__(self, name: str):
         self.name = name
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'name': self.name,
@@ -114,7 +114,7 @@ class GCPMemoryResource(MemoryResourceMixin, GCPResource):
     def __init__(self, name: str):
         self.name = name
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'name': self.name,
@@ -139,7 +139,7 @@ class GCPServiceFeeResource(ServiceFeeResourceMixin, GCPResource):
     def __init__(self, name: str):
         self.name = name
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'name': self.name,
@@ -164,7 +164,7 @@ class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
     def __init__(self, name: str):
         self.name = name
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'name': self.name,

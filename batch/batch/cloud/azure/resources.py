@@ -33,7 +33,7 @@ class AzureDiskResource(DiskResourceMixin, AzureResource):
         self.name = name
         self.storage_in_gib = storage_in_gib
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'name': self.name,
@@ -53,15 +53,15 @@ class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
 
     @staticmethod
     def new_resource(resource_versions: ResourceVersions, disk_type: str, location: str):
-        def is_disk_product(product_name):
-            match = re.fullmatch(rf'az/disk/(?P<name>[^/]+)/{location}', product_name)
+        def is_disk_resource(resource_prefix):
+            match = re.fullmatch(rf'az/disk/(?P<name>[^/]+)/{location}', resource_prefix)
             if match is None:
                 return False
             return match.groupdict()['name'] in valid_azure_disk_names
 
-        latest_disk_versions = {product_name: version
-                                for product_name, version in resource_versions.to_dict().items()
-                                if is_disk_product(product_name)}
+        latest_disk_versions = {prefix: version
+                                for prefix, version in resource_versions.to_dict().items()
+                                if is_disk_resource(prefix)}
 
         return AzureExternalDiskResource(disk_type, location, latest_disk_versions)
 
@@ -85,7 +85,7 @@ class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
         name = resource_version_to_name(prefix, version)
         return {'name': name, 'quantity': disk.size_in_gib * 1024}  # storage is in units of MiB
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'disk_type': self.disk_type,
@@ -113,7 +113,7 @@ class AzureVMResource(VMResourceMixin, AzureResource):
     def __init__(self, name: str):
         self.name = name
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'name': self.name,
@@ -138,7 +138,7 @@ class AzureServiceFeeResource(ServiceFeeResourceMixin, AzureResource):
     def __init__(self, name: str):
         self.name = name
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'name': self.name,
@@ -163,7 +163,7 @@ class AzureIPFeeResource(IPFeeResourceMixin, AzureResource):
     def __init__(self, name: str):
         self.name = name
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'name': self.name,

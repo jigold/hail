@@ -11,17 +11,12 @@ class QuantifiedResource(TypedDict):
 class Resource(abc.ABC):
     name: str
 
-    @staticmethod
-    def latest_resource_name(latest_product_versions: Dict[str, str], prefix: str):
-        version = latest_product_versions[prefix]
-        return f'{prefix}/{version}'
-
     @property
     def prefix(self):
         return self.name.rsplit('/', maxsplit=1)[0]
 
     @property
-    def product_version(self):
+    def version(self):
         return self.name.rsplit('/', maxsplit=1)[1]
 
     @staticmethod
@@ -37,7 +32,7 @@ class Resource(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def to_dict(self):
+    def to_dict(self) -> dict:
         raise NotImplementedError
 
 
