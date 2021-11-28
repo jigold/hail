@@ -2350,6 +2350,10 @@ steps:
         script: /io/sql/support-azure.sql
       - name: add-azure-tables
         script: /io/sql/add_azure_tables.py
+      - name: add-latest-resource-versions
+        script: add-latest-resource-versions.sql
+      - name: populate_latest_resource_versions
+        script: populate_latest_resource_versions.py
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
