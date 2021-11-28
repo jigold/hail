@@ -203,7 +203,7 @@ class InstanceCollectionConfigs:
             InstanceCollectionConfigs.resource_rates_from_db(db),
             InstanceCollectionConfigs.resource_versions_from_db(db))
         return InstanceCollectionConfigs(name_pool_config, jpim_config, resource_rates, resource_versions_data)
-b
+
     @staticmethod
     async def instance_collections_from_db(db: Database) -> Tuple[Dict[str, PoolConfig], JobPrivateInstanceManagerConfig]:
         records = db.execute_and_fetchall('''

@@ -2,7 +2,7 @@ import abc
 import re
 from typing import Dict, Any, Optional
 
-from ...driver.resource_manager import ResourceVersions, resource_version_to_name
+from ...driver.resource_manager import ResourceVersions
 from ...resources import (QuantifiedResource, Resource, DiskResourceMixin, VMResourceMixin, IPFeeResourceMixin,
                           ServiceFeeResourceMixin, ExternalDiskResourceMixin)
 from .resource_utils import azure_disk_from_storage_in_gib, valid_azure_disk_names
@@ -88,7 +88,7 @@ class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
         disk = azure_disk_from_storage_in_gib(self.disk_type, external_storage_in_gib)
         assert disk, f'disk_type={self.disk_type} storage_in_gib={external_storage_in_gib}'
         resource_name = self.disk_name_to_resource_names[disk.name]
-        ## FIXME: Should this be quantity of 1?
+        # FIXME: Should this be quantity of 1?
         return {'name': resource_name, 'quantity': disk.size_in_gib * 1024}  # storage is in units of MiB
 
     def to_dict(self) -> dict:
