@@ -1,6 +1,6 @@
 import abc
 import re
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from ...driver.resource_manager import ResourceVersions, resource_version_to_name
 from ...resources import (QuantifiedResource, Resource, DiskResourceMixin, VMResourceMixin, IPFeeResourceMixin,
@@ -53,22 +53,29 @@ class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
 
     @staticmethod
     def new_resource(resource_versions: ResourceVersions, disk_type: str, location: str):
-        def is_disk_resource(resource_prefix):
+        def parse_disk_name(resource_prefix) -> Optional[str]:
             match = re.fullmatch(rf'az/disk/(?P<name>[^/]+)/{location}', resource_prefix)
             if match is None:
-                return False
-            return match.groupdict()['name'] in valid_azure_disk_names
+                return None
+            name = match.groupdict()['name']
+            if name not in valid_azure_disk_names:
+                return None
+            return name
 
-        latest_disk_versions = {prefix: version
-                                for prefix, version in resource_versions.to_dict().items()
-                                if is_disk_resource(prefix)}
+        disk_name_to_resource_names = {}
+        for prefix in resource_versions.to_dict().keys():
+            disk_name = parse_disk_name(prefix)
+            if disk_name is None:
+                continue
+            resource_name = resource_versions.latest_resource_name(prefix)
+            disk_name_to_resource_names[disk_name] = resource_name
 
-        return AzureExternalDiskResource(disk_type, location, latest_disk_versions)
+        return AzureExternalDiskResource(disk_type, location, disk_name_to_resource_names)
 
-    def __init__(self, disk_type: str, location: str, latest_disk_versions: Dict[str, str]):
+    def __init__(self, disk_type: str, location: str, disk_name_to_resource_names: Dict[str, str]):
         self.disk_type = disk_type
         self.location = location
-        self.latest_disk_versions = latest_disk_versions
+        self.disk_name_to_resource_names = disk_name_to_resource_names
 
     def to_quantified_resource(self,
                                cpu_in_mcpu: int,
@@ -80,17 +87,16 @@ class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
         # Azure bills for specific disk sizes so we must round the storage_in_gib to the nearest power of two
         disk = azure_disk_from_storage_in_gib(self.disk_type, external_storage_in_gib)
         assert disk, f'disk_type={self.disk_type} storage_in_gib={external_storage_in_gib}'
-        prefix = f'az/disk/{disk.name}/{self.location}'
-        version = self.latest_disk_versions[prefix]
-        name = resource_version_to_name(prefix, version)
-        return {'name': name, 'quantity': disk.size_in_gib * 1024}  # storage is in units of MiB
+        resource_name = self.disk_name_to_resource_names[disk.name]
+        ## FIXME: Should this be quantity of 1?
+        return {'name': resource_name, 'quantity': disk.size_in_gib * 1024}  # storage is in units of MiB
 
     def to_dict(self) -> dict:
         return {
             'type': self.TYPE,
             'disk_type': self.disk_type,
             'location': self.location,
-            'latest_disk_versions': self.latest_disk_versions,
+            'latest_disk_versions': self.disk_name_to_resource_names,
             'version': self.FORMAT_VERSION
         }
 
