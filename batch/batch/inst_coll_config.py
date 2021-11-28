@@ -254,7 +254,7 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
             InstanceCollectionConfigs.resource_versions_from_db(db))
         self.name_pool_config, self.jpim_config = configs
         self.resource_rates = resource_rates
-        self.resource_versions = self.resource_versions.update(resource_versions_data)
+        self.resource_versions.update(resource_versions_data)
 
     def select_pool_from_cost(self, cloud, cores_mcpu, memory_bytes, storage_bytes):
         assert self.resource_rates is not None
