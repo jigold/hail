@@ -125,6 +125,19 @@ sudo mount -o prjquota {disk_location} /mnt/disks/$WORKER_DATA_DISK_NAME
 sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
 XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
 
+# reconfigure docker to use data disk
+sudo service docker stop
+sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
+sudo service docker start
+
+# reconfigure /batch and /logs to use data disk
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
+
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
+
 # Forward syslog logs to Log Analytics Agent
 cat >>/etc/rsyslog.d/95-omsagent.conf <<EOF
 kern.warning       @127.0.0.1:25224
@@ -203,19 +216,6 @@ sudo tee $WORKER_LOG_OUTPUT_CONF <<EOF
 EOF
 
 sudo /opt/microsoft/omsagent/bin/service_control restart
-
-# reconfigure docker to use data disk
-sudo service docker stop
-sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
-sudo service docker start
-
-# reconfigure /batch and /logs to use data disk
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
-
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
 
 sudo mkdir -p /etc/netns
 
