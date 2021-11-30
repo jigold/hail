@@ -148,16 +148,27 @@ EOF
 
 sudo service rsyslog restart
 
+# TODO FIX httpresponse TAG
 OMSAGENT_CONF_DIR="/etc/opt/microsoft/omsagent/conf/omsagent.d"
 WORKER_LOG_INPUT_CONF="$OMSAGENT_CONF_DIR/worker-log-source.conf"
 sudo tee $WORKER_LOG_INPUT_CONF <<EOF
 <source>
-  type exec
-  command 'curl localhost/json.output'
-  format json
-  tag oms.api.httpresponse
-  run_interval 30s
+@type tail
+format json
+path /worker.log
+pos_file /worker-log.pos
+read_from_head true
+tag oms.api.httpresponse
 </source>
+
+<filter worker.log>
+@type record_transformer
+enable_ruby
+<record>
+    severity \${{ record["levelname"] }}
+    timestamp \${{ record["asctime"] }}
+</record>
+</filter>
 
 <match oms.api.httpresponse>
   type out_oms_api
