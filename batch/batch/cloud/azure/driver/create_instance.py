@@ -20,6 +20,9 @@ log = logging.getLogger('create_instance')
 
 BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
 
+# TODO
+WORKSPACE_ID = "2d1ac607-7dcd-4fa9-8820-9dd81c237c2c"
+
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 
@@ -110,9 +113,19 @@ runcmd:
 '''
     startup_script = base64.b64encode(startup_script.encode('utf-8')).decode('utf-8')
 
-    run_script = f'''
+    run_script = rf'''
 #!/bin/bash
 set -x
+
+WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
+UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
+
+# format worker data disk
+sudo mkfs.xfs -f -m reflink=1 -n ftype=1 {disk_location}
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo mount -o prjquota {disk_location} /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
+XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
 
 # Forward syslog logs to Log Analytics Agent
 cat >>/etc/rsyslog.d/95-omsagent.conf <<EOF
@@ -137,15 +150,50 @@ EOF
 
 sudo service rsyslog restart
 
-WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
-UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
+OMSAGENT_CONF_DIR=/etc/opt/microsoft/omsagent/{WORKSPACE_ID}/conf/omsagent.d
+WORKER_LOG_INPUT_CONF=$OMSAGENT_CONF_DIR/worker-log-source.conf
+sudo tee $WORKER_LOG_INPUT_CONF <<EOF
+<source>
+  type exec
+  command 'curl localhost/json.output'
+  format json
+  tag oms.api.httpresponse
+  run_interval 30s
+</source>
 
-# format worker data disk
-sudo mkfs.xfs -f -m reflink=1 -n ftype=1 {disk_location}
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo mount -o prjquota {disk_location} /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
-XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
+<match oms.api.httpresponse>
+  type out_oms_api
+  log_level info
+
+  buffer_chunk_limit 5m
+  buffer_type file
+  buffer_path /var/opt/microsoft/omsagent/{WORKSPACE_ID}/state/out_oms_api_httpresponse*.buffer
+  buffer_queue_limit 10
+  flush_interval 20s
+  retry_limit 10
+  retry_wait 30s
+</match>
+EOF
+
+sudo chown omsagent:omiusers $WORKER_LOG_INPUT_CONF
+
+WORKER_LOG_OUTPUT_CONF=$OMSAGENT_CONF_DIR/worker-log-output.conf
+sudo tee $WORKER_LOG_OUTPUT_CONF <<EOF
+<match oms.api.**>
+  type out_oms_api
+  log_level info
+
+  buffer_chunk_limit 5m
+  buffer_type file
+  buffer_path /var/opt/microsoft/omsagent/{WORKSPACE_ID}/state/out_oms_api*.buffer
+  buffer_queue_limit 10
+  flush_interval 20s
+  retry_limit 10
+  retry_wait 30s
+</match>
+EOF
+
+sudo /opt/microsoft/omsagent/bin/service_control restart
 
 # reconfigure docker to use data disk
 sudo service docker stop
