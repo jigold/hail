@@ -20,8 +20,6 @@ log = logging.getLogger('create_instance')
 
 BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
 
-# TODO
-WORKSPACE_ID = "2d1ac607-7dcd-4fa9-8820-9dd81c237c2c"
 
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
@@ -150,8 +148,8 @@ EOF
 
 sudo service rsyslog restart
 
-OMSAGENT_CONF_DIR=/etc/opt/microsoft/omsagent/{WORKSPACE_ID}/conf/omsagent.d
-WORKER_LOG_INPUT_CONF=$OMSAGENT_CONF_DIR/worker-log-source.conf
+OMSAGENT_CONF_DIR="/etc/opt/microsoft/omsagent/conf/omsagent.d"
+WORKER_LOG_INPUT_CONF="$OMSAGENT_CONF_DIR/worker-log-source.conf"
 sudo tee $WORKER_LOG_INPUT_CONF <<EOF
 <source>
   type exec
@@ -167,7 +165,7 @@ sudo tee $WORKER_LOG_INPUT_CONF <<EOF
 
   buffer_chunk_limit 5m
   buffer_type file
-  buffer_path /var/opt/microsoft/omsagent/{WORKSPACE_ID}/state/out_oms_api_httpresponse*.buffer
+  buffer_path /var/opt/microsoft/omsagent/state/out_oms_api_httpresponse*.buffer
   buffer_queue_limit 10
   flush_interval 20s
   retry_limit 10
@@ -185,7 +183,7 @@ sudo tee $WORKER_LOG_OUTPUT_CONF <<EOF
 
   buffer_chunk_limit 5m
   buffer_type file
-  buffer_path /var/opt/microsoft/omsagent/{WORKSPACE_ID}/state/out_oms_api*.buffer
+  buffer_path /var/opt/microsoft/omsagent/state/out_oms_api*.buffer
   buffer_queue_limit 10
   flush_interval 20s
   retry_limit 10
