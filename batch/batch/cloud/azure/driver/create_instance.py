@@ -162,6 +162,13 @@ EOF
 sudo service rsyslog restart
 
 # TODO FIX httpresponse TAG
+
+sudo usermod -a -G omiusers omsagent
+
+# initialize logs for fluentd
+touch /worker.log
+sudo chmod -R ugo+rx /worker.log
+
 OMSAGENT_CONF_DIR="/etc/opt/microsoft/omsagent/conf/omsagent.d"
 WORKER_LOG_INPUT_CONF="$OMSAGENT_CONF_DIR/worker-log-source.conf"
 sudo tee $WORKER_LOG_INPUT_CONF <<EOF
@@ -197,8 +204,6 @@ enable_ruby
 </match>
 EOF
 
-sudo chown omsagent:omiusers $WORKER_LOG_INPUT_CONF
-
 WORKER_LOG_OUTPUT_CONF=$OMSAGENT_CONF_DIR/worker-log-output.conf
 sudo tee $WORKER_LOG_OUTPUT_CONF <<EOF
 <match oms.api.**>
@@ -214,6 +219,9 @@ sudo tee $WORKER_LOG_OUTPUT_CONF <<EOF
   retry_wait 30s
 </match>
 EOF
+
+sudo chown omsagent:omiusers $WORKER_LOG_INPUT_CONF
+sudo chown omsagent:omiusers $WORKER_LOG_OUTPUT_CONF
 
 sudo /opt/microsoft/omsagent/bin/service_control restart
 
