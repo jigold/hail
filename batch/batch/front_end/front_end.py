@@ -477,6 +477,50 @@ async def _get_full_job_status(app, record):
         raise
 
 
+@routes.post('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/login')
+@rest_billing_project_users_only
+async def login_job(request, userdata, batch_id):  # pylint: disable=unused-argument
+    job_id = int(request.match_info['job_id'])
+    client_session: httpx.ClientSession = request.app['client_session']
+    db: Database = request.app['db']
+
+    record = await db.select_and_fetchone(
+        '''
+SELECT jobs.state, ip_address
+FROM jobs
+INNER JOIN batches
+  ON jobs.batch_id = batches.id
+LEFT JOIN attempts
+  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
+LEFT JOIN instances
+  ON attempts.instance_name = instances.name
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
+''',
+        (batch_id, job_id),
+    )
+    if not record:
+        raise web.HTTPNotFound()
+
+    state = record['state']
+    if state != 'Running':
+        raise web.HTTPBadRequest(reason='job is not running')
+
+    ip_address = record['ip_address']
+    assert ip_address is not None
+
+    data = await request.json()
+
+    resp = await request_retry_transient_errors(
+        client_session,
+        'POST',
+        f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/login',
+        timeout=aiohttp.ClientTimeout(total=30),
+        json={'public_key': data['public_key']})
+
+    login_data = await resp.json()
+    return web.json_response(login_data)
+
+
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @rest_billing_project_users_only
 async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument

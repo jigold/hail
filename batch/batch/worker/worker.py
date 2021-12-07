@@ -16,6 +16,7 @@ import aiohttp.client_exceptions
 from aiohttp import web
 import async_timeout
 import concurrent
+from shlex import quote as shq
 
 import aiodocker  # type: ignore
 import aiodocker.images
@@ -42,7 +43,7 @@ from hailtop.utils import (
     dump_all_stacktraces,
     parse_docker_image_reference,
     blocking_to_async,
-    periodically_call,
+    periodically_call
 )
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.aiotools.router_fs import RouterAsyncFS
@@ -121,6 +122,7 @@ NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
 # ACTIVATION_TOKEN
 IP_ADDRESS = os.environ['IP_ADDRESS']
+PUBLIC_IP_ADDRESS = os.environ['PUBLIC_IP_ADDRESS']
 INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
 BATCH_LOGS_STORAGE_URI = os.environ['BATCH_LOGS_STORAGE_URI']
 INSTANCE_ID = os.environ['INSTANCE_ID']
@@ -142,6 +144,7 @@ log.info(f'NAME {NAME}')
 log.info(f'NAMESPACE {NAMESPACE}')
 # ACTIVATION_TOKEN
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
+log.info(f'PUBLIC_IP_ADDRESS {PUBLIC_IP_ADDRESS}')
 log.info(f'BATCH_LOGS_STORAGE_URI {BATCH_LOGS_STORAGE_URI}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
@@ -472,6 +475,10 @@ class Container:
         self.fs = LocalAsyncFS(self.worker.pool)
 
         self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
+
+        self.display_username: Optional[str] = None
+        self.username: Optional[str] = None
+        self.password: Optional[str] = None
 
         self.netns: Optional[NetworkNamespace] = None
         # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
@@ -840,7 +847,7 @@ class Container:
                     'source': 'devpts',
                     'destination': '/dev/pts',
                     'type': 'devpts',
-                    'options': ['nosuid', 'noexec', 'nodev'],
+                    'options': ['nosuid', 'noexec', 'newinstance', 'ptmxmode=0666', 'mode=0620', 'gid=5'],
                 },
                 {
                     'source': 'mqueue',
@@ -875,6 +882,8 @@ class Container:
             assert self.host_port is not None
             env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
             env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
+        env.append('TERM=xterm')
+#        env.append('PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')
         return env
 
     async def delete_container(self):
@@ -1353,7 +1362,10 @@ class DockerJob(Job):
                 worker,
             )
 
-        self.containers = containers
+        self.containers: Dict[Container] = containers
+
+        self.user = user
+        self.username: Optional[str] = None
 
     def step(self, name: str):
         return self.timings.step(name)
@@ -1511,6 +1523,12 @@ class DockerJob(Job):
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
 
             await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
+
+            if self.username:
+                await check_shell(f'''
+userdel {self.username}
+rm -rf /home/{self.username}/
+''')
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -1522,6 +1540,76 @@ class DockerJob(Job):
     async def delete(self):
         await super().delete()
         await asyncio.wait([c.delete() for c in self.containers.values()])
+
+    async def login(self, public_key):
+        attempt_id = self.job_spec['attempt_id']
+        username = f'{attempt_id}'
+
+        if self.username is None:
+            login_shell = f'{self.scratch}/bin/{username}.sh'
+            sudoers_file = f'/etc/sudoers.d/{username}'
+
+            exec_commands = []
+            sudoers_commands = []
+            container_script_paths = []
+            for container in self.containers.values():
+                container_script_path = f'{self.scratch}/bin/{username}-{container.name}.sh'
+                container_script_paths.append(container_script_path)
+
+                await check_shell(rf'''
+mkdir -p {os.path.dirname(container_script_path)}
+cat >{container_script_path} <<'EOF'
+#!/bin/bash
+set -em
+USER_HOME=`sudo /usr/local/bin/crun exec {container.container_name} /bin/bash -c \'echo -n $HOME\'`
+sudo /usr/local/bin/crun exec {container.container_name} /bin/bash -c "sed -i 's/^#force_color_prompt=yes/force_color_prompt=yes/g' $USER_HOME/.bashrc"
+sudo /usr/local/bin/crun exec {container.container_name} /bin/bash -c "echo 'PS1=\\"\\e[1;34m(batch)\\e[m \\u@{container.container_name}-{attempt_id} \\w % \\"' >> $USER_HOME/.bashrc"
+sudo /usr/local/bin/crun exec --tty {container.container_name} /bin/bash
+EOF
+chmod +x {container_script_path}
+''')
+
+                exec_commands.append(f'sh {container_script_path}')
+
+                sudoers_commands.append(f'{username} ALL=(ALL) NOPASSWD: /usr/local/bin/crun exec --tty {container.container_name} *')
+                sudoers_commands.append(f'{username} ALL=(ALL) NOPASSWD: /usr/local/bin/crun exec {container.container_name} *')
+
+            exec_str = ' || '.join(exec_commands)
+            sudoers_str = '\n'.join(sudoers_commands)
+
+            await check_shell(f'''
+#!/bin/bash
+set -e
+mkdir -p {os.path.dirname(login_shell)}
+cat >{login_shell} <<EOF
+#!/bin/bash
+set -em
+{exec_str}
+EOF
+chmod +x {login_shell}
+
+cat >{sudoers_file} <<EOF
+{sudoers_str}
+EOF
+chmod 0440 {sudoers_file}
+''')
+
+            await check_shell(f'''
+useradd {username} -s {login_shell}
+''')
+            self.username = username
+
+            await check_shell(f'''
+chown {username} {login_shell}
+chmod 500 {login_shell}
+''')
+
+            await check_shell(rf'''
+export USER_HOME=`getent passwd {username} | cut -d: -f6`
+mkdir -p $USER_HOME/.ssh/
+echo {shq(public_key)} >> $USER_HOME/.ssh/authorized_keys
+touch $USER_HOME/.hushlogin
+''')
 
     async def status(self):
         status = await super().status()
@@ -1925,6 +2013,34 @@ class Worker:
     async def delete_job(self, request):
         return await asyncio.shield(self.delete_job_1(request))
 
+    async def login_1(self, request):
+        batch_id = int(request.match_info['batch_id'])
+        job_id = int(request.match_info['job_id'])
+        id = (batch_id, job_id)
+
+        log.info(f'creating login for job {id}')
+
+        job = self.jobs.get(id)
+        if job is None:
+            raise web.HTTPNotFound()
+        if not isinstance(job, DockerJob):
+            raise web.HTTPBadRequest(reason='cannot login to a JVMJob')
+
+        data = await request.json()
+        public_key = data['public_key']
+
+        await job.login(public_key)
+
+        data = {
+            'user': job.username,
+            'host': PUBLIC_IP_ADDRESS,
+            'port': 2222,
+        }
+        return web.json_response(data=data)
+
+    async def login(self, request):
+        return await asyncio.shield(self.login_1(request))
+
     async def healthcheck(self, request):  # pylint: disable=unused-argument
         body = {'name': NAME}
         return web.json_response(body)
@@ -1938,6 +2054,7 @@ class Worker:
                 web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
+                web.post('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/login', self.login),
                 web.get('/healthcheck', self.healthcheck),
             ]
         )

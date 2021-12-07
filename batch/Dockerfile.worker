@@ -65,5 +65,12 @@ COPY batch/setup.py batch/MANIFEST.in /batch/
 COPY batch/batch /batch/batch/
 RUN hail-pip-install --no-deps /batch && rm -rf /batch
 
+RUN hail-apt-get-install \
+    openssh-server \
+    sudo
+
 COPY query/log4j.properties /
 COPY letsencrypt/subdomains.txt /
+
+COPY batch/worker_ssh_wrapper.sh /
+RUN chmod 755 /worker_ssh_wrapper.sh

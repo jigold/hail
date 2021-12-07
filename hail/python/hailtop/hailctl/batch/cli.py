@@ -10,6 +10,7 @@ from . import wait
 from . import log
 from . import job
 from . import billing
+from . import exec
 
 
 def parser():
@@ -54,6 +55,11 @@ def parser():
         help='Wait for a batch to complete, then print JSON status.',
         description='Wait for a batch to complete, then print JSON status.'
     )
+    exec_parser = subparsers.add_parser(
+        'exec',
+        help='Exec into a running job.',
+        description='Exec into a running job.'
+    )
 
     billing_parser.set_defaults(module='billing')
 
@@ -78,6 +84,9 @@ def parser():
     wait_parser.set_defaults(module='wait')
     wait.init_parser(wait_parser)
 
+    exec_parser.set_defaults(module='exec')
+    exec.init_parser(exec_parser)
+
     return main_parser
 
 
@@ -93,7 +102,8 @@ def main(args):
         'cancel': cancel,
         'log': log,
         'job': job,
-        'wait': wait
+        'wait': wait,
+        'exec': exec,
     }
 
     args, pass_through_args = parser().parse_known_args(args=args)

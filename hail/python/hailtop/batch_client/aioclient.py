@@ -217,6 +217,9 @@ class Job:
     async def log(self):
         return await self._job.log()
 
+    async def login(self, public_key):
+        return await self._job.login(public_key)
+
     async def attempts(self):
         return await self._job.attempts()
 
@@ -259,6 +262,9 @@ class UnsubmittedJob:
 
     async def log(self):
         raise ValueError("cannot get the log of an unsubmitted job")
+
+    async def login(self, public_key):
+        raise ValueError("cannot login into an unsubmitted job")
 
     async def attempts(self):
         raise ValueError("cannot get the attempts of an unsubmitted job")
@@ -304,6 +310,12 @@ class SubmittedJob:
 
     async def log(self):
         resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
+        return await resp.json()
+
+    async def login(self, public_key):
+        data = {'public_key': public_key}
+        resp = await self._batch._client._post(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/login',
+                                               json=data)
         return await resp.json()
 
     async def attempts(self):

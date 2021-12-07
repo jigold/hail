@@ -100,6 +100,9 @@ class Job:
     def log(self):
         return async_to_blocking(self._async_job.log())
 
+    def login(self, public_key):
+        return async_to_blocking(self._async_job.login(public_key))
+
     def attempts(self):
         return async_to_blocking(self._async_job.attempts())
 
