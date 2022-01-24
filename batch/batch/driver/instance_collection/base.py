@@ -280,7 +280,7 @@ class InstanceCollection:
         if (
             instance.state == 'pending'
             and isinstance(vm_state, (VMStateCreating, VMStateRunning))
-            and vm_state.time_since_last_state_change() > 5 * 60 * 1000
+            and vm_state.time_since_last_state_change() > 60 * 60 * 1000
         ):
             log.exception(f'{instance} (state: {str(vm_state)}) has made no progress in last 5m, deleting')
             await self.call_delete_instance(instance, 'activation_timeout')
