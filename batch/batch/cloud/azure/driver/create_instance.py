@@ -339,7 +339,7 @@ done
             {
                 'apiVersion': '2018-06-01',
                 'type': 'extensions',
-                'name': "[concat(parameters('vmName'), '/', 'OMSExtension')]",
+                'name': "OMSExtension",
                 'location': "[parameters('location')]",
                 'tags': tags,
                 'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
@@ -358,12 +358,13 @@ done
                 },
             },
             {
-                'name': 'batch-startup',
+                'name': "startup",
                 'type': 'extensions',
                 'location': "[parameters('location')]",
                 'apiVersion': "2019-03-01",
                 "dependsOn": [
-                    "[concat('Microsoft.Compute/virtualMachines/', concat(parameters('vmName'), '/', 'OMSExtension'))]"
+                    "[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]",
+                    "[concat('Microsoft.Compute/virtualMachines/', concat(parameters('vmName'), '/extensions/', 'OMSExtension'))]"
                 ],
                 'tags': tags,
                 "properties": {
