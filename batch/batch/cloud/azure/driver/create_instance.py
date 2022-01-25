@@ -336,27 +336,27 @@ done
             'userData': "[parameters('userData')]",
         },
         'resources': [
-            {
-                'apiVersion': '2018-06-01',
-                'type': 'extensions',
-                'name': "OMSExtension",
-                'location': "[parameters('location')]",
-                'tags': tags,
-                'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
-                'properties': {
-                    'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
-                    'type': 'OmsAgentForLinux',
-                    'typeHandlerVersion': '1.13',
-                    'autoUpgradeMinorVersion': False,
-                    'enableAutomaticUpgrade': False,
-                    'settings': {
-                        'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
-                    },
-                    'protectedSettings': {
-                        'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
-                    },
-                },
-            },
+            # {
+            #     'apiVersion': '2018-06-01',
+            #     'type': 'extensions',
+            #     'name': "OMSExtension",
+            #     'location': "[parameters('location')]",
+            #     'tags': tags,
+            #     'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
+            #     'properties': {
+            #         'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
+            #         'type': 'OmsAgentForLinux',
+            #         'typeHandlerVersion': '1.13',
+            #         'autoUpgradeMinorVersion': False,
+            #         'enableAutomaticUpgrade': False,
+            #         'settings': {
+            #             'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
+            #         },
+            #         'protectedSettings': {
+            #             'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
+            #         },
+            #     },
+            # },
             {
                 'name': "startup",
                 'type': 'extensions',
@@ -364,7 +364,7 @@ done
                 'apiVersion': "2019-03-01",
                 "dependsOn": [
                     "[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]",
-                    "[concat('Microsoft.Compute/virtualMachines/', concat(parameters('vmName'), '/extensions/', 'OMSExtension'))]"
+                    # "[concat('Microsoft.Compute/virtualMachines/', concat(parameters('vmName'), '/extensions/', 'OMSExtension'))]"
                 ],
                 'tags': tags,
                 "properties": {
