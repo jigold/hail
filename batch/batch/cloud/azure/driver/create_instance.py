@@ -320,7 +320,7 @@ done
             'osProfile': {
                 'computerName': "[parameters('vmName')]",
                 'adminUsername': "[parameters('adminUsername')]",
-                'customData': "[parameters('startupScript')]",
+                'customData': "[parameters('cloudInitScript')]",
                 'linuxConfiguration': {
                     'disablePasswordAuthentication': True,
                     'ssh': {
@@ -404,7 +404,7 @@ done
                 },
                 'adminUsername': {'value': 'batch-worker'},
                 'userAssignedIdentityName': {'value': 'batch-worker'},
-                'startupScript': {'value': cloud_init_script},
+                'cloudInitScript': {'value': cloud_init_script},
                 'userData': {'value': user_data_str},
                 'imageReference': {
                     'value': {
@@ -426,7 +426,7 @@ done
                     'subnetId': {'type': 'string'},
                     'adminUsername': {'type': 'string', 'defaultValue': 'admin'},
                     'userAssignedIdentityName': {'type': 'string', 'defaultValue': 'batch-worker'},
-                    'startupScript': {'type': 'string'},
+                    'cloudInitScript': {'type': 'string'},
                     'userData': {'type': 'string'},
                     'imageReference': {
                         'type': 'object',
