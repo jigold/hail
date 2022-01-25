@@ -77,37 +77,33 @@ def create_vm_config(
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
 
-    startup_script = r'''#cloud-config
+    cloud_init_script = r'''#cloud-config
 
 mounts:
   - [ ephemeral0, null ]
   - [ ephemeral0.1, null ]
+'''
+    cloud_init_script = base64.b64encode(cloud_init_script.encode('utf-8')).decode('utf-8')
 
-write_files:
-  - owner: batch-worker:batch-worker
-    path: /startup.sh
-    content: |
-      #!/bin/sh
-      set -ex
-      RESOURCE_GROUP=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/resourceGroupName?api-version=2021-02-01&format=text")
-      NAME=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/name?api-version=2021-02-01&format=text")
-      if [ -f "/started" ]; then
-          echo "instance $NAME has previously been started"
-          while true; do
-          az vm delete -g $RESOURCE_GROUP -n $NAME --yes
-          sleep 1
-          done
-          exit
-      else
-          touch /started
-      fi
-      curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/userData?api-version=2021-02-01&format=text" | \
-        base64 --decode | \
-        jq -r '.run_script' > ./run.sh
-      nohup /bin/bash run.sh >run.log 2>&1 &
-
-runcmd:
-  - sh /startup.sh
+    startup_script = f'''
+#!/bin/sh
+set -ex
+RESOURCE_GROUP=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/resourceGroupName?api-version=2021-02-01&format=text")
+NAME=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/name?api-version=2021-02-01&format=text")
+if [ -f "/started" ]; then
+    echo "instance $NAME has previously been started"
+    while true; do
+    az vm delete -g $RESOURCE_GROUP -n $NAME --yes
+    sleep 1
+    done
+    exit
+else
+    touch /started
+fi
+curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/userData?api-version=2021-02-01&format=text" | \
+base64 --decode | \
+jq -r '.run_script' > ./run.sh
+nohup /bin/bash run.sh >run.log 2>&1 &
 '''
     startup_script = base64.b64encode(startup_script.encode('utf-8')).decode('utf-8')
 
@@ -343,7 +339,7 @@ done
             {
                 'apiVersion': '2018-06-01',
                 'type': 'extensions',
-                'name': 'OMSExtension',
+                'name': "[concat(parameters('vmName'), '/', 'OMSExtension')]",
                 'location': "[parameters('location')]",
                 'tags': tags,
                 'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
@@ -360,6 +356,28 @@ done
                         'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
                     },
                 },
+            },
+            {
+                'name': 'batch-startup',
+                'type': 'extensions',
+                'location': "[parameters('location')]",
+                'apiVersion': "2019-03-01",
+                "dependsOn": [
+                    "[concat('Microsoft.Compute/virtualMachines/', concat(parameters('vmName'), '/', 'OMSExtension'))]"
+                ],
+                'tags': tags,
+                "properties": {
+                    "publisher": "Microsoft.Azure.Extensions",
+                    "type": "CustomScript",
+                    "typeHandlerVersion": "2.1",
+                    "autoUpgradeMinorVersion": False,
+                    "settings": {
+                        "skipDos2Unix": False,
+                    },
+                    "protectedSettings": {
+                        "script": startup_script,
+                    }
+                }
             },
         ],
     }
@@ -385,7 +403,7 @@ done
                 },
                 'adminUsername': {'value': 'batch-worker'},
                 'userAssignedIdentityName': {'value': 'batch-worker'},
-                'startupScript': {'value': startup_script},
+                'startupScript': {'value': cloud_init_script},
                 'userData': {'value': user_data_str},
                 'imageReference': {
                     'value': {
