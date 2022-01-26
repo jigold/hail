@@ -77,11 +77,32 @@ def create_vm_config(
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
 
-    cloud_init_script = r'''#cloud-config
+    cloud_init_script = rf'''#cloud-config
 
 mounts:
   - [ ephemeral0, null ]
   - [ ephemeral0.1, null ]
+
+write_files:
+  - owner: batch-worker:batch-worker
+    path: /setup-disks.sh
+    content: |
+      #!/bin/sh
+      set -ex
+      WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
+
+      # format worker data disk
+      sudo mkfs.xfs -f -m reflink=1 -n ftype=1 {disk_location}
+      sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
+      sudo mount -o prjquota {disk_location} /mnt/disks/$WORKER_DATA_DISK_NAME
+      sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
+      XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
+      if [ -z "$XFS_DEVICE" ]
+      then
+          exit 1
+      fi
+runcmd:
+  - sh /setup-disks.sh
 '''
     cloud_init_script = base64.b64encode(cloud_init_script.encode('utf-8')).decode('utf-8')
 
@@ -102,8 +123,8 @@ else
 fi
 curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/userData?api-version=2021-02-01&format=text" | \
 base64 --decode | \
-jq -r '.run_script' > ./run.sh
-nohup /bin/bash run.sh >run.log 2>&1 &
+jq -r '.run_script' > /run.sh
+nohup /bin/bash /run.sh > /run.log 2>&1 &
 '''
     startup_script = base64.b64encode(startup_script.encode('utf-8')).decode('utf-8')
 
@@ -115,10 +136,10 @@ WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 
 # format worker data disk
-sudo mkfs.xfs -f -m reflink=1 -n ftype=1 {disk_location}
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo mount -o prjquota {disk_location} /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
+#sudo mkfs.xfs -f -m reflink=1 -n ftype=1 {disk_location}
+#sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
+#sudo mount -o prjquota {disk_location} /mnt/disks/$WORKER_DATA_DISK_NAME
+#sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
 XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
 
 # reconfigure docker to use data disk
@@ -256,12 +277,12 @@ docker run \
 --security-opt apparmor:unconfined \
 --network host \
 $BATCH_WORKER_IMAGE \
-python3 -u -m batch.worker.worker >worker.log 2>&1
+python3 -u -m batch.worker.worker > /worker.log 2>&1
 
-[ $? -eq 0 ] || tail -n 1000 worker.log
+[ $? -eq 0 ] || tail -n 1000 /worker.log
 
 while true; do
-az vm delete -g $RESOURCE_GROUP -n $NAME --yes
+# az vm delete -g $RESOURCE_GROUP -n $NAME --yes
 sleep 1
 done
 '''

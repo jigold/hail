@@ -101,7 +101,7 @@ class AzureDriver(CloudDriver):
 
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_nics))
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_public_ips))
-        task_manager.ensure_future(periodically_call(60, driver.delete_completed_deployments))
+        # task_manager.ensure_future(periodically_call(60, driver.delete_completed_deployments))
         task_manager.ensure_future(periodically_call(300, billing_manager.refresh_resources_from_retail_prices))
 
         return driver
