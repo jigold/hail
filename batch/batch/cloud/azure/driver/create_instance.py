@@ -268,7 +268,7 @@ docker run \
 --security-opt apparmor:unconfined \
 --network host \
 $BATCH_WORKER_IMAGE \
-python3 -u -m batch.worker.worker >worker.log 2>&1
+python3 -u -m batch.worker >worker.log 2>&1
 
 [ $? -eq 0 ] || tail -n 1000 worker.log
 
