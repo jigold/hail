@@ -17,7 +17,11 @@ spec:
     targetPort: 443
   selector:
     app: gateway
+{% if global.scope != "mini-batch" %}
   loadBalancerIP: "{{ global.ip }}"
+{% else %}
+  loadBalancerIP: "10.44.0.1"
+{% endif %}
   # https://kubernetes.io/docs/tutorials/services/source-ip/#source-ip-for-services-with-type-loadbalancer
   externalTrafficPolicy: Local
   type: LoadBalancer

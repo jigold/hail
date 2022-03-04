@@ -40,6 +40,9 @@ def print_help():
     subs.add_parser('config',
                     help='Manage Hail configuration.',
                     description='Manage Hail configuration.')
+    subs.add_parser('cluster',
+                    help='Manage Hail Mini-Batch clusters.',
+                    description='Manage Hail Mini-Batch clusters.')
 
     main_parser.print_help()
 
@@ -124,6 +127,9 @@ def main():
             main(args)
         elif module == 'config':
             from hailtop.hailctl.config import cli  # pylint: disable=import-outside-toplevel
+            cli.main(args)
+        elif module == 'cluster':
+            from hailtop.hailctl.cluster import cli  # pylint: disable=import-outside-toplevel
             cli.main(args)
         elif module in ('-h', '--help', 'help'):
             print_help()

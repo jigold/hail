@@ -1,5 +1,6 @@
 echo 'umask 022' >> ~/.profile
 echo 'export HAIL=$HOME/hail' >> ~/.profile
+echo 'export PYTHONPATH=$HAIL/hail/python:$HAIL/gear:$PYTHONPATH' >> ~/.profile
 echo 'source $HAIL/devbin/functions.sh' >> ~/.profile
 umask 022
 
@@ -14,4 +15,4 @@ sudo snap install --classic kubectl
 sudo usermod -a -G docker $USER
 
 python3 -m pip install --upgrade pip
-python3 -m pip install -r $HOME/hail/docker/requirements.txt
+python3 -m pip install -r $HOME/hail/docker/requirements.txt  # why do we need so many packages? Should just be aiohttp?

@@ -9,7 +9,11 @@ spec:
   selector:
     matchLabels:
       app: internal-gateway
+{% if global.scope != "mini-batch" %}
   replicas: 3
+{% else %}
+  replicas: 1
+{% endif %}
   template:
     metadata:
       labels:
