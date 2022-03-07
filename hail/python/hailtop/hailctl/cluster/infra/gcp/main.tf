@@ -66,7 +66,7 @@ data "google_compute_subnetwork" "default_region" {
 resource "google_compute_firewall" "allow_ssh" {
   name          = "allow-ssh"
   network       = google_compute_network.default.name
-  target_tags   = ["allow-ssh"] // this targets our tagged VM
+  target_tags   = ["allow-ssh", "batch2-agent"] // this targets our tagged VM
   source_ranges = ["0.0.0.0/0"]
 
   allow {
@@ -184,7 +184,6 @@ resource "kubernetes_namespace" "example" {
 }
 
 resource "null_resource" "bootstrap" {
-
   connection {
     type     = "ssh"
     user     = local.username
