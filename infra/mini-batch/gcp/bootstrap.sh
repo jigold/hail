@@ -67,9 +67,9 @@ sudo kubectl label node $HOSTNAME preemptible=true
 
 gsutil cp ${OAUTH2_CREDENTIALS_FILE} /oauth2_credentials_file
 
-echo 'export MINIBATCH="1"' >> ~/.profile
+# echo 'export MINIBATCH="1"' >> ~/.profile
 
-cd infra/mini-batch/gcp/infra/
+cd /hail/infra/mini-batch/gcp/infra/
 
 tee inputs.tfvars <<EOF
 bucket_location = "${BUCKET_LOCATION}"

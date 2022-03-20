@@ -7,7 +7,7 @@ terraform {
   }
 
   backend "gcs" {
-    bucket  = var.tf_state_bucket
+    #    bucket  = # Set with -backend-config "bucket=BUCKET"
     prefix  = "mini-batch/terraform/infra/state"
   }
 }

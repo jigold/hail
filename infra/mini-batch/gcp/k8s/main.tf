@@ -9,7 +9,7 @@ terraform {
 
 provider "kubernetes" {
   load_config_file = true
-  config_path = "/.kube/config"
+  config_path = "/root/.kube/config"
 
   #host = "https://${var.minikube_host_ip}:8443"
 

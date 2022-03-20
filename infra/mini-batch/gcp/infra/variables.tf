@@ -6,6 +6,10 @@ variable bucket_storage_class {
   type = string
 }
 
+variable tf_state_bucket {
+  type = string
+}
+
 variable db_cores {
   type = number
   default = 1
