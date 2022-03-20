@@ -139,9 +139,6 @@ cd hail/
 git checkout "${var.commit}"
 cd infra/mini-batch/gcp/
 
-sudo useradd -m minibatch
-sudo usermod -aG sudo minibatch
-
-sudo - minibatch -c "nohup sh bootstrap.sh > /bootstrap.log &"
+nohup sh bootstrap.sh > bootstrap.log 2>&1 &
 EOT
 }

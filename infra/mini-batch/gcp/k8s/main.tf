@@ -11,17 +11,17 @@ resource "local_file" "oauth2_credentials" {
   filename = "/oauth2_credentials_file"
 }
 
-data "local_file" "client_certificate" {
-  filename = "/home/minibatch/.kube/config/client.crt"
-}
-
-data "local_file" "client_key" {
-  filename = "/home/minibatch/.kube/config/client.key"
-}
-
-data "local_file" "cluster_ca_certificate" {
-  filename = "/home/minibatch/.kube/config/ca.crt"
-}
+#data "local_file" "client_certificate" {
+#  filename = "/home/minibatch/.kube/config/client.crt"
+#}
+#
+#data "local_file" "client_key" {
+#  filename = "/home/minibatch/.kube/config/client.key"
+#}
+#
+#data "local_file" "cluster_ca_certificate" {
+#  filename = "/home/minibatch/.kube/config/ca.crt"
+#}
 
 provider "kubernetes" {
   load_config_file = true

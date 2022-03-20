@@ -50,8 +50,8 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io
 curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
 sudo install minikube-linux-amd64 /usr/local/bin/minikube
 
-sudo usermod -aG docker minibatch
-newgrp docker
+#sudo usermod -aG docker minibatch
+#newgrp docker
 
 # use bare metal (driver=none) so host network is directly exposed
 minikube start --driver=none
@@ -64,14 +64,14 @@ MINIKUBE_IP=$(minikube ip)
 
 gsutil cp ${OAUTH2_CREDENTIALS_FILE} /oauth2_credentials_file
 
-echo 'umask 022' >> ~/.profile
-echo 'export HAIL=$HOME/hail' >> ~/.profile
-echo 'export PYTHONPATH=$HAIL/hail/python:$HAIL/gear:$PYTHONPATH' >> ~/.profile
-echo 'export MINIBATCH="1"' >> ~/.profile
-echo 'source $HAIL/devbin/functions.sh' >> ~/.profile
-umask 022
+#echo 'umask 022' >> ~/.profile
+#echo 'export HAIL=$HOME/hail' >> ~/.profile
+#echo 'export PYTHONPATH=$HAIL/hail/python:$HAIL/gear:$PYTHONPATH' >> ~/.profile
+#echo 'export MINIBATCH="1"' >> ~/.profile
+#echo 'source $HAIL/devbin/functions.sh' >> ~/.profile
+#umask 022
 
-source ~/.profile
+#source ~/.profile
 
 cd infra/mini-batch/gcp/infra/
 

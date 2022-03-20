@@ -33,7 +33,7 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
 set -ex
 cd {tmp}
 terraform init -backend-config "bucket={cluster_state_bucket}"
-terraform destroy
+terraform destroy -target google_compute_instance.driver
 ''')
 
-    os.system(f'gsutil rm gs://{cluster_state_bucket}/mini-batch/terraform/driver/state/default.tfstate')
+    #os.system(f'gsutil rm gs://{cluster_state_bucket}/mini-batch/terraform/driver/state/default.tfstate')
