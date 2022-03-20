@@ -24,13 +24,13 @@ data "local_file" "cluster_ca_certificate" {
 }
 
 provider "kubernetes" {
-  load_config_file = false
+  load_config_file = true
 
-  host = "https://${var.minikube_host_ip}:8443"
+  #host = "https://${var.minikube_host_ip}:8443"
 
-  client_certificate     = data.local_file.client_certificate.content
-  client_key             = data.local_file.client_key.content
-  cluster_ca_certificate = data.local_file.cluster_ca_certificate.content
+  #client_certificate     = data.local_file.client_certificate.content
+  #client_key             = data.local_file.client_key.content
+  #cluster_ca_certificate = data.local_file.cluster_ca_certificate.content
 }
 
 data "terraform_remote_state" "infra" {

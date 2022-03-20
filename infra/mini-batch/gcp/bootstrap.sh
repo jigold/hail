@@ -93,9 +93,10 @@ internal_ip = "${IP_ADDRESS}"
 external_ip = "${EXTERNAL_IP}"
 minikube_host_ip = "${MINIKUBE_IP}"
 batch_gcp_regions = ["${REGION}"]
+tf_state_bucket = "${TF_STATE_BUCKET}"
 EOF
 
-#terraform init -backend-config "bucket=${TF_STATE_BUCKET}"
+#terraform init
 #terraform apply --var-file="inputs.tfvars"
 
 #cd $HAIL/infra
