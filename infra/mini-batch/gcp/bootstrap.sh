@@ -63,7 +63,7 @@ sudo CHANGE_MINIKUBE_NONE_USER=true minikube start --driver=none
 sudo ln -s $(which minikube) /usr/local/bin/kubectl
 
 # add label to node to get around node selectors specified in yaml
-kubectl label node $HOSTNAME preemptible=true
+sudo kubectl label node $HOSTNAME preemptible=true
 
 gsutil cp ${OAUTH2_CREDENTIALS_FILE} /oauth2_credentials_file
 
