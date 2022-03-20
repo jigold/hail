@@ -72,10 +72,11 @@ bucket_location = "${BUCKET_LOCATION}"
 bucket_storage_class = "${BUCKET_STORAGE_CLASS}"
 db_cores = "${DB_CORES}"
 db_memory = "${DB_MEMORY}"
+tf_state_bucket = "${TF_STATE_BUCKET}"
 EOF
 
 # sudo terraform init -backend-config "bucket=${TF_STATE_BUCKET}"
-# sudo terraform apply --var-file="inputs.tfvars"
+# sudo terraform apply -var-file="inputs.tfvars"
 
 cd ../k8s/
 

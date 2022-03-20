@@ -21,11 +21,11 @@ data "terraform_remote_state" "driver" {
 }
 
 locals {
-  gcp_region = data.terraform_remote_state.driver.gcp_region
-  gcp_project = data.terraform_remote_state.driver.gcp_project
-  gcp_zone = data.terraform_remote_state.driver.gcp_zone
-  gcp_location = data.terraform_remote_state.driver.gcp_location
-  network = data.terraform_remote_state.driver.network
+  gcp_region = data.terraform_remote_state.driver.outputs.gcp_region
+  gcp_project = data.terraform_remote_state.driver.outputs.gcp_project
+  gcp_zone = data.terraform_remote_state.driver.outputs.gcp_zone
+  gcp_location = data.terraform_remote_state.driver.outputs.gcp_location
+  network = data.terraform_remote_state.driver.outputs.network
   docker_prefix = "${local.gcp_region}-docker.pkg.dev/${local.gcp_project}/hail"
   docker_root_image = "${local.docker_prefix}/ubuntu:20.04"
 }

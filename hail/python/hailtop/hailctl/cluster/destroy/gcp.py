@@ -22,18 +22,34 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
 
     print(f'retrieving cluster state from gs://{cluster_state_bucket}')
 
-    with tempfile.TemporaryDirectory() as tmp:
-        print(f'initializing terraform files in {tmp}')
+    def main_tf(prefix: str):
+        return f'''
+terraform {{
+  required_providers {{
+    google = {{
+      source = "hashicorp/google"
+      version = "3.48.0"
+    }}
+  }}
 
-        tf_dir = os.path.dirname(os.path.realpath(__file__)) + '/infra/gcp'
-        print(tf_dir)
+  backend "gcs" {{
+#    bucket  = # Set with -backend-config "bucket=BUCKET"
+    prefix  = "{prefix}"
+  }}
+}}
+'''
 
-        os.system(f'cp {tf_dir}/main.tf {tmp}/main.tf')
-        os.system(f'''
+    for prefix in ('mini-batch/terraform/infra/state', 'mini-batch/terraform/driver/state'):
+        with tempfile.TemporaryDirectory() as tmp:
+            print(f'initializing terraform files in {tmp}')
+            tf = main_tf(prefix)
+            with open(f'{tmp}/main.tf', 'w') as f:
+                f.write(tf + '/n')
+            os.system(f'''
 set -ex
 cd {tmp}
 terraform init -backend-config "bucket={cluster_state_bucket}"
 terraform destroy -target google_compute_instance.driver
 ''')
 
-    #os.system(f'gsutil rm gs://{cluster_state_bucket}/mini-batch/terraform/driver/state/default.tfstate')
+        #os.system(f'gsutil rm gs://{cluster_state_bucket}/{prefix}/default.tfstate')

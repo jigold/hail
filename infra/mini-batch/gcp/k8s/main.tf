@@ -10,12 +10,6 @@ terraform {
 provider "kubernetes" {
   load_config_file = true
   config_path = "/root/.kube/config"
-
-  #host = "https://${var.minikube_host_ip}:8443"
-
-  #client_certificate     = data.local_file.client_certificate.content
-  #client_key             = data.local_file.client_key.content
-  #cluster_ca_certificate = data.local_file.cluster_ca_certificate.content
 }
 
 data "terraform_remote_state" "infra" {
@@ -29,20 +23,6 @@ data "terraform_remote_state" "infra" {
 resource "local_file" "oauth2_credentials" {
   filename = "/oauth2_credentials_file"
 }
-
-#data "local_file" "client_certificate" {
-#  filename = "/home/minibatch/.kube/config/client.crt"
-#}
-#
-#data "local_file" "client_key" {
-#  filename = "/home/minibatch/.kube/config/client.key"
-#}
-#
-#data "local_file" "cluster_ca_certificate" {
-#  filename = "/home/minibatch/.kube/config/ca.crt"
-#}
-
-
 
 locals {
   db = data.terraform_remote_state.infra.outputs.db
@@ -60,7 +40,7 @@ resource "kubernetes_secret" "global_config" {
 
   data = {
     cloud = "gcp"
-    batch_gcp_regions = var.batch_gcp_regions
+    batch_gcp_regions = jsonencode(var.batch_gcp_regions)
     batch_logs_storage_uri = "gs://${local.batch_logs.name}"
     query_storage_uri  = "gs://${local.hail_query_storage.name}"
     default_namespace = "default"
