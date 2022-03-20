@@ -55,8 +55,6 @@ sudo install minikube-linux-amd64 /usr/local/bin/minikube
 #sudo usermod -aG sudo minibatch
 #sudo newgrp docker
 
-whoami
-
 # use bare metal (driver=none) so host network is directly exposed
 sudo CHANGE_MINIKUBE_NONE_USER=true minikube start --driver=none
 
@@ -67,8 +65,6 @@ sudo kubectl label node $HOSTNAME preemptible=true
 
 gsutil cp ${OAUTH2_CREDENTIALS_FILE} /oauth2_credentials_file
 
-# echo 'export MINIBATCH="1"' >> ~/.profile
-
 cd /hail/infra/mini-batch/gcp/infra/
 
 tee inputs.tfvars <<EOF
@@ -78,8 +74,8 @@ db_cores = "${DB_CORES}"
 db_memory = "${DB_MEMORY}"
 EOF
 
-#terraform init -backend-config "bucket=${TF_STATE_BUCKET}"
-#terraform apply --var-file="inputs.tfvars"
+# sudo terraform init -backend-config "bucket=${TF_STATE_BUCKET}"
+# sudo terraform apply --var-file="inputs.tfvars"
 
 cd ../k8s/
 
@@ -91,8 +87,8 @@ batch_gcp_regions = ["${REGION}"]
 tf_state_bucket = "${TF_STATE_BUCKET}"
 EOF
 
-#terraform init
-#terraform apply --var-file="inputs.tfvars"
+# sudo terraform init
+# sudo terraform apply --var-file="inputs.tfvars"
 
 #cd $HAIL/infra
 #./install_bootstrap_dependencies.sh
