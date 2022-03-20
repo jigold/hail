@@ -49,11 +49,11 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
         cluster_state_bucket = f'{args.project}-mini-batch-cluster-state'
         try:
             os.system(f'gsutil ls gs://{cluster_state_bucket}')
-        except CalledProcessError:
+        except:
             print(f'bucket gs://{cluster_state_bucket} is not accessible. trying to create it.')
             try:
                 os.system(f'gsutil mb -p {args.project} -c {args.bucket_storage_class} -l {region} gs://{cluster_state_bucket}')
-            except CalledProcessError:
+            except:
                 print(f'error creating bucket gs://{cluster_state_bucket}')
                 raise
     else:

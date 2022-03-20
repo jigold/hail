@@ -1,19 +1,19 @@
 import sys
 import argparse
 
-from . import gcp
+from . import gcp as gcp
 
 
 def init_parser():
     main_parser = argparse.ArgumentParser(
-        prog='hailctl cluster create',
-        description='Create Hail Mini-Batch clusters.')
+        prog='hailctl cluster destroy',
+        description='Destroy a Hail Mini-Batch cluster.')
     subparsers = main_parser.add_subparsers()
 
     gcp_parser = subparsers.add_parser(
         'gcp',
-        help="Create a GCP Hail Mini-Batch cluster",
-        description="Create a GCP Hail Mini-Batch cluster")
+        help="Destory a GCP Hail Mini-Batch cluster",
+        description="Destory a GCP Hail Mini-Batch cluster")
 
     gcp_parser.set_defaults(module='gcp')
     gcp.init_parser(gcp_parser)

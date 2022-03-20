@@ -7,3 +7,4 @@ include hailtop/hailctl/deploy.yaml
 include hailtop/py.typed
 include requirements.txt
 include hailtop/hailctl/cluster/create/infra
+include hailtop/hailctl/cluster/destroy/infra

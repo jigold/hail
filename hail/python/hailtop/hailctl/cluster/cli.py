@@ -2,6 +2,7 @@ import sys
 import argparse
 
 from . import create
+from . import destroy
 
 
 def parser():
@@ -16,6 +17,13 @@ def parser():
         description='Create a Hail Mini-Batch cluster')
 
     create_parser.set_defaults(module='create')
+
+    destroy_parser = subparsers.add_parser(
+        'destroy',
+        help='Destroy a Hail Mini-Batch cluster',
+        description='Destroy a Hail Mini-Batch cluster')
+
+    destroy_parser.set_defaults(module='destroy')
 
     return main_parser
 
@@ -33,6 +41,10 @@ def main(args):
 
     if args.module == 'create':
         from .create import cli  # pylint: disable=import-outside-toplevel
+        cli.main(args, pass_through_args)
+        return
+    if args.module == 'destroy':
+        from .destroy import cli  # pylint: disable=import-outside-toplevel
         cli.main(args, pass_through_args)
         return
 
