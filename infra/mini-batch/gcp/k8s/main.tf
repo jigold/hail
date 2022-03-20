@@ -12,15 +12,15 @@ resource "local_file" "oauth2_credentials" {
 }
 
 data "local_file" "client_certificate" {
-  filename = "/home/mini-batch/.kube/config/client.crt"
+  filename = "/home/minibatch/.kube/config/client.crt"
 }
 
 data "local_file" "client_key" {
-  filename = "/home/mini-batch/.kube/config/client.key"
+  filename = "/home/minibatch/.kube/config/client.key"
 }
 
 data "local_file" "cluster_ca_certificate" {
-  filename = "/home/mini-batch/.kube/config/ca.crt"
+  filename = "/home/minibatch/.kube/config/ca.crt"
 }
 
 provider "kubernetes" {

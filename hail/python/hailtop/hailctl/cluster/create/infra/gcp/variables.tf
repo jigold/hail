@@ -69,10 +69,6 @@ variable bucket_location {
   type = string
 }
 
-variable minikube_memory_mib {
-  type = number
-}
-
 variable oauth2_credentials_file {
   type = string
 }

@@ -4,11 +4,9 @@ set -ex
 
 IP_ADDRESS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
 EXTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip")
-CORES=$(nproc)
 HOSTNAME=$(hostname)
 
 REGION=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/region")
-MINIKUBE_MEMORY_MIB=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/minikube_memory_mib")
 OAUTH2_CREDENTIALS_FILE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/oauth2_credentials_file")
 BUCKET_STORAGE_CLASS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_storage_class")
 BUCKET_LOCATION=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_location")
@@ -52,12 +50,11 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io
 curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
 sudo install minikube-linux-amd64 /usr/local/bin/minikube
 
-#sudo useradd -m minibatch
-#sudo usermod -aG docker minibatch
-#newgrp docker
+sudo usermod -aG docker minibatch
+newgrp docker
 
 # use bare metal (driver=none) so host network is directly exposed
-minikube start --driver=none --cpus $CORES --memory ${MINIKUBE_MEMORY_MIB}
+minikube start --driver=none
 
 # add label to node to get around node selectors specified in yaml
 minikube kubectl -- label node $HOSTNAME preemptible=true
@@ -79,20 +76,18 @@ source ~/.profile
 cd infra/mini-batch/gcp/infra/
 
 tee inputs.tfvars <<EOF
-tf_state_bucket = "${TF_STATE_BUCKET}"
 bucket_location = "${BUCKET_LOCATION}"
 bucket_storage_class = "${BUCKET_STORAGE_CLASS}"
 db_cores = "${DB_CORES}"
 db_memory = "${DB_MEMORY}"
 EOF
 
-terraform init
-terraform apply --var-file="inputs.tfvars"
+#terraform init -backend-config "bucket=${TF_STATE_BUCKET}"
+#terraform apply --var-file="inputs.tfvars"
 
 cd ../k8s/
 
 tee inputs.tfvars <<EOF
-tf_state_bucket = "${TF_STATE_BUCKET}"
 organization_domain = "${ORGANIZATION_DOMAIN}"
 internal_ip = "${IP_ADDRESS}"
 external_ip = "${EXTERNAL_IP}"
@@ -100,8 +95,8 @@ minikube_host_ip = "${MINIKUBE_IP}"
 batch_gcp_regions = ["${REGION}"]
 EOF
 
-terraform init
-terraform apply --var-file="inputs.tfvars"
+#terraform init -backend-config "bucket=${TF_STATE_BUCKET}"
+#terraform apply --var-file="inputs.tfvars"
 
 #cd $HAIL/infra
 #./install_bootstrap_dependencies.sh

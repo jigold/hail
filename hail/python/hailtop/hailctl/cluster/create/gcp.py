@@ -106,7 +106,6 @@ machine_type = "{args.machine_type}"
 # FIXME: db variables
 bucket_storage_class = "{args.bucket_storage_class}"
 bucket_location = "{region}"
-minikube_memory_mib = {3500}
 oauth2_credentials_file = "{remote_oauth2_credentials_file}"
 repo = "{args.repo}"
 commit = "{commit}"

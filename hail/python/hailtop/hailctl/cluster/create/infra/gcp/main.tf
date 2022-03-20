@@ -105,7 +105,6 @@ resource "google_compute_instance" "driver" {
   }
 
   metadata = {
-    minikube_memory_mib = var.minikube_memory_mib
     oauth2_credentials_file = var.oauth2_credentials_file
     bucket_storage_class = var.bucket_storage_class
     bucket_location = var.bucket_location
@@ -139,6 +138,10 @@ git clone https://github.com/${var.repo}.git
 cd hail/
 git checkout "${var.commit}"
 cd infra/mini-batch/gcp/
-nohup sh bootstrap.sh > /bootstrap.log
+
+sudo useradd -m minibatch
+sudo usermod -aG sudo minibatch
+
+sudo - minibatch -c "nohup sh bootstrap.sh > /bootstrap.log &"
 EOT
 }
