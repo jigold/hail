@@ -137,8 +137,8 @@ sudo apt-get install -y git
 git clone https://github.com/${var.repo}.git
 cd hail/
 git checkout "${var.commit}"
-cd infra/mini-batch/gcp/
+cd /
 
-nohup sh bootstrap.sh > bootstrap.log 2>&1 &
+nohup sh /hail/infra/mini-batch/gcp/bootstrap.sh > bootstrap.log 2>&1 &
 EOT
 }

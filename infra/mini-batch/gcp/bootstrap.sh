@@ -60,7 +60,6 @@ minikube start --driver=none
 minikube kubectl -- label node $HOSTNAME preemptible=true
 
 sudo ln -s $(which minikube) /usr/local/bin/kubectl
-MINIKUBE_IP=$(minikube ip)
 
 gsutil cp ${OAUTH2_CREDENTIALS_FILE} /oauth2_credentials_file
 
@@ -91,7 +90,6 @@ tee inputs.tfvars <<EOF
 organization_domain = "${ORGANIZATION_DOMAIN}"
 internal_ip = "${IP_ADDRESS}"
 external_ip = "${EXTERNAL_IP}"
-minikube_host_ip = "${MINIKUBE_IP}"
 batch_gcp_regions = ["${REGION}"]
 tf_state_bucket = "${TF_STATE_BUCKET}"
 EOF

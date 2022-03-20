@@ -7,6 +7,25 @@ terraform {
   }
 }
 
+provider "kubernetes" {
+  load_config_file = true
+  config_path = "/.kube/config"
+
+  #host = "https://${var.minikube_host_ip}:8443"
+
+  #client_certificate     = data.local_file.client_certificate.content
+  #client_key             = data.local_file.client_key.content
+  #cluster_ca_certificate = data.local_file.cluster_ca_certificate.content
+}
+
+data "terraform_remote_state" "infra" {
+  backend = "gcs"
+  config = {
+    bucket  = var.tf_state_bucket
+    prefix  = "mini-batch/terraform/infra/state"
+  }
+}
+
 resource "local_file" "oauth2_credentials" {
   filename = "/oauth2_credentials_file"
 }
@@ -23,23 +42,7 @@ resource "local_file" "oauth2_credentials" {
 #  filename = "/home/minibatch/.kube/config/ca.crt"
 #}
 
-provider "kubernetes" {
-  load_config_file = true
 
-  #host = "https://${var.minikube_host_ip}:8443"
-
-  #client_certificate     = data.local_file.client_certificate.content
-  #client_key             = data.local_file.client_key.content
-  #cluster_ca_certificate = data.local_file.cluster_ca_certificate.content
-}
-
-data "terraform_remote_state" "infra" {
-  backend = "gcs"
-  config = {
-    bucket  = var.tf_state_bucket
-    prefix  = "mini-batch/terraform/infra/state"
-  }
-}
 
 locals {
   db = data.terraform_remote_state.infra.outputs.db
