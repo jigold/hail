@@ -118,60 +118,71 @@ sudo apt-get install terraform
 nohup sh /hail/infra/mini-batch/gcp/bootstrap.sh > bootstrap.log 2>&1 &
 ''')
 
+        async def create_sa(
+                project: str,
+                name: str,
+                roles: List[str]
+        ):
+            pass
+
+        #     try:
+        #         await delete_sa(project, name)
+        #
+        #     import os
+        #     os.system(f'gcloud --project {shq(project)} iam service-accounts create {shq(name)} --display-name="{shq(name)}"')
+        #     await check_shell_output(f'''
+        # gcloud --project {shq(project)} iam service-accounts create {shq(name)} --display-name="{shq(name)}"
+        # ''',
+        #                              echo=True)
+
+        #     for role in roles:
+        #         return await check_shell_output(f'''
+        # gcloud --project {project} projects add-iam-policy-binding {project} --member='serviceAccount:{name}@{project}.iam.gserviceaccount.com' --role='{role}'
+        # ''',
+        #                                  echo=True)
+
+        async def delete_sa(
+                project: str,
+                name: str
+        ):
+            return await check_shell_output(f'''
+        gcloud --project {shq(project)} iam service-accounts delete "{name}@{project}.iam.gserviceaccount.com"
+        ''')
+
+        runner_sa_name = f'mini-batch-runner@{args.project}.iam.gserviceaccount.com'
+
+        os.system(f'''
+gcloud --project {args.project} iam service-accounts create {runner_sa_name} --display-name "{runner_sa_name}" && \
+    gcloud --project {args.project} projects add-iam-policy-binding {args.project} --member='serviceAccount:{runner_sa_name}' --role='owner'
+''')
+
         os.system(f'''
 gcloud compute instances create {runner_vm_name} \
     --project {args.project} \
-    --image-project ... \
+    --image-project ubuntu-os-cloud \
+    --image-family ubuntu-minimal-2004-lts \
+    --image ubuntu-minimal-2004-focal-v20220308 \
     --boot-disk-size 30 \
     --boot-disk-type pd-ssd \
+    --labels mini-batch-runner \
     --machine-type n1-standard-1 \
-    --metadata ... \
+    --metadata region="{region}" \
+    --metadata organization_domain="{args.organization_domain}" \
+    --metadata username="{args.username}" \
+    --metadata email="{args.email}" \
+    --metadata bucket_storage_class="{args.bucket_storage_class}" \
+    --metadata bucket_location="{region}" \
+    --metadata oauth2_credentials_file="{remote_oauth2_credentials_file}" \
+    --metadata repo="{args.repo}" \
+    --metadata commit="{commit}" \
+    --metadata tf_state_bucket="{cluster_state_bucket}" \
+    --metadata driver_machine_type="{args.machine_type}" \
     --metadata-from-file startup-script={runner_script} \
     --no-restart-on-failure \
     --tags mini-batch-runner \
     --zone {args.zone} \
     --scopes cloud-platform \
-    --service-account mini-batch-{args.project}-runner@{args.project}.
-    
-''')
-
-        print(f'initializing terraform files in {tmp}')
-
-        tf_dir = os.path.dirname(os.path.realpath(__file__)) + '/infra/gcp'
-        print(tf_dir)
-
-        os.system(f'cp {tf_dir}/main.tf {tmp}/main.tf')
-        os.system(f'cp {tf_dir}/variables.tf {tmp}/variables.tf')
-        os.system(f'cp {tf_dir}/outputs.tf {tmp}/outputs.tf')
-
-        with open(f'{tmp}/inputs.tfvars', 'w') as f:
-            f.write(f'''
-cluster_name = "{args.project}"
-gcp_project = "{args.project}"
-gcp_region = "{region}"
-gcp_zone = "{args.zone}"
-gcp_location = "{region}"  # FIXME
-organization_domain = "{args.organization_domain}"
-username = "{args.username}"
-email = "{args.email}"
-n_cores = {args.cores}
-boot_disk_size = {args.boot_disk_size}
-machine_family = "{args.machine_family}"
-machine_type = "{args.machine_type}"
-# FIXME: db variables
-bucket_storage_class = "{args.bucket_storage_class}"
-bucket_location = "{region}"
-oauth2_credentials_file = "{remote_oauth2_credentials_file}"
-repo = "{args.repo}"
-commit = "{commit}"
-tf_state_bucket = "{cluster_state_bucket}"
-''')
-
-        os.system(f'''
-set -ex
-cd {tmp}
-terraform init -backend-config "bucket={cluster_state_bucket}"
-terraform apply -auto-approve -var-file inputs.tfvars
+    --service-account {runner_sa_name}
 ''')
 
     # SSH connect to runner to see progress???
