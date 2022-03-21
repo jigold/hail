@@ -23,14 +23,13 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
     print(f'retrieving cluster state from gs://{cluster_state_bucket}')
 
     def main_tf(prefix: str):
-        return f'''
-terraform {{
+        return f'''terraform {{
   required_providers {{
     google = {{
       source = "hashicorp/google"
       version = "3.48.0"
     }}
-  }}
+  }}  
 
   backend "gcs" {{
 #    bucket  = # Set with -backend-config "bucket=BUCKET"
@@ -44,12 +43,12 @@ terraform {{
             print(f'initializing terraform files in {tmp}')
             tf = main_tf(prefix)
             with open(f'{tmp}/main.tf', 'w') as f:
-                f.write(tf + '/n')
+                f.write(tf)
             os.system(f'''
 set -ex
 cd {tmp}
 terraform init -backend-config "bucket={cluster_state_bucket}"
-terraform destroy -target google_compute_instance.driver
+terraform destroy # -target google_compute_instance.driver
 ''')
 
         #os.system(f'gsutil rm gs://{cluster_state_bucket}/{prefix}/default.tfstate')
