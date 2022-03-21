@@ -42,6 +42,7 @@ def init_parser(parser):
 
 def main(args, pass_through_args):  # pylint: disable=unused-argument
     runner_vm_name = f'mini-batch-{args.project}-runner'
+    runner_sa_name = f'mini-batch-runner@{args.project}.iam.gserviceaccount.com'
     commit = (filter_none([args.branch, args.pip_version, args.sha]) + [pip_version()])[0]
 
     region = args.zone.rsplit('-', maxsplit=1)[0]
@@ -87,12 +88,15 @@ gcloud --project {args.project} services enable \
 #! /bin/bash
 set -ex
 
+REPO=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/repo")
+COMMIT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/commit")
+
 sudo apt-get update
 sudo apt-get install -y git
 
-git clone https://github.com/{args.repo}.git
+git clone https://github.com/${{REPO}}.git
 cd hail/
-git checkout "{commit}"
+git checkout "${{COMMIT}}"
 cd /
 
 sudo apt-get update
@@ -115,54 +119,27 @@ sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(l
 sudo apt-get update
 sudo apt-get install terraform
 
-nohup sh /hail/infra/mini-batch/gcp/bootstrap.sh > bootstrap.log 2>&1 &
+sudo tee /run.sh <<EOF
+sh /hail/infra/mini-batch/gcp/bootstrap.sh > bootstrap.log 2>&1
+touch /bootstrap-complete
+EOF 
+
+sudo nohup sh /run.sh > run.log 2>&1 &
 ''')
 
-        async def create_sa(
-                project: str,
-                name: str,
-                roles: List[str]
-        ):
-            pass
-
-        #     try:
-        #         await delete_sa(project, name)
-        #
-        #     import os
-        #     os.system(f'gcloud --project {shq(project)} iam service-accounts create {shq(name)} --display-name="{shq(name)}"')
-        #     await check_shell_output(f'''
-        # gcloud --project {shq(project)} iam service-accounts create {shq(name)} --display-name="{shq(name)}"
-        # ''',
-        #                              echo=True)
-
-        #     for role in roles:
-        #         return await check_shell_output(f'''
-        # gcloud --project {project} projects add-iam-policy-binding {project} --member='serviceAccount:{name}@{project}.iam.gserviceaccount.com' --role='{role}'
-        # ''',
-        #                                  echo=True)
-
-        async def delete_sa(
-                project: str,
-                name: str
-        ):
-            return await check_shell_output(f'''
-        gcloud --project {shq(project)} iam service-accounts delete "{name}@{project}.iam.gserviceaccount.com"
-        ''')
-
-        runner_sa_name = f'mini-batch-runner@{args.project}.iam.gserviceaccount.com'
-
-        os.system(f'''
+        try:
+            os.system(f'''
 gcloud --project {args.project} iam service-accounts create {runner_sa_name} --display-name "{runner_sa_name}" && \
     gcloud --project {args.project} projects add-iam-policy-binding {args.project} --member='serviceAccount:{runner_sa_name}' --role='owner'
 ''')
 
-        os.system(f'''
+            os.system(f'''
 gcloud compute instances create {runner_vm_name} \
     --project {args.project} \
     --image-project ubuntu-os-cloud \
     --image-family ubuntu-minimal-2004-lts \
     --image ubuntu-minimal-2004-focal-v20220308 \
-    --boot-disk-size 30 \
+    --boot-disk-size 20 \
     --boot-disk-type pd-ssd \
     --labels mini-batch-runner \
     --machine-type n1-standard-1 \
@@ -185,8 +162,13 @@ gcloud compute instances create {runner_vm_name} \
     --service-account {runner_sa_name}
 ''')
 
-    # SSH connect to runner to see progress???
+            os.system(f'''
 
+''')
+        finally:
+            os.system(f'''
+gcloud --project {shq(args.project)} iam service-accounts delete {shq(runner_sa_name)}
+''')
 
 # def main(args, pass_through_args):  # pylint: disable=unused-argument
 #     commit = (filter_none([args.branch, args.pip_version, args.sha]) + [pip_version()])[0]
