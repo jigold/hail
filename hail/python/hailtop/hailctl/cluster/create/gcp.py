@@ -7,6 +7,7 @@ from typing import List
 
 from hailtop import pip_version
 from hailtop.utils import CalledProcessError, async_to_blocking, filter_none, secret_alnum_string, check_shell_output, check_shell
+from hailtop.aiocloud import aiogoogle
 
 
 def init_parser(parser):
@@ -41,6 +42,7 @@ def init_parser(parser):
 
 
 async def run(args, pass_through_args):  # pylint: disable=unused-argument
+
     runner_vm_name = f'mini-batch-{args.project}-runner'
     runner_sa_name = f'mini-batch-runner@{args.project}.iam.gserviceaccount.com'
     commit = (filter_none([args.branch, args.pip_version, args.sha]) + [pip_version()])[0]
@@ -143,7 +145,7 @@ sudo nohup /bin/bash run.sh >run.log 2>&1 &
 ''')
 
         try:
-            await check_shell_output(f'''
+            os.system(f'''
 gcloud --project {args.project} iam service-accounts create {runner_sa_name} --display-name "{runner_sa_name}" && \
     gcloud --project {args.project} projects add-iam-policy-binding {args.project} --member='serviceAccount:{runner_sa_name}' --role='owner'
 ''')
