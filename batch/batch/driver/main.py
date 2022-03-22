@@ -47,7 +47,7 @@ from ..batch_configuration import (
 )
 from ..cloud.driver import get_cloud_driver
 from ..cloud.resource_utils import local_ssd_size, possible_cores_from_worker_type, unreserved_worker_data_disk_size_gib
-from ..exceptions import BatchUserError
+from ..exceptions import BatchUserError, InvalidDatabaseUpdate
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
@@ -440,6 +440,17 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
         post = await request.post()
 
+        old_values = {
+            'worker_cores': int(post['_worker_cores']),
+            'worker_local_ssd_data_disk': bool(post['_worker_local_ssd_data_disk']),
+            'worker_external_ssd_data_disk_size_gb': int(post['_worker_external_ssd_data_disk_size_gb']),
+            'enable_standing_worker': bool(post['_enable_standing_worker']),
+            'standing_worker_cores': int(post['_standing_worker_cores']),
+            'boot_disk_size_gb': int(post['_boot_disk_size_gb']),
+            'max_instances': int(post['_max_instances']),
+            'max_live_instances': int(post['_max_live_instances']),
+        }
+
         worker_type = pool.worker_type
 
         boot_disk_size_gb = validate_int(
@@ -539,12 +550,14 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             max_live_instances,
             pool.preemptible,
         )
-        await pool_config.update_database(db)
+        await pool_config.update_database(db, old_values)
         pool.configure(pool_config)
 
         set_message(session, f'Updated configuration for {pool}.', 'info')
     except ConfigError:
         pass
+    except InvalidDatabaseUpdate:
+        set_message(session, f'Invalid database update due to inconsistent values. Try refreshing the page first.', 'error')
     except asyncio.CancelledError:
         raise
     except Exception:
@@ -567,6 +580,12 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 
     post = await request.post()
 
+    old_values = {
+        'boot_disk_size_gb': int(post['_boot_disk_size_gb']),
+        'max_instances': int(post['_max_instances']),
+        'max_live_instances': int(post['_max_live_instances']),
+    }
+
     try:
         boot_disk_size_gb = validate_int(
             session,
@@ -588,11 +607,13 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
             session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
         )
 
-        await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances)
+        await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances, old_values)
 
         set_message(session, f'Updated configuration for {jpim}.', 'info')
     except ConfigError:
         pass
+    except InvalidDatabaseUpdate:
+        set_message(session, f'Invalid database update due to inconsistent values. Try refreshing the page first.', 'error')
     except asyncio.CancelledError:
         raise
     except Exception:

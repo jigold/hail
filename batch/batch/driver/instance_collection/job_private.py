@@ -20,6 +20,7 @@ from hailtop.utils import (
 )
 
 from ...batch_format_version import BatchFormatVersion
+from ...exceptions import InvalidDatabaseUpdate
 from ...inst_coll_config import JobPrivateInstanceManagerConfig
 from ...instance_config import QuantifiedResource
 from ...utils import Box, ExceededSharesCounter
@@ -117,15 +118,28 @@ WHERE removed = 0 AND inst_coll = %s;
             'max_live_instances': self.max_live_instances,
         }
 
-    async def configure(self, boot_disk_size_gb, max_instances, max_live_instances):
-        await self.db.just_execute(
+    async def configure(self, boot_disk_size_gb, max_instances, max_live_instances, old_values):
+        n_rows = await self.db.just_update(
             '''
 UPDATE inst_colls
 SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s
-WHERE name = %s;
+WHERE name = %s AND
+  boot_disk_size_gb = %s AND
+  max_instances = %s AND
+  max_live_instances = %s;
 ''',
-            (boot_disk_size_gb, max_instances, max_live_instances, self.name),
+            (boot_disk_size_gb,
+             max_instances,
+             max_live_instances,
+             self.name,
+             old_values['boot_disk_size_gb'],
+             old_values['max_instances'],
+             old_values['max_live_instances'],
+             ),
         )
+
+        if n_rows != 1:
+            raise InvalidDatabaseUpdate
 
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances

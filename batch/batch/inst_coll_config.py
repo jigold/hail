@@ -20,6 +20,7 @@ from .cloud.resource_utils import (
 from .cloud.utils import possible_cloud_locations
 from .driver.billing_manager import ProductVersions
 from .instance_config import InstanceConfig
+from .exceptions import InvalidDatabaseUpdate
 
 log = logging.getLogger('inst_coll_config')
 
@@ -80,8 +81,8 @@ class PoolConfig(InstanceCollectionConfig):
             preemptible=bool(record['preemptible']),
         )
 
-    async def update_database(self, db: Database):
-        await db.just_execute(
+    async def update_database(self, db: Database, old_values: dict):
+        n_rows_updated = await db.execute_update(
             '''
 UPDATE pools
 INNER JOIN inst_colls ON pools.name = inst_colls.name
@@ -94,7 +95,15 @@ SET worker_cores = %s,
     max_instances = %s,
     max_live_instances = %s,
     preemptible = %s
-WHERE pools.name = %s;
+WHERE pools.name = %s AND
+  worker_cores = %s AND
+  worker_local_ssd_data_disk = %s AND
+  worker_external_ssd_data_disk_size_gb = %s AND
+  enable_standing_worker = %s AND
+  standing_worker_cores = %s AND
+  boot_disk_size_gb = %s AND
+  max_instances = %s AND
+  max_live_instances = %s;
 ''',
             (
                 self.worker_cores,
@@ -107,8 +116,19 @@ WHERE pools.name = %s;
                 self.max_live_instances,
                 self.preemptible,
                 self.name,
+                old_values['worker_cores'],
+                old_values['worker_local_ssd_data_disk'],
+                old_values['worker_external_ssd_data_disk_size_gb'],
+                old_values['enable_standing_worker'],
+                old_values['standing_worker_cores'],
+                old_values['boot_disk_size_gb'],
+                old_values['max_instances'],
+                old_values['max_live_instances'],
             ),
         )
+
+        if n_rows_updated != 1:
+            raise InvalidDatabaseUpdate
 
     def __init__(
         self,

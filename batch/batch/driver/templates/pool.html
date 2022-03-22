@@ -32,6 +32,14 @@
     <div>Max instances: <input name="max_instances" value="{{ pool.max_instances }}" /></div>
     <div>Max live instances: <input name="max_live_instances" value="{{ pool.max_live_instances }}" /></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+    <input type="hidden" name="_worker_cores" value="{{ pool.worker_cores }}"/>
+    <input type="hidden" name="_boot_disk_size_gb" value="{{ pool.boot_disk_size_gb }}"/>
+    <input type="hidden" name="_worker_local_ssd_data_disk" value="{{ pool.worker_local_ssd_data_disk }}"/>
+    <input type="hidden" name="_worker_external_ssd_data_disk_size_gb" value="{{ pool.worker_external_ssd_data_disk_size_gb }}"/>
+    <input type="hidden" name="_enable_standing_worker" value="{{ pool.enable_standing_worker }}"/>
+    <input type="hidden" name="_standing_worker_cores" value="{{ pool.standing_worker_cores }}"/>
+    <input type="hidden" name="_max_instances" value="{{ pool.max_instances }}"/>
+    <input type="hidden" name="_max_live_instances" value="{{ pool.max_live_instances }}"/>
     <button>
       Update
     </button>

@@ -47,3 +47,7 @@ class BatchOperationAlreadyCompletedError(Exception):
         super().__init__(message)
         self.message = message
         self.ui_error_type = severity
+
+
+class InvalidDatabaseUpdate(Exception):
+    pass
