@@ -704,16 +704,6 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
         batch_format_version = BatchFormatVersion(record['format_version'])
 
-        async with timer.step('fetch batch burn limit'):
-            record = await db.select_and_fetchone(
-                '''
-SELECT max_burn_rate_limit - current_burn_rate_limit AS remaining_burn_rate_limit FROM batch_burn_rate_limits
-WHERE user = %s AND id = %s AND NOT deleted;
-''',
-                (user, batch_id),
-            )
-            remaining_burn_rate_limit = record['remaining_burn_rate_limit'][0]
-
         async with timer.step('validate job_specs'):
             try:
                 validate_and_clean_jobs(job_specs)

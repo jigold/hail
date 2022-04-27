@@ -167,6 +167,14 @@ CREATE INDEX `batches_token` ON `batches` (`token`);
 CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
 CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `state`);
 
+CREATE TABLE IF NOT EXISTS `batches_burn_rate_limits` (
+  `id` BIGINT NOT NULL,
+  `burn_rate_limit` DOUBLE NOT NULL,
+  `burn_rate` DOUBLE NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `batches_n_jobs_in_complete_states` (
   `id` BIGINT NOT NULL,
   `n_completed` INT NOT NULL DEFAULT 0,
@@ -338,6 +346,15 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
 
 DELIMITER $$
 
+DROP TRIGGER IF EXISTS batches_burn_rate_limits_after_update;
+CREATE TRIGGER batches_burn_rate_limits_after_update AFTER UPDATE on batches_burn_rate_limits
+FOR EACH ROW
+BEGIN
+  IF NEW.burn_rate < OLD.burn_rate AND NEW.burn_rate < OLD.burn_rate_limit THEN
+
+  END IF;
+END $$
+
 DROP TRIGGER IF EXISTS instances_before_update;
 CREATE TRIGGER instances_before_update BEFORE UPDATE on instances
 FOR EACH ROW
@@ -405,6 +422,60 @@ BEGIN
   FROM attempt_resources
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+END $$
+
+DROP TRIGGER IF EXISTS jobs_before_insert $$
+CREATE TRIGGER jobs_before_insert BEFORE UPDATE ON jobs
+FOR EACH ROW
+BEGIN
+  DECLARE cur_n_tokens INT;
+  DECLARE rand_token INT;
+  DECLARE has_burn_rate BOOLEAN;
+
+  SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
+  SET rand_token = FLOOR(RAND() * cur_n_tokens);
+
+  SELECT EXISTS(SELECT * INTO has_burn_rate FROM batches_burn_rate_limits WHERE id = NEW.batch_id LIMIT 1) INTO has_burn_rate;
+
+  IF OLD.state = 'Ready' AND has_burn_rate THEN
+    UPDATE batches_burn_rate_limits SET burn_rate = burn_rate + OLD.estimated_cost
+    WHERE id = OLD.batch_id AND burn_rate + OLD.estimated_cost <= burn_rate_limit;
+
+    IF ROW_COUNT() = 0 THEN
+      NEW.state = 'Pending'
+
+      INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+      VALUES (OLD.batch_id, OLD.inst_coll, rand_token, 0, -1, -OLD.cores_mcpu)
+      ON DUPLICATE KEY UPDATE
+        n_ready_jobs = n_ready_jobs - 1,
+        ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu;
+
+      IF NOT OLD.always_run THEN
+        INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+        VALUES (OLD.batch_id, OLD.inst_coll, rand_token, -1, -OLD.cores_mcpu)
+        ON DUPLICATE KEY UPDATE
+          n_ready_cancellable_jobs = n_ready_cancellable_jobs - 1,
+          ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu - OLD.cores_mcpu;
+      END IF;
+    END IF;
+  END IF;
+END $$
+
+DROP TRIGGER IF EXISTS jobs_before_update $$
+CREATE TRIGGER jobs_before_update BEFORE UPDATE ON jobs
+FOR EACH ROW
+BEGIN
+  DECLARE cur_burn_rate DOUBLE;
+  DECLARE cur_burn_rate_limit DOUBLE;
+
+  SELECT burn_rate, burn_rate_limit INTO cur_burn_rate, cur_burn_rate_limit
+  FROM batches_burn_rate_limits WHERE id = OLD.batch_id;
+
+  IF OLD.state = 'Pending' AND NEW.state = 'Ready' THEN
+    IF burn_rate + OLD.estimated_cost > burn_rate_limit THEN
+      NEW.state = 'Pending'
+    END IF;
+  END IF;
 END $$
 
 DROP TRIGGER IF EXISTS jobs_after_update $$
@@ -475,6 +546,7 @@ BEGIN
         n_running_jobs = n_running_jobs - 1,
         running_cores_mcpu = running_cores_mcpu - OLD.cores_mcpu;
     END IF;
+
   ELSEIF OLD.state = 'Creating' THEN
     IF NOT (OLD.always_run OR cur_batch_cancelled) THEN
       # cancellable
@@ -498,7 +570,6 @@ BEGIN
       ON DUPLICATE KEY UPDATE
         n_creating_jobs = n_creating_jobs - 1;
     END IF;
-
   END IF;
 
   IF NEW.state = 'Ready' THEN
@@ -573,6 +644,14 @@ BEGIN
       ON DUPLICATE KEY UPDATE
         n_creating_jobs = n_creating_jobs + 1;
     END IF;
+  END IF;
+
+  IF OLD.state = 'Ready' OR OLD.state = 'Creating' OR OLD.state = 'Running' THEN
+    UPDATE batches_burn_rate_limits SET burn_rate = burn_rate - OLD.estimated_cost WHERE id = OLD.batch_id;
+  END IF;
+
+  IF NEW.state = 'Ready' OR NEW.state = 'Creating' OR NEW.state = 'Running' THEN
+    UPDATE batches_burn_rate_limits SET burn_rate = burn_rate + NEW.estimated_cost WHERE id = NEW.batch_id;
   END IF;
 END $$
 
@@ -1235,12 +1314,15 @@ BEGIN
       INNER JOIN `job_parents`
         ON jobs.batch_id = `job_parents`.batch_id AND
            jobs.job_id = `job_parents`.job_id
-      SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
+      SET  # jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
           jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1)
       WHERE jobs.batch_id = in_batch_id AND
             `job_parents`.batch_id = in_batch_id AND
             `job_parents`.parent_id = in_job_id;
+
+    UPDATE jobs
+
 
     COMMIT;
     SELECT 0 as rc,
