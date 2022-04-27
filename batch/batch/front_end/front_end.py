@@ -704,6 +704,16 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
         batch_format_version = BatchFormatVersion(record['format_version'])
 
+        async with timer.step('fetch batch burn limit'):
+            record = await db.select_and_fetchone(
+                '''
+SELECT max_burn_rate_limit - current_burn_rate_limit AS remaining_burn_rate_limit FROM batch_burn_rate_limits
+WHERE user = %s AND id = %s AND NOT deleted;
+''',
+                (user, batch_id),
+            )
+            remaining_burn_rate_limit = record['remaining_burn_rate_limit'][0]
+
         async with timer.step('validate job_specs'):
             try:
                 validate_and_clean_jobs(job_specs)
@@ -835,12 +845,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
-                result, exc = inst_coll_configs.select_inst_coll(
+                result = inst_coll_configs.select_inst_coll(
                     cloud, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
                 )
-
-                if exc:
-                    raise web.HTTPBadRequest(reason=exc.message)
 
                 if result is None:
                     raise web.HTTPBadRequest(
@@ -853,7 +860,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'machine_type={machine_type}'
                     )
 
-                inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
+                inst_coll_name, cores_mcpu, memory_bytes, storage_gib, estimated_cost = result
                 resources['cores_mcpu'] = cores_mcpu
                 resources['memory_bytes'] = memory_bytes
                 resources['storage_gib'] = storage_gib
@@ -958,6 +965,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         cores_mcpu,
                         len(parent_ids),
                         inst_coll_name,
+                        estimated_cost,
                     )
                 )
 
@@ -981,8 +989,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     try:
                         await tx.execute_many(
                             '''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, estimated_cost)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                             jobs_args,
                         )

@@ -273,7 +273,9 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         self.resource_rates = resource_rates
         self.product_versions.update(product_versions_data)
 
-    def select_pool_from_cost(self, cloud, cores_mcpu, memory_bytes, storage_bytes, preemptible):
+    def select_pool_from_cost(
+        self, cloud: str, cores_mcpu: int, memory_bytes: int, storage_bytes: int, preemptible: bool
+    ) -> Optional[Tuple[str, int, int, int, float]]:
         assert self.resource_rates is not None
 
         optimal_result = None
@@ -301,28 +303,69 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
 
                 if optimal_cost is None or max_regional_maybe_cost < optimal_cost:
                     optimal_cost = max_regional_maybe_cost
-                    optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
+                    optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib, optimal_cost)
         return optimal_result
 
-    def select_pool_from_worker_type(self, cloud, worker_type, cores_mcpu, memory_bytes, storage_bytes, preemptible):
+    def select_pool_from_worker_type(
+        self, cloud: str, worker_type: str, cores_mcpu: int, memory_bytes: int, storage_bytes: int, preemptible: bool
+    ) -> Optional[Tuple[str, int, int, int, float]]:
         for pool in self.name_pool_config.values():
             if pool.cloud == cloud and pool.worker_type == worker_type and pool.preemptible == preemptible:
                 result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
                 if result:
-                    actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib = result
-                    return (pool.name, actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib)
+                    actual_cores_mcpu, actual_memory_bytes, actual_storage_gib = result
+                    max_estimated_cost = None
+                    for location in possible_cloud_locations(pool.cloud):
+                        estimated_cost = pool.cost_per_hour(
+                            self.resource_rates,
+                            self.product_versions,
+                            location,
+                            actual_cores_mcpu,
+                            actual_memory_bytes,
+                            actual_storage_gib,
+                        )
+                        if max_estimated_cost is None or max_estimated_cost < estimated_cost:
+                            max_estimated_cost = estimated_cost
+                    return (pool.name, actual_cores_mcpu, actual_memory_bytes, actual_storage_gib, max_estimated_cost)
         return None
 
-    def select_job_private(self, cloud, machine_type, storage_bytes):
+    def select_job_private(
+        self, cloud: str, machine_type: str, preemptible: bool, storage_bytes: int
+    ) -> Optional[Tuple[str, int, int, int, float]]:
         if self.jpim_config.cloud != cloud:
             return None
-        return self.jpim_config.convert_requests_to_resources(machine_type, storage_bytes)
+        jpim_name, cores_mcpu, memory_bytes, storage_gib = self.jpim_config.convert_requests_to_resources(
+            machine_type, storage_bytes
+        )
+        max_estimated_cost = None
+        for location in possible_cloud_locations(cloud):
+            config = InstanceConfig.create(
+                self.product_versions,
+                machine_type,
+                preemptible,
+                local_ssd_data_disk=False,
+                data_disk_size_gb=storage_gib,
+                boot_disk_size_gb=self.jpim_config.boot_disk_size_gb,
+                job_private=True,
+                location=location,
+            )
+            estimated_cost = config.actual_cost_per_hour(self.resource_rates)
+            if max_estimated_cost is None or max_estimated_cost < estimated_cost:
+                max_estimated_cost = estimated_cost
+        return (jpim_name, cores_mcpu, memory_bytes, storage_gib, max_estimated_cost)
 
     def select_inst_coll(
-        self, cloud, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
-    ):
+        self,
+        cloud: str,
+        machine_type: str,
+        preemptible: bool,
+        worker_type: str,
+        req_cores_mcpu: int,
+        req_memory_bytes: int,
+        req_storage_bytes: int,
+    ) -> Optional[Tuple[str, int, int, int, float]]:
         if worker_type is not None and machine_type is None:
-            result = self.select_pool_from_worker_type(
+            return self.select_pool_from_worker_type(
                 cloud=cloud,
                 worker_type=worker_type,
                 cores_mcpu=req_cores_mcpu,
@@ -330,16 +373,18 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                 storage_bytes=req_storage_bytes,
                 preemptible=preemptible,
             )
-        elif worker_type is None and machine_type is None:
-            result = self.select_pool_from_cost(
+
+        if worker_type is None and machine_type is None:
+            return self.select_pool_from_cost(
                 cloud=cloud,
                 cores_mcpu=req_cores_mcpu,
                 memory_bytes=req_memory_bytes,
                 storage_bytes=req_storage_bytes,
                 preemptible=preemptible,
             )
-        else:
-            assert machine_type and machine_type in valid_machine_types(cloud)
-            assert worker_type is None
-            result = self.select_job_private(cloud=cloud, machine_type=machine_type, storage_bytes=req_storage_bytes)
-        return (result, None)
+
+        assert machine_type and machine_type in valid_machine_types(cloud)
+        assert worker_type is None
+        return self.select_job_private(
+            cloud=cloud, machine_type=machine_type, preemptible=preemptible, storage_bytes=req_storage_bytes
+        )
