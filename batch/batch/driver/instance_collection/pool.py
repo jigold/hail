@@ -149,6 +149,8 @@ WHERE removed = 0 AND inst_coll = %s;
         self.max_live_instances = pool_config.max_live_instances
         self.preemptible = pool_config.preemptible
 
+        # FIXME: Need to update jobs that are pending or ready with their new estimated cost
+
     def adjust_for_remove_instance(self, instance):
         super().adjust_for_remove_instance(instance)
         if instance in self.healthy_instances_by_free_cores:
@@ -384,18 +386,28 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 
         await self.db.just_execute(
             '''
-SELECT GREATEST(0, burn_rate_limit - burn_rate) INTO @remaining_burn_rate FROM batches_burn_rate_limits WHERE id = %s
-FOR UPDATE;
-
-UPDATE jobs SET state = 'Ready'
-WHERE job_id IN (
-    SELECT job_id FROM (
-        SELECT job_id, @remaining_burn_rate := @remaining_burn_rate - estimated_cost FROM jobs 
-        WHERE batch_id = 1 AND state = 'Pending' AND n_pending_parents = 0 AND (@total_cost := @total_cost + estimated_cost) > 0 AND @remaining_burn_rate > estimated_cost
-      LIMIT 1
-    ) tmp
-)
-''')
+UPDATE jobs
+SET state = 'Ready'
+WHERE (batch_id, job_id) IN (
+SELECT
+    batch_id,
+    job_id
+FROM
+(
+    SELECT
+        batch_id,
+        job_id,
+        @rn := IF(@prev = batch_id, @rn + 1, 1) AS rn,
+        @prev := batch_id
+    FROM jobs
+    JOIN (SELECT @prev := NULL, @rn := 0) AS vars
+    WHERE inst_coll = %s AND state = 'Pending' AND n_pending_parents = 0
+    ORDER BY batch_id
+) AS temp
+WHERE rn <= 1000
+);
+''',
+            (self.pool.name,))
 
         user_resources = await self.compute_fair_share()
 

@@ -1240,13 +1240,12 @@ BEGIN
   DECLARE delta_cores_mcpu INT DEFAULT 0;
   DECLARE total_jobs_in_batch INT;
   DECLARE expected_attempt_id VARCHAR(40);
-  DECLARE estimated_job_cost DOUBLE;
 
   START TRANSACTION;
 
   SELECT n_jobs INTO total_jobs_in_batch FROM batches WHERE id = in_batch_id;
 
-  SELECT state, cores_mcpu, estimated_job_cost
+  SELECT state, cores_mcpu
   INTO cur_job_state, cur_cores_mcpu, estimated_cost
   FROM jobs
   WHERE batch_id = in_batch_id AND job_id = in_job_id
@@ -1330,6 +1329,46 @@ BEGIN
       delta_cores_mcpu,
       'job state not Ready, Creating, Running or complete' as message;
   END IF;
+END $$
+
+DROP PROCEDURE IF EXISTS change_burn_rate_limit $$
+CREATE PROCEDURE mark_job_complete(
+  IN in_batch_id BIGINT,
+  IN in_burn_rate_limit DOUBLE
+)
+BEGIN
+  DECLARE cur_burn_rate_limit VARCHAR(40);
+
+  START TRANSACTION;
+
+  SELECT burn_rate_limit INTO cur_burn_rate_limit FROM batches_burn_rate_limits WHERE id = in_batch_id;
+
+  UPDATE batches_burn_rate_limits
+  SET burn_rate_limit = in_burn_rate_limit
+  WHERE id = in_batch_id;
+
+  IF burn_rate_limit < cur_burn_rate_limit THEN
+      UPDATE jobs
+      SET state = 'Pending'
+      WHERE (batch_id, job_id) IN (
+      SELECT
+        batch_id,
+        job_id
+      FROM
+      (
+        SELECT
+          batch_id,
+          job_id,
+          @remaining := @remaining - estimated_cost
+        FROM jobs
+        JOIN (SELECT @remaining := cur_burn_rate_limit - burn_rate_limit) AS vars
+        WHERE state = 'Ready'
+      ) AS temp
+    WHERE remaining > 0
+    );
+  END IF;
+
+  COMMIT;
 END $$
 
 DELIMITER ;

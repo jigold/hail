@@ -1285,6 +1285,22 @@ WHERE id = %s AND NOT deleted;
         app['delete_batch_state_changed'].set()
 
 
+async def _update_batch_burn_rate_limit(app, batch_id, burn_rate_limit):
+    db: Database = app['db']
+
+    record = await db.select_and_fetchone(
+        '''
+SELECT `state` FROM batches
+WHERE id = %s AND NOT deleted;
+''',
+        (batch_id,),
+    )
+    if not record:
+        raise web.HTTPNotFound()
+
+    await db.just_execute('CALL change_burn_rate_limit(%s, %s);', (batch_id, burn_rate_limit))
+
+
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @rest_billing_project_users_only
 async def get_batch(request, userdata, batch_id):  # pylint: disable=unused-argument

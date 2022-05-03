@@ -294,6 +294,32 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             log.info(f'not creating instances for {self}; batch is frozen')
             return True
 
+        await self.db.just_execute(
+                '''
+UPDATE jobs
+SET state = 'Ready'
+WHERE (batch_id, job_id) IN (
+SELECT
+    batch_id,
+    job_id
+FROM
+(
+    SELECT
+        batch_id,
+        job_id,
+        @rn := IF(@prev = batch_id, @rn + 1, 1) AS rn,
+        @prev := batch_id
+    FROM jobs
+    JOIN (SELECT @prev := NULL, @rn := 0) AS vars
+    WHERE inst_coll = %s AND state = 'Pending' AND n_pending_parents = 0
+    ORDER BY batch_id
+) AS temp
+WHERE rn <= 1000
+);
+''',
+                (self.name,)
+        )
+
         log.info(f'create_instances for {self}: starting')
         start = time_msecs()
         n_instances_created = 0
