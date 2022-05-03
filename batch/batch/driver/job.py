@@ -131,9 +131,6 @@ async def mark_job_complete(
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
         raise
 
-    scheduler_state_changed.notify()
-    cancel_ready_state_changed.set()
-
     instance = None
 
     if instance_name:
@@ -144,6 +141,9 @@ async def mark_job_complete(
                 instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
+
+    scheduler_state_changed.notify()
+    cancel_ready_state_changed.set()
 
     await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 

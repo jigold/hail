@@ -382,6 +382,21 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         SCHEDULING_LOOP_RUNS.labels(pool_name=self.pool.name).inc()
         n_scheduled = 0
 
+        await self.db.just_execute(
+            '''
+SELECT GREATEST(0, burn_rate_limit - burn_rate) INTO @remaining_burn_rate FROM batches_burn_rate_limits WHERE id = %s
+FOR UPDATE;
+
+UPDATE jobs SET state = 'Ready'
+WHERE job_id IN (
+    SELECT job_id FROM (
+        SELECT job_id, @remaining_burn_rate := @remaining_burn_rate - estimated_cost FROM jobs 
+        WHERE batch_id = 1 AND state = 'Pending' AND n_pending_parents = 0 AND (@total_cost := @total_cost + estimated_cost) > 0 AND @remaining_burn_rate > estimated_cost
+      LIMIT 1
+    ) tmp
+)
+''')
+
         user_resources = await self.compute_fair_share()
 
         total = sum(resources['allocated_cores_mcpu'] for resources in user_resources.values())

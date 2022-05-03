@@ -346,15 +346,6 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
 
 DELIMITER $$
 
-DROP TRIGGER IF EXISTS batches_burn_rate_limits_after_update;
-CREATE TRIGGER batches_burn_rate_limits_after_update AFTER UPDATE on batches_burn_rate_limits
-FOR EACH ROW
-BEGIN
-  IF NEW.burn_rate < OLD.burn_rate AND NEW.burn_rate < OLD.burn_rate_limit THEN
-
-  END IF;
-END $$
-
 DROP TRIGGER IF EXISTS instances_before_update;
 CREATE TRIGGER instances_before_update BEFORE UPDATE on instances
 FOR EACH ROW
@@ -425,7 +416,7 @@ BEGIN
 END $$
 
 DROP TRIGGER IF EXISTS jobs_before_insert $$
-CREATE TRIGGER jobs_before_insert BEFORE UPDATE ON jobs
+CREATE TRIGGER jobs_before_insert BEFORE INSERT ON jobs
 FOR EACH ROW
 BEGIN
   DECLARE cur_n_tokens INT;
@@ -435,27 +426,27 @@ BEGIN
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
-  SELECT EXISTS(SELECT * INTO has_burn_rate FROM batches_burn_rate_limits WHERE id = NEW.batch_id LIMIT 1) INTO has_burn_rate;
+  SELECT EXISTS(SELECT COUNT(*) FROM batches_burn_rate_limits WHERE id = NEW.batch_id LIMIT 1) INTO has_burn_rate;
 
   IF OLD.state = 'Ready' AND has_burn_rate THEN
-    UPDATE batches_burn_rate_limits SET burn_rate = burn_rate + OLD.estimated_cost
-    WHERE id = OLD.batch_id AND burn_rate + OLD.estimated_cost <= burn_rate_limit;
+    UPDATE batches_burn_rate_limits SET burn_rate = burn_rate + NEW.estimated_cost
+    WHERE id = NEW.batch_id AND burn_rate + NEW.estimated_cost <= burn_rate_limit;
 
     IF ROW_COUNT() = 0 THEN
-      NEW.state = 'Pending'
+      SET NEW.state = 'Pending';
 
       INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-      VALUES (OLD.batch_id, OLD.inst_coll, rand_token, 0, -1, -OLD.cores_mcpu)
+      VALUES (NEW.batch_id, NEW.inst_coll, rand_token, 0, -1, -NEW.cores_mcpu)
       ON DUPLICATE KEY UPDATE
         n_ready_jobs = n_ready_jobs - 1,
-        ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu;
+        ready_cores_mcpu = ready_cores_mcpu - NEW.cores_mcpu;
 
       IF NOT OLD.always_run THEN
         INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-        VALUES (OLD.batch_id, OLD.inst_coll, rand_token, -1, -OLD.cores_mcpu)
+        VALUES (NEW.batch_id, NEW.inst_coll, rand_token, -1, -NEW.cores_mcpu)
         ON DUPLICATE KEY UPDATE
           n_ready_cancellable_jobs = n_ready_cancellable_jobs - 1,
-          ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu - OLD.cores_mcpu;
+          ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu - NEW.cores_mcpu;
       END IF;
     END IF;
   END IF;
@@ -472,8 +463,8 @@ BEGIN
   FROM batches_burn_rate_limits WHERE id = OLD.batch_id;
 
   IF OLD.state = 'Pending' AND NEW.state = 'Ready' THEN
-    IF burn_rate + OLD.estimated_cost > burn_rate_limit THEN
-      NEW.state = 'Pending'
+    IF cur_burn_rate + OLD.estimated_cost > cur_burn_rate_limit THEN
+      SET NEW.state = 'Pending';
     END IF;
   END IF;
 END $$
@@ -1249,13 +1240,14 @@ BEGIN
   DECLARE delta_cores_mcpu INT DEFAULT 0;
   DECLARE total_jobs_in_batch INT;
   DECLARE expected_attempt_id VARCHAR(40);
+  DECLARE estimated_job_cost DOUBLE;
 
   START TRANSACTION;
 
   SELECT n_jobs INTO total_jobs_in_batch FROM batches WHERE id = in_batch_id;
 
-  SELECT state, cores_mcpu
-  INTO cur_job_state, cur_cores_mcpu
+  SELECT state, cores_mcpu, estimated_job_cost
+  INTO cur_job_state, cur_cores_mcpu, estimated_cost
   FROM jobs
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
@@ -1314,15 +1306,12 @@ BEGIN
       INNER JOIN `job_parents`
         ON jobs.batch_id = `job_parents`.batch_id AND
            jobs.job_id = `job_parents`.job_id
-      SET  # jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
+      SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
           jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1)
       WHERE jobs.batch_id = in_batch_id AND
             `job_parents`.batch_id = in_batch_id AND
             `job_parents`.parent_id = in_job_id;
-
-    UPDATE jobs
-
 
     COMMIT;
     SELECT 0 as rc,
