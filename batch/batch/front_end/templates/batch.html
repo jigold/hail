@@ -25,6 +25,8 @@
   <li>Cost: {% if 'cost' in batch and batch['cost'] is not none %}{{ batch['cost'] }}{% endif %}</li>
 </ul>
 
+
+
 {% if not batch['complete'] and batch['state'] != 'Cancelled' %}
 <form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">
   <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
@@ -41,6 +43,53 @@
 <p>{{ name }}: {{ value }}</p>
 {% endfor %}
 {% endif %}
+
+<h2>Updates</h2>
+  <div class='flex-col' style="overflow: auto;">
+    <table class="data-table" id="updates" style="width: 100%">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Number of Jobs</th>
+          <th>Start Job ID</th>
+          <th>End Job ID</th>
+          <th>Cancelled</th>
+          <th>Time Created</th>
+          <th>Time Committed</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for update in updates %}
+        <tr>
+          <td>{{ update['update_id'] }}</td>
+          <td>{{ update['n_jobs'] }}</td>
+          <td>{{ update['start_job_id'] }}</td>
+          <td>{{ update['end_job_id'] }}</td>
+          <td>{{ update['cancelled'] }}</td>
+          <td>{{ update['time_created'] }}</td>
+          <td>{{ update['time_committed'] }}</td>
+          {% if not update['cancelled'] and not update['committed'] %}
+	      <td>
+	        <form action="{{ base_path }}/batches/{{ batch['id'] }}/update/{{ update['update_id'] }}/cancel" method="post">
+		    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+		    <button>Cancel</button>
+	        </form>
+	      </td>
+          {% endif %}
+          {% if not update['committed'] %}
+	      <td>
+	        <form action="{{ base_path }}/batches/{{ batch['id'] }}/update/{{ update['update_id'] }}/delete" method="post">
+		    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+		    <button>Delete</button>
+	        </form>
+	      </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endfor %}
 
 <h2>Jobs</h2>
 <div class="flex-col">

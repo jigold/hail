@@ -81,8 +81,8 @@
 	      {% endif %}
 	    </td>
 	    <td>
-	      {% if 'time_closed' in batch and batch['time_closed'] is not none %}
-	      {{ batch['time_closed'] }}
+	      {% if 'time_updated' in batch and batch['time_updated'] is not none %}
+	      {{ batch['time_updated'] }}
 	      {% endif %}
 	    </td>
 	    <td>
@@ -91,8 +91,8 @@
 	      {% endif %}
 	    </td>
 	    <td>{{ batch['state'] }}</td>
-	    <td class="numeric-cell">{{ batch['n_jobs'] }}</td>
-	    <td class="numeric-cell">{{ batch['n_jobs'] - batch['n_completed'] }}</td>
+	    <td class="numeric-cell">{{ batch['n_committed_jobs'] }}</td>
+	    <td class="numeric-cell">{{ batch['n_committed_jobs'] - batch['n_completed'] }}</td>
 	    <td class="numeric-cell">{{ batch['n_succeeded'] }}</td>
 	    <td class="numeric-cell">{{ batch['n_failed'] }}</td>
 	    <td class="numeric-cell">{{ batch['n_cancelled'] }}</td>

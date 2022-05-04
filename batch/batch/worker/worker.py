@@ -1853,7 +1853,7 @@ class JVMJob(Job):
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
-                    await self.jvm.execute(local_jar_location, self.scratch, self.log_file, self.jar_url, self.argv)
+                    await self.jvm.execute(local_jar_location, self.scratch, self.log_file, self.jar_url, self.batch_id, self.argv)
 
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
@@ -2217,7 +2217,7 @@ class JVM:
         if self.container is not None:
             await self.container.remove()
 
-    async def execute(self, classpath: str, scratch_dir: str, log_file: str, jar_url: str, argv: List[str]):
+    async def execute(self, classpath: str, scratch_dir: str, log_file: str, jar_url: str, batch_id: int, argv: List[str]):
         assert worker is not None
 
         log.info(f'{self}: execute')
@@ -2229,7 +2229,7 @@ class JVM:
             stack.callback(writer.close)
             log.info(f'{self}: connection acquired')
 
-            command = [classpath, 'is.hail.backend.service.Main', scratch_dir, log_file, jar_url, *argv]
+            command = [classpath, 'is.hail.backend.service.Main', scratch_dir, log_file, jar_url, batch_id, *argv]
 
             write_int(writer, len(command))
             for part in command:

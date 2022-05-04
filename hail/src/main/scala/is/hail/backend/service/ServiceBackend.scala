@@ -5,7 +5,6 @@ import java.nio.charset._
 import java.net._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
-
 import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
@@ -61,6 +60,7 @@ class ServiceBackend(
   val jarLocation: String,
   var name: String,
   val theHailClassLoader: HailClassLoader,
+  val _batchId: Option[Long],
   val scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse("")
 ) extends Backend {
   import ServiceBackend.log
@@ -150,11 +150,12 @@ class ServiceBackend(
 
     val batchClient = BatchClient.fromSessionID(backendContext.sessionID)
     val jobs = new Array[JObject](n)
+
     var i = 0
     while (i < n) {
       jobs(i) = JObject(
         "always_run" -> JBool(false),
-        "job_id" -> JInt(i + 1),
+        "job_id" -> JInt(-i),  // Updates use negative job ids
         "parent_ids" -> JArray(List()),
         "process" -> JObject(
           "jar_spec" -> JObject(
@@ -175,21 +176,27 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
-    val batchId = batchClient.create(
-      JObject(
-        "billing_project" -> JString(backendContext.billingProject),
-        "n_jobs" -> JInt(n),
-        "token" -> JString(token),
-        "attributes" -> JObject("name" -> JString(name + "_" + batchCount))),
-      jobs)
+    val batchId = _batchId match {
+      case Some(id) =>
+        batchClient.update(id, token, jobs)
+        id
+      case None =>
+        batchClient.create(JObject(
+          "billing_project" -> JString(backendContext.billingProject),
+          "n_jobs" -> JInt(n),
+          "token" -> JString(token),
+          "attributes" -> JObject("name" -> JString(name + "_" + batchCount))),
+          jobs)
+    }
 
     val batch = batchClient.waitForBatch(batchId)
     batchCount += 1
+
     implicit val formats: Formats = DefaultFormats
-    val batchID = (batch \ "id").extract[Int]
+
     val batchState = (batch \ "state").extract[String]
     if (batchState != "success") {
-      throw new HailBatchFailure(s"$batchID")
+      throw new HailBatchFailure(s"$batchId")
     }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
@@ -399,15 +406,16 @@ object ServiceBackendSocketAPI2 {
     val scratchDir = argv(0)
     val logFile = argv(1)
     val jarLocation = argv(2)
-    val kind = argv(3)
+    val batchId = Some(argv(3).asInstanceOf[Long])
+    val kind = argv(4)
     assert(kind == Main.DRIVER)
-    val name = argv(4)
-    val input = argv(5)
-    val output = argv(6)
+    val name = argv(5)
+    val input = argv(6)
+    val output = argv(7)
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     val backend = new ServiceBackend(
-      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), scratchDir)
+      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), batchId, scratchDir)
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
     } else {

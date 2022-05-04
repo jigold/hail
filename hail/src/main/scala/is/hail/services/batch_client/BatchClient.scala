@@ -33,6 +33,32 @@ object BatchClient {
       new Tokens(Map(
         deployConfig.getServiceNamespace("batch") -> sessionID)))
   }
+
+  def encodeJobSpecs(jobs: IndexedSeq[JObject]): BoxedArrayBuilder[Array[Array[Byte]]] = {
+    val bunches = new BoxedArrayBuilder[Array[Array[Byte]]]()
+    val bunchb = new BoxedArrayBuilder[Array[Byte]]()
+
+    var i = 0
+    var size = 0
+    while (i < jobs.length) {
+      val jobBytes = JsonMethods.compact(jobs(i)).getBytes(StandardCharsets.UTF_8)
+      if (size + jobBytes.length > 1024 * 1024) {
+        bunches += bunchb.result()
+        bunchb.clear()
+        size = 0
+      }
+      bunchb += jobBytes
+      size += jobBytes.length
+      i += 1
+    }
+    assert(bunchb.size > 0)
+
+    bunches += bunchb.result()
+    bunchb.clear()
+    size = 0
+
+    bunches
+  }
 }
 
 class BatchClient(
@@ -77,27 +103,9 @@ class BatchClient(
   def create(batchJson: JObject, jobs: IndexedSeq[JObject]): Long = {
     implicit val formats: Formats = DefaultFormats
 
-    val bunches = new BoxedArrayBuilder[Array[Array[Byte]]]()
-    val bunchb = new BoxedArrayBuilder[Array[Byte]]()
+    val bunches = encodeJobSpecs(jobs)
 
-    var i = 0
-    var size = 0
-    while (i < jobs.length) {
-      val jobBytes = JsonMethods.compact(jobs(i)).getBytes(StandardCharsets.UTF_8)
-      if (size + jobBytes.length > 1024 * 1024) {
-        bunches += bunchb.result()
-        bunchb.clear()
-        size = 0
-      }
-      bunchb += jobBytes
-      size += jobBytes.length
-      i += 1
-    }
-    assert(bunchb.size > 0)
-
-    bunches += bunchb.result()
-    bunchb.clear()
-    size = 0
+    val token = (batchJson \ "token").extract[String]
 
     val batchID = if (bunches.length == 1) {
       val bunch = bunches(0)
@@ -126,7 +134,7 @@ class BatchClient(
 
       val b = new ByteArrayBuilder()
 
-      i = 0 // reuse
+      var i = 0
       while (i < bunches.length) {
         val bunch = bunches(i)
         b += '['
@@ -140,7 +148,7 @@ class BatchClient(
         b += ']'
         val data = b.result()
         post(
-          s"/api/v1alpha/batches/$batchID/jobs/create",
+          s"/api/v1alpha/batches/$batchID/update/$token/jobs/create",
           new ByteArrayEntity(
             data,
             ContentType.create("application/json")))
@@ -148,11 +156,74 @@ class BatchClient(
         i += 1
       }
 
-      patch(s"/api/v1alpha/batches/$batchID/close")
+      patch(s"/api/v1alpha/batches/$batchID/update/$token/commit")
       batchID
     }
     log.info(s"run: created batch $batchID")
     batchID
+  }
+
+  def update(batchId: Long, updateId: String, jobs: IndexedSeq[JObject]): Long = {
+    implicit val formats: Formats = DefaultFormats
+
+    val bunches = encodeJobSpecs(jobs)
+
+    val updateSpec = new JObject("n_jobs" -> jobs.length)
+
+    val startJobId = if (bunches.length == 1) {
+      val bunch = bunches(0)
+      val b = new ByteArrayBuilder()
+      b ++= "{\"bunch\":".getBytes(StandardCharsets.UTF_8)
+      b += '['
+      var j = 0
+      while (j < bunch.length) {
+        if (j > 0)
+          b += ','
+        b ++= bunch(j)
+        j += 1
+      }
+      b += ']'
+      b ++= ",\"update\":".getBytes(StandardCharsets.UTF_8)
+      b ++= JsonMethods.compact(updateSpec).getBytes(StandardCharsets.UTF_8)
+      b += '}'
+      val data = b.result()
+      val resp = post(s"/api/v1alpha/batches/$batchId/update/$updateId/update-fast",
+        new ByteArrayEntity(data, ContentType.create("application/json")))
+      b.clear()
+      (resp \ "startJobId").extract[Long]
+    } else {
+      val resp = post(s"/api/v1alpha/batches/$batchId/update/$updateId", json = updateSpec)
+      val startJobId = (resp \ "startJobId").extract[Long]
+
+      val b = new ByteArrayBuilder()
+
+      var i = 0
+      while (i < bunches.length) {
+        val bunch = bunches(i)
+        b += '['
+        var j = 0
+        while (j < bunch.length) {
+          if (j > 0)
+            b += ','
+          b ++= bunch(j)
+          j += 1
+        }
+        b += ']'
+        val data = b.result()
+        post(
+          s"/api/v1alpha/batches/$batchId/update/$updateId/jobs/create",
+          new ByteArrayEntity(
+            data,
+            ContentType.create("application/json")))
+        b.clear()
+        i += 1
+      }
+
+      patch(s"/api/v1alpha/batches/$batchId/update/$updateId/commit")
+      startJobId
+    }
+    log.info(s"run: updated batch $batchId with update $updateId")
+    startJobId
   }
 
   def waitForBatch(batchID: Long): JValue = {
@@ -162,7 +233,7 @@ class BatchClient(
 
     while (true) {
       val batch = get(s"/api/v1alpha/batches/$batchID")
-      if ((batch \ "complete").extract[Boolean])
+      if ((batch \ "n_jobs").extract[Long] - (batch \ "n_completed").extract[Long] == 1)
         return batch
 
       // wait 10% of duration so far

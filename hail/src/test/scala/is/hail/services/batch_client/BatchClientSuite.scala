@@ -19,7 +19,7 @@ class BatchClientSuite extends TestNGSuite {
       FastIndexedSeq(
         JObject(
           "always_run" -> JBool(false),
-          "job_id" -> JInt(0),
+          "job_id" -> JInt(1),
           "parent_ids" -> JArray(List()),
           "process" -> JObject(
             "image" -> JString("ubuntu:20.04"),

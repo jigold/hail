@@ -109,6 +109,12 @@ batch_validator = keyed(
     }
 )
 
+batch_update_validator = keyed(
+    {
+        required('n_jobs'): int_type,
+    }
+)
+
 
 def validate_and_clean_jobs(jobs):
     if not isinstance(jobs, list):
@@ -188,3 +194,7 @@ def handle_job_backwards_compatibility(job):
 
 def validate_batch(batch):
     batch_validator.validate('batch', batch)
+
+
+def validate_batch_update(update):
+    batch_update_validator.validate('batch_update', update)

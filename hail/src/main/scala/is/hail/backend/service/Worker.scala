@@ -66,11 +66,12 @@ object Worker {
     val scratchDir = argv(0)
     val logFile = argv(1)
     var jarLocation = argv(2)
-    val kind = argv(3)
+    val batchId = Some(argv(3).asInstanceOf[Long])
+    val kind = argv(4)
     assert(kind == Main.WORKER)
-    val root = argv(4)
-    val i = argv(5).toInt
-    val n = argv(6).toInt
+    val root = argv(5)
+    val i = argv(6).toInt
+    val n = argv(7).toInt
     val timer = new WorkerTimer()
 
     val deployConfig = DeployConfig.fromConfigFile(
@@ -128,11 +129,11 @@ object Worker {
     timer.start("executeFunction")
 
     if (HailContext.isInitialized) {
-      HailContext.get.backend = new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()))
+      HailContext.get.backend = new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), _batchId = batchId)
     } else {
       HailContext(
         // FIXME: workers should not have backends, but some things do need hail contexts
-        new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader())), skipLoggingConfiguration = true, quiet = true)
+        new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), _batchId = batchId), skipLoggingConfiguration = true, quiet = true)
     }
     val htc = new ServiceTaskContext(i)
     var result: Array[Byte] = null
