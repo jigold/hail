@@ -7,7 +7,7 @@ from gear import Database
 
 async def main():
     db = Database()
-    await db.async_init()
+    await db.async_init(config_file='/home/jigold/batch-dump-1-config.json')
 
     start_time = time.time()
 
