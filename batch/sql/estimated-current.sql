@@ -296,8 +296,9 @@ CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(25
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources` (
   `billing_project` VARCHAR(100) NOT NULL,
   `resource` VARCHAR(100) NOT NULL,
+  `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`billing_project`, `resource`),
+  PRIMARY KEY (`billing_project`, `resource`, `token`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -333,6 +334,57 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(`batch_id`, `job_id`, `attempt_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS `attempt_resources_tmp` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `attempt_id` VARCHAR(40) NOT NULL,
+  `resource` VARCHAR(100) NOT NULL,
+  `quantity` BIGINT NOT NULL,
+  PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(`batch_id`, `job_id`, `attempt_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources_tmp` (
+  `billing_project` VARCHAR(100) NOT NULL,
+  `start_time` BIGINT NOT NULL,
+  `end_time` BIGINT NOT NULL,
+  `resource` VARCHAR(100) NOT NULL,
+  `token` INT NOT NULL DEFAULT 0,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`billing_project`, `start_time`, `end_time`, `resource`, `token`),
+  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_tmp` (
+  `batch_id` BIGINT NOT NULL,
+  `start_time` BIGINT NOT NULL,
+  `end_time` BIGINT NOT NULL,
+  `resource` VARCHAR(100) NOT NULL,
+  `token` INT NOT NULL DEFAULT 0,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`batch_id`, `start_time`, `end_time`, `resource`, `token`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS `aggregated_job_resources_tmp` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `start_time` BIGINT NOT NULL,
+  `end_time` BIGINT NOT NULL,
+  `resource` VARCHAR(100) NOT NULL,
+  `token` INT NOT NULL DEFAULT 0,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`batch_id`, `job_id`, `start_time`, `end_time`, `resource`, `token`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
@@ -375,6 +427,8 @@ BEGIN
   DECLARE msec_diff BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
+  DECLARE start_billing_period BIGINT;
+  DECLARE end_billing_period BIGINT;
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
@@ -405,6 +459,30 @@ BEGIN
   FROM attempt_resources
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+
+  IF msec_diff > 0 THEN
+    SET start_billing_period = UNIX_TIMESTAMP(CAST(FROM_UNIXTIME(NEW.end_time / 1000) AS DATE)) * 1000;
+    SET end_billing_period = UNIX_TIMESTAMP(ADDDATE(CAST(FROM_UNIXTIME(NEW.end_time / 1000) AS DATE), INTERVAL 1 DAY)) * 1000;
+
+    INSERT INTO aggregated_billing_project_resources_tmp (billing_project, start_time, end_time, resource, token, `usage`)
+    SELECT billing_project, start_billing_period, end_billing_period, resource, rand_token, msec_diff * quantity
+    FROM attempt_resources
+    JOIN batches ON batches.id = attempt_resources.batch_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+
+    INSERT INTO aggregated_batch_resources_tmp (batch_id, start_time, end_time, resource, token, `usage`)
+    SELECT batch_id, start_billing_period, end_billing_period, resource, rand_token, msec_diff * quantity
+    FROM attempt_resources
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+
+    INSERT INTO aggregated_job_resources_tmp (batch_id, job_id, start_time, end_time, resource, `usage`)
+    SELECT batch_id, job_id, start_billing_period, end_billing_period, resource, msec_diff * quantity
+    FROM attempt_resources
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+  END IF;
 END $$
 
 DROP TRIGGER IF EXISTS jobs_after_update $$
@@ -611,6 +689,50 @@ BEGIN
 
   INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
   VALUES (cur_billing_project, NEW.resource, rand_token, NEW.quantity * msec_diff)
+  ON DUPLICATE KEY UPDATE
+    `usage` = `usage` + NEW.quantity * msec_diff;
+END $$
+
+DROP TRIGGER IF EXISTS attempt_resources_tmp_after_insert $$
+CREATE TRIGGER attempt_resources_tmp_after_insert AFTER INSERT ON attempt_resources_tmp
+FOR EACH ROW
+BEGIN
+  DECLARE cur_start_time BIGINT;
+  DECLARE cur_end_time BIGINT;
+  DECLARE cur_billing_project VARCHAR(100);
+  DECLARE msec_diff BIGINT;
+  DECLARE cur_n_tokens INT;
+  DECLARE rand_token INT;
+  DECLARE start_billing_period BIGINT;
+  DECLARE end_billing_period BIGINT;
+
+  SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
+  SET rand_token = FLOOR(RAND() * cur_n_tokens);
+
+  SELECT billing_project INTO cur_billing_project FROM batches WHERE id = NEW.batch_id;
+
+  SELECT start_time, end_time INTO cur_start_time, cur_end_time
+  FROM attempts
+  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+  LOCK IN SHARE MODE;
+
+  SET msec_diff = GREATEST(COALESCE(cur_end_time - cur_start_time, 0), 0);
+
+  SET start_billing_period = UNIX_TIMESTAMP(CAST(FROM_UNIXTIME(NEW.end_time / 1000) AS DATE)) * 1000;
+  SET end_billing_period = UNIX_TIMESTAMP(ADDDATE(CAST(FROM_UNIXTIME(NEW.end_time / 1000) AS DATE), INTERVAL 1 DAY)) * 1000;
+
+  INSERT INTO aggregated_job_resources_tmp (batch_id, job_id, start_time, end_time, resource, `usage`)
+  VALUES (NEW.batch_id, NEW.job_id, start_billing_period, end_billing_period, NEW.resource, NEW.quantity * msec_diff)
+  ON DUPLICATE KEY UPDATE
+    `usage` = `usage` + NEW.quantity * msec_diff;
+
+  INSERT INTO aggregated_batch_resources_tmp (batch_id, start_time, end_time, resource, token, `usage`)
+  VALUES (NEW.batch_id, start_billing_period, end_billing_period, NEW.resource, rand_token, NEW.quantity * msec_diff)
+  ON DUPLICATE KEY UPDATE
+    `usage` = `usage` + NEW.quantity * msec_diff;
+
+  INSERT INTO aggregated_billing_project_resources_tmp (billing_project, start_time, end_time, resource, token, `usage`)
+  VALUES (cur_billing_project, start_billing_period, end_billing_period, NEW.resource, rand_token, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 END $$

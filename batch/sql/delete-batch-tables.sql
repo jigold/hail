@@ -16,11 +16,16 @@ DROP TRIGGER IF EXISTS attempts_before_update;
 DROP TRIGGER IF EXISTS attempts_after_update;
 DROP TRIGGER IF EXISTS jobs_after_update;
 DROP TRIGGER IF EXISTS attempt_resources_after_insert;
+DROP TRIGGER IF EXISTS attempt_resources_tmp_after_insert;
 
 DROP TABLE IF EXISTS `aggregated_billing_project_resources`;
 DROP TABLE IF EXISTS `aggregated_batch_resources`;
 DROP TABLE IF EXISTS `aggregated_job_resources`;
 DROP TABLE IF EXISTS `attempt_resources`;
+DROP TABLE IF EXISTS `aggregated_billing_project_resources_tmp`;
+DROP TABLE IF EXISTS `aggregated_batch_resources_tmp`;
+DROP TABLE IF EXISTS `aggregated_job_resources_tmp`;
+DROP TABLE IF EXISTS `attempt_resources_tmp`;
 DROP TABLE IF EXISTS `batch_cancellable_resources`;  # deprecated
 DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources`;
 DROP TABLE IF EXISTS `globals`;

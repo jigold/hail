@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, List
 
 import aiohttp
 
-from gear import Database
+from gear.database import Database, transaction
 from hailtop import httpx
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.utils import Notice, retry_transient_errors, time_msecs
@@ -79,15 +79,27 @@ async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
                 (batch_id, job_id, attempt_id, resource['name'], resource['quantity']) for resource in resources
             ]
 
-            await db.execute_many(
-                '''
+            @transaction(db)
+            async def insert(tx):
+                await tx.execute_many(
+                    '''
 INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
 VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE quantity = quantity;
 ''',
-                resource_args,
-                'add_attempt_resources',
-            )
+                    resource_args,
+                    'add_attempt_resources',
+                )
+                await tx.execute_many(
+                    '''
+INSERT INTO `attempt_resources_tmp` (batch_id, job_id, attempt_id, resource, quantity)
+VALUES (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE quantity = quantity;
+''',
+                    resource_args,
+                    'add_attempt_resources_tmp',
+                )
+            await insert()  # pylint: disable=no-value-for-parameter
         except Exception:
             log.exception(f'error while inserting resources for job {job_id}, attempt {attempt_id}')
             raise

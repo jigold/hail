@@ -2018,6 +2018,12 @@ steps:
         script: /io/sql/kill-mjc-deadlocks.sql
       - name: add-nonpreemptible-pools
         script: /io/sql/add-nonpreemptible-pools.sql
+      - name: agg-billing-tables-by-date
+        script: /io/sql/agg-billing-tables-by-date.sql
+      - name: populate-real-time-billing-tables
+        script: /io/sql/populate_real_time_billing_tables.py
+      - name: add-trigger-billing-by-date
+        script: /io/sql/add-trigger-billing-by-date.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
