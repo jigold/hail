@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS `attempt_resources_tmp` (
+CREATE TABLE IF NOT EXISTS `attempt_resources_tmp_1` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `attempt_id` VARCHAR(40) NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS `attempt_resources_tmp` (
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
-CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources_tmp` (
+CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources_tmp_1` (
   `billing_project` VARCHAR(100) NOT NULL,
   `start_time` BIGINT NOT NULL,
   `end_time` BIGINT NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources_tmp` (
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
-CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_tmp` (
+CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_tmp_1` (
   `batch_id` BIGINT NOT NULL,
   `start_time` BIGINT NOT NULL,
   `end_time` BIGINT NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_tmp` (
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
-CREATE TABLE IF NOT EXISTS `aggregated_job_resources_tmp` (
+CREATE TABLE IF NOT EXISTS `aggregated_job_resources_tmp_1` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `start_time` BIGINT NOT NULL,

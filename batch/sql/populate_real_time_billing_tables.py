@@ -23,7 +23,7 @@ async def main():
     async def write(attempt_resources_data, agg_billing_project_data, agg_batch_data, agg_job_data):
         await db.execute_many(
             '''
-INSERT INTO attempt_resources_tmp (batch_id, job_id, attempt_id, resource, quantity)
+INSERT INTO attempt_resources_tmp_1 (batch_id, job_id, attempt_id, resource, quantity)
 VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE quantity = quantity;
 ''',
@@ -31,7 +31,7 @@ ON DUPLICATE KEY UPDATE quantity = quantity;
 
         await db.execute_many(
             '''
-INSERT INTO aggregated_billing_project_resources_tmp (billing_project, start_time, end_time, resource, token, `usage`)
+INSERT INTO aggregated_billing_project_resources_tmp_1 (billing_project, start_time, end_time, resource, token, `usage`)
 VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE `usage` = `usage` + VALUES(`usage`);
 ''',
@@ -39,7 +39,7 @@ ON DUPLICATE KEY UPDATE `usage` = `usage` + VALUES(`usage`);
 
         await db.execute_many(
             '''
-INSERT INTO aggregated_batch_resources_tmp (batch_id, start_time, end_time, resource, token, `usage`)
+INSERT INTO aggregated_batch_resources_tmp_1 (batch_id, start_time, end_time, resource, token, `usage`)
 VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE `usage` = `usage` + VALUES(`usage`);
 ''',
@@ -47,7 +47,7 @@ ON DUPLICATE KEY UPDATE `usage` = `usage` + VALUES(`usage`);
 
         await db.execute_many(
             '''
-INSERT INTO aggregated_job_resources_tmp (batch_id, job_id, start_time, end_time, resource, `usage`)
+INSERT INTO aggregated_job_resources_tmp_1 (batch_id, job_id, start_time, end_time, resource, `usage`)
 VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE `usage` = `usage` + VALUES(`usage`);
 ''',
@@ -71,15 +71,24 @@ LEFT JOIN attempt_resources ON attempts.batch_id = attempt_resources.batch_id
 LEFT JOIN batches ON attempts.batch_id = batches.id
 LEFT JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id;
 '''):
-            if n_attempts % 100000 == 0:
+            if n_attempts % 1000 == 0:
                 print(f'processed {n_attempts} attempts: elapsed time {time.time() - start_time}s')
+                break
 
-            if len(attempt_resources) >= 1000 or len(agg_billing_project_resources) >= 1000:
+            print(len(attempt_resources))
+            n_attempts += 1
+            break
+            if (len(attempt_resources) >= 1000 or
+                    len(agg_billing_project_resources) >= 1000 or
+                    len(agg_batch_resources) >= 1000 or
+                    len(agg_job_resources) >= 1000
+            ):
                 await write(attempt_resources, agg_billing_project_resources, agg_batch_resources, agg_job_resources)
                 attempt_resources = []
                 agg_billing_project_resources = []
                 agg_batch_resources = []
                 agg_job_resources = []
+                break
 
             if record['format_version'] < 3:
                 resources = get_resources_fmt_version_less_than_3(record['cores_mcpu'])
