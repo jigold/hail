@@ -217,7 +217,7 @@ DROP TABLE IF EXISTS `aggregated_job_resources_tmp_{token}`;
 def revert_triggers_sql(token):
     return f'''
 DROP TRIGGER IF EXISTS attempt_resources_tmp_{token}_after_insert;
-    
+
 DELIMITER $$
 
 DROP TRIGGER IF EXISTS attempts_after_update $$
