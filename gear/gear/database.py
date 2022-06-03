@@ -4,7 +4,7 @@ import logging
 import os
 import ssl
 import traceback
-from typing import Optional
+from typing import Optional, Type
 
 import aiomysql
 import pymysql
@@ -105,7 +105,12 @@ def get_database_ssl_context(sql_config: Optional[SQLConfig] = None) -> ssl.SSLC
 
 
 @retry_transient_mysql_errors
-async def create_database_pool(config_file: str = None, autocommit: bool = True, maxsize: int = 10):
+async def create_database_pool(
+    config_file: str = None,
+    autocommit: bool = True,
+    maxsize: int = 10,
+    cursorclass: Type[aiomysql.cursors.Cursor] = aiomysql.cursors.DictCursor,
+):
     sql_config = get_sql_config(config_file)
     ssl_context = get_database_ssl_context(sql_config)
     assert ssl_context is not None
@@ -119,7 +124,7 @@ async def create_database_pool(config_file: str = None, autocommit: bool = True,
         port=sql_config.port,
         charset='utf8',
         ssl=ssl_context,
-        cursorclass=aiomysql.cursors.DictCursor,
+        cursorclass=cursorclass,
         autocommit=autocommit,
     )
 
@@ -257,8 +262,10 @@ class Database:
     def __init__(self):
         self.pool = None
 
-    async def async_init(self, config_file=None, maxsize=10):
-        self.pool = await create_database_pool(config_file=config_file, autocommit=False, maxsize=maxsize)
+    async def async_init(self, config_file=None, maxsize=10, cursorclass=aiomysql.cursors.DictCursor):
+        self.pool = await create_database_pool(
+            config_file=config_file, autocommit=False, maxsize=maxsize, cursorclass=cursorclass
+        )
 
     def start(self, read_only=False):
         return TransactionAsyncContextManager(self.pool, read_only)
