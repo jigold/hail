@@ -57,6 +57,10 @@ resource "azurerm_container_registry" "acr" {
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
   sku                 = var.acr_sku
+  retention_policy    = {
+    days    = 1
+    enabled = true
+  }
 }
 
 module "vdc" {
