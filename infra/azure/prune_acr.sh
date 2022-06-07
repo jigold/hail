@@ -49,8 +49,7 @@ PURGE_CMD="acr purge \
   --filter 'website:.*' \
   --untagged \
   --ago '7d' \
-  --keep 10 \
-  --dry-run"
+  --keep 10"
 
 
 # Run for max 8 hour timeout
