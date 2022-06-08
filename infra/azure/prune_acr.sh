@@ -14,39 +14,44 @@ fi
 # Notice the --dry-run is on
 PURGE_CMD="acr purge \
   --filter 'auth:.*' \
-  --filter 'ci-intermediate:.*' \
-  --filter 'ci-utils:.*' \
   --filter 'base:.*' \
   --filter 'base_spark_3_2:.*' \
   --filter 'batch:.*' \
   --filter 'batch-driver-nginx:.*' \
+  --filter 'batch-jvm:.*' \
   --filter 'batch-worker:.*' \
   --filter 'benchmark:.*' \
   --filter 'blog_nginx:.*' \
   --filter 'ci:.*' \
+  --filter 'ci-hello:.*' \
+  --filter 'ci-intermediate:.*' \
   --filter 'ci-utils:.*' \
   --filter 'create_certs_image:.*' \
   --filter 'echo:.*' \
   --filter 'grafana:.*' \
+  --filter 'grafana_nginx:.*' \
   --filter 'hail-base:.*' \
   --filter 'hail-build:.*' \
+  --filter 'hail-build-spark-32:.*' \
   --filter 'hail-buildkit:.*' \
-  --filter 'hail-run:.*' \
-  --filter 'hail-run-tests:.*' \
+  --filter 'hail-pip-installed-python36:.*' \
   --filter 'hail-pip-installed-python37:.*' \
   --filter 'hail-pip-installed-python38:.*' \
+  --filter 'hail-run:.*' \
+  --filter 'hail-run-tests:.*' \
   --filter 'hail-ubuntu:.*' \
   --filter 'memory:.*' \
   --filter 'monitoring:.*' \
   --filter 'notebook:.*' \
   --filter 'notebook_nginx:.*' \
+  --filter 'prom_nginx:.*' \
   --filter 'prometheus:.*' \
   --filter 'service-base:.*' \
   --filter 'service-java-run-base:.*' \
+  --filter 'test-benchmark:.*' \
   --filter 'test-ci:.*' \
   --filter 'test-monitoring:.*' \
-  --filter 'test-benchmark:.*' \
-  --filter 'website:.*' \
+  --filter 'test_hello_create_certs_image:.*' \
   --untagged \
   --ago '7d' \
   --keep 10"
