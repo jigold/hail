@@ -520,6 +520,7 @@ async def _query_batches(request, user, q):
     where_conditions = [
         'EXISTS (SELECT * FROM billing_project_users WHERE billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
         'NOT deleted',
+        'aggregated_batch_resources.token != -1',
     ]
     where_args = [user]
 
@@ -1173,7 +1174,7 @@ INNER JOIN aggregated_billing_project_resources
   ON billing_projects.name = aggregated_billing_project_resources.billing_project
 INNER JOIN resources
   ON resources.resource = aggregated_billing_project_resources.resource
-WHERE billing_projects.name = %s
+WHERE billing_projects.name = %s AND aggregated_billing_project_resources.token != -1
 ''',
             (billing_project,),
         )
@@ -1250,7 +1251,7 @@ LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
        ON aggregated_batch_resources.resource = resources.resource
-WHERE batches.id = %s AND NOT deleted
+WHERE batches.id = %s AND NOT deleted AND aggregated_batch_resources.token != -1
 GROUP BY batches.id, batches_cancelled.id;
 ''',
         (batch_id),
@@ -1795,7 +1796,7 @@ async def _query_billing(request, user=None):
     if end is not None and start > end:
         return await parse_error('Invalid search; start must be earlier than end.')
 
-    where_conditions = ["billing_projects.`status` != 'deleted'"]
+    where_conditions = ["billing_projects.`status` != 'deleted'", "aggregated_batch_resources.token != -1"]
     where_args = []
 
     if end is not None:

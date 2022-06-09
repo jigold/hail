@@ -119,7 +119,7 @@ def accrued_cost_from_cost_and_msec_mcpu(record: Dict[str, Any]) -> float:
 async def query_billing_projects(db, user=None, billing_project=None):
     args = []
 
-    where_conditions = ["billing_projects.`status` != 'deleted'"]
+    where_conditions = ["billing_projects.`status` != 'deleted'", "aggregated_billing_project_resources.`token` != -1"]
 
     if user:
         where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
