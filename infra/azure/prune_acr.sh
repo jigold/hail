@@ -34,6 +34,7 @@ PURGE_CMD="acr purge \
   --filter 'hail-build:.*' \
   --filter 'hail-build-spark-32:.*' \
   --filter 'hail-buildkit:.*' \
+  --filter 'hailgenetics/hail:.*' \
   --filter 'hail-pip-installed-python36:.*' \
   --filter 'hail-pip-installed-python37:.*' \
   --filter 'hail-pip-installed-python38:.*' \
