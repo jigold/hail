@@ -166,6 +166,7 @@ CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 CREATE INDEX `batches_token` ON `batches` (`token`);
 CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
 CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `state`);
+CREATE INDEX `batches_format_version` ON `batches` (`format_version`);
 
 CREATE TABLE IF NOT EXISTS `batches_n_jobs_in_complete_states` (
   `id` BIGINT NOT NULL,
@@ -296,11 +297,13 @@ CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(25
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources` (
   `billing_project` VARCHAR(100) NOT NULL,
   `resource` VARCHAR(100) NOT NULL,
+  `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`billing_project`, `resource`),
+  PRIMARY KEY (`billing_project`, `resource`, `token`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
+CREATE INDEX aggregated_billing_project_resources_token ON `aggregated_billing_project_resources` (`token`);
 
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
   `batch_id` BIGINT NOT NULL,
@@ -311,6 +314,7 @@ CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
+CREATE INDEX aggregated_batch_resources_token ON `aggregated_batch_resources` (`token`);
 
 CREATE TABLE IF NOT EXISTS `aggregated_job_resources` (
   `batch_id` BIGINT NOT NULL,
@@ -583,14 +587,20 @@ BEGIN
   DECLARE cur_start_time BIGINT;
   DECLARE cur_end_time BIGINT;
   DECLARE cur_billing_project VARCHAR(100);
+  DECLARE cur_format_version INT;
   DECLARE msec_diff BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
 
-  SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
-  SET rand_token = FLOOR(RAND() * cur_n_tokens);
+  SELECT billing_project, format_version INTO cur_billing_project, cur_format_version FROM batches WHERE id = NEW.batch_id;
 
-  SELECT billing_project INTO cur_billing_project FROM batches WHERE id = NEW.batch_id;
+  SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
+
+  IF cur_format_version >= 3 THEN
+    SET rand_token = FLOOR(RAND() * cur_n_tokens);
+  ELSE
+    SET rand_token = -1;
+  END IF;
 
   SELECT start_time, end_time INTO cur_start_time, cur_end_time
   FROM attempts
