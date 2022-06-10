@@ -58,7 +58,6 @@ from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, S
 from ..batch_format_version import BatchFormatVersion
 from ..cloud.resource_utils import (
     cores_mcpu_to_memory_bytes,
-    cost_from_msec_mcpu,
     is_valid_cores_mcpu,
     memory_to_worker_type,
     valid_machine_types,
@@ -75,7 +74,7 @@ from ..file_store import FileStore
 from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..spec_writer import SpecWriter
-from ..utils import accrued_cost_from_cost_and_msec_mcpu, coalesce, query_billing_projects
+from ..utils import query_billing_projects
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch
 
 # import uvloop
@@ -520,7 +519,6 @@ async def _query_batches(request, user, q):
     where_conditions = [
         'EXISTS (SELECT * FROM billing_project_users WHERE billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
         'NOT deleted',
-        'aggregated_batch_resources.token != -1',
     ]
     where_args = [user]
 
@@ -1168,18 +1166,16 @@ LOCK IN SHARE MODE''',
 
         bp_cost_record = await tx.execute_and_fetchone(
             '''
-SELECT billing_projects.msec_mcpu, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM billing_projects
-INNER JOIN aggregated_billing_project_resources
-  ON billing_projects.name = aggregated_billing_project_resources.billing_project
+SELECT COALESCE(SUM(`usage` * rate), 0) AS accrued_cost
+FROM aggregated_billing_project_resources
 INNER JOIN resources
   ON resources.resource = aggregated_billing_project_resources.resource
-WHERE billing_projects.name = %s AND aggregated_billing_project_resources.token != -1
+WHERE aggregated_billing_project_resources.name = %s
 ''',
             (billing_project,),
         )
         limit = bp['limit']
-        accrued_cost = accrued_cost_from_cost_and_msec_mcpu(bp_cost_record)
+        accrued_cost = bp_cost_record['accrued_cost']
         if limit is not None and accrued_cost >= limit:
             raise web.HTTPForbidden(
                 reason=f'billing project {billing_project} has exceeded the budget; accrued={cost_str(accrued_cost)} limit={cost_str(limit)}'
@@ -1251,7 +1247,7 @@ LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
        ON aggregated_batch_resources.resource = resources.resource
-WHERE batches.id = %s AND NOT deleted AND aggregated_batch_resources.token != -1
+WHERE batches.id = %s AND NOT deleted
 GROUP BY batches.id, batches_cancelled.id;
 ''',
         (batch_id),
@@ -1796,7 +1792,7 @@ async def _query_billing(request, user=None):
     if end is not None and start > end:
         return await parse_error('Invalid search; start must be earlier than end.')
 
-    where_conditions = ["billing_projects.`status` != 'deleted'", "aggregated_batch_resources.token != -1"]
+    where_conditions = ["billing_projects.`status` != 'deleted'"]
     where_args = []
 
     if end is not None:
@@ -1820,8 +1816,7 @@ async def _query_billing(request, user=None):
 SELECT
   billing_project,
   `user`,
-  CAST(SUM(IF(format_version < 3, batches.msec_mcpu, 0)) AS SIGNED) as msec_mcpu,
-  SUM(IF(format_version >= 3, `usage` * rate, NULL)) as cost
+  COALESCE(SUM(`usage` * rate), 0) as cost
 FROM batches
 LEFT JOIN aggregated_batch_resources
   ON aggregated_batch_resources.batch_id = batches.id
@@ -1835,14 +1830,7 @@ GROUP BY billing_project, `user`;
 
     sql_args = where_args
 
-    def billing_record_to_dict(record):
-        cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
-        cost_resources = record['cost']
-        record['cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
-        del record['msec_mcpu']
-        return record
-
-    billing = [billing_record_to_dict(record) async for record in db.select_and_fetchall(sql, sql_args)]
+    billing = [record async for record in db.select_and_fetchall(sql, sql_args)]
 
     return (billing, start_query, end_query)
 

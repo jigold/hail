@@ -11,8 +11,6 @@ log = logging.getLogger('batch')
 
 
 def batch_record_to_dict(record):
-    format_version = BatchFormatVersion(record['format_version'])
-
     if record['state'] == 'open':
         state = 'open'
     elif record['n_failed'] > 0:
@@ -56,17 +54,13 @@ def batch_record_to_dict(record):
         'time_closed': time_closed,
         'time_completed': time_completed,
         'duration': duration,
+        'msec_mcpu': record['msec_mcpu'],
+        'cost': record['cost'],
     }
 
     attributes = json.loads(record['attributes'])
     if attributes:
         d['attributes'] = attributes
-
-    msec_mcpu = record['msec_mcpu']
-    d['msec_mcpu'] = msec_mcpu
-
-    cost = format_version.cost(record['msec_mcpu'], record['cost'])
-    d['cost'] = cost
 
     return d
 
@@ -91,13 +85,9 @@ def job_record_to_dict(record, name):
         'state': record['state'],
         'exit_code': exit_code,
         'duration': duration,
+        'msec_mcpu': record['msec_mcpu'],
+        'cost': record['cost'],
     }
-
-    msec_mcpu = record['msec_mcpu']
-    result['msec_mcpu'] = msec_mcpu
-
-    cost = format_version.cost(record['msec_mcpu'], record['cost'])
-    result['cost'] = cost
 
     return result
 

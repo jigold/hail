@@ -3,14 +3,12 @@ import logging
 import secrets
 from collections import deque
 from functools import wraps
-from typing import Any, Deque, Dict, Set, Tuple
+from typing import Deque, Set, Tuple
 
 from aiohttp import web
 
 from gear import maybe_parse_bearer_header
 from hailtop.utils import secret_alnum_string
-
-from .cloud.resource_utils import cost_from_msec_mcpu
 
 log = logging.getLogger('utils')
 
@@ -110,16 +108,10 @@ class ExceededSharesCounter:
         return f'global {self._global_counter}'
 
 
-def accrued_cost_from_cost_and_msec_mcpu(record: Dict[str, Any]) -> float:
-    cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
-    cost_resources = record['cost']
-    return coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
-
-
 async def query_billing_projects(db, user=None, billing_project=None):
     args = []
 
-    where_conditions = ["billing_projects.`status` != 'deleted'", "aggregated_billing_project_resources.`token` != -1"]
+    where_conditions = ["billing_projects.`status` != 'deleted'"]
 
     if user:
         where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
@@ -135,9 +127,9 @@ async def query_billing_projects(db, user=None, billing_project=None):
         where_condition = ''
 
     sql = f'''
-SELECT billing_projects.name as billing_project,
-  billing_projects.`status` as `status`,
-  users, msec_mcpu, `limit`, SUM(`usage` * rate) as cost
+SELECT billing_projects.name AS billing_project,
+  billing_projects.`status` AS `status`,
+  users, `limit`, SUM(`usage` * rate) AS accrued_cost
 FROM (
   SELECT billing_project, JSON_ARRAYAGG(`user`) as users
   FROM billing_project_users
@@ -151,15 +143,11 @@ LEFT JOIN aggregated_billing_project_resources
 LEFT JOIN resources
   ON resources.resource = aggregated_billing_project_resources.resource
 {where_condition}
-GROUP BY billing_projects.name, billing_projects.status, msec_mcpu, `limit`
+GROUP BY billing_projects.name, billing_projects.status, `limit`
 LOCK IN SHARE MODE;
 '''
 
     def record_to_dict(record):
-        record['accrued_cost'] = accrued_cost_from_cost_and_msec_mcpu(record)
-        del record['msec_mcpu']
-        del record['cost']
-
         if record['users'] is None:
             record['users'] = []
         else:
