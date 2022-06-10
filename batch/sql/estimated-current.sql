@@ -258,6 +258,18 @@ CREATE INDEX `attempts_instance_name` ON `attempts` (`instance_name`);
 CREATE INDEX `attempts_start_time` ON `attempts` (`start_time`);
 CREATE INDEX `attempts_end_time` ON `attempts` (`end_time`);
 
+CREATE TABLE IF NOT EXISTS `attempts_time_msecs_diff` (
+  `counter` BIGINT NOT NULL AUTO_INCREMENT,
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `attempt_id` VARCHAR(40) NOT NULL,
+  `end_time` BIGINT,
+  `msecs_diff` BIGINT NOT NULL,
+  PRIMARY KEY (`counter`),
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
+) ENGINE = InnoDB;
+CREATE INDEX attempts_time_msecs_diff_attempt ON `attempts_time_msecs_diff` (`batch_id`, `job_id`, `attempt_id`);
+
 CREATE TABLE IF NOT EXISTS `gevents_mark` (
   mark VARCHAR(40)
 ) ENGINE = InnoDB;
@@ -305,6 +317,20 @@ CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources` (
 ) ENGINE = InnoDB;
 CREATE INDEX aggregated_billing_project_resources_token ON `aggregated_billing_project_resources` (`token`);
 
+CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources_by_date` (
+  `billing_project` VARCHAR(100) NOT NULL,
+  `start_time` BIGINT NOT NULL,
+  `end_time` BIGINT NOT NULL,
+  `resource` VARCHAR(100) NOT NULL,
+  `token` INT NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`billing_project`, `start_time`, `end_time`, `resource`, `token`),
+  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+CREATE INDEX aggregated_billing_project_resources_by_date_start_time ON `aggregated_billing_project_resources_by_date` (`start_time`);
+CREATE INDEX aggregated_billing_project_resources_by_date_end_time ON `aggregated_billing_project_resources_by_date` (`end_time`);
+
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
   `batch_id` BIGINT NOT NULL,
   `resource` VARCHAR(100) NOT NULL,
@@ -316,6 +342,20 @@ CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
 ) ENGINE = InnoDB;
 CREATE INDEX aggregated_batch_resources_token ON `aggregated_batch_resources` (`token`);
 
+CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_by_date` (
+  `batch_id` BIGINT NOT NULL,
+  `start_time` BIGINT NOT NULL,
+  `end_time` BIGINT NOT NULL,
+  `resource` VARCHAR(100) NOT NULL,
+  `token` INT NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`batch_id`, `start_time`, `end_time`, `resource`, `token`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+CREATE INDEX aggregated_batch_resources_by_date_start_time ON `aggregated_batch_resources_by_date` (`start_time`);
+CREATE INDEX aggregated_batch_resources_by_date_end_time ON `aggregated_batch_resources_by_date` (`end_time`);
+
 CREATE TABLE IF NOT EXISTS `aggregated_job_resources` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
@@ -326,6 +366,21 @@ CREATE TABLE IF NOT EXISTS `aggregated_job_resources` (
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS `aggregated_job_resources_by_date` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `start_time` BIGINT NOT NULL,
+  `end_time` BIGINT NOT NULL,
+  `resource` VARCHAR(100) NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`batch_id`, `job_id`, `start_time`, `end_time`, `resource`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+CREATE INDEX aggregated_job_resources_by_date_start_time ON `aggregated_job_resources_by_date` (`start_time`);
+CREATE INDEX aggregated_job_resources_by_date_end_time ON `aggregated_job_resources_by_date` (`end_time`);
 
 CREATE TABLE IF NOT EXISTS `attempt_resources` (
   `batch_id` BIGINT NOT NULL,
@@ -368,6 +423,18 @@ BEGIN
     SET NEW.end_time = OLD.end_time;
     SET NEW.reason = OLD.reason;
   END IF;
+END $$
+
+DROP TRIGGER IF EXISTS attempts_after_insert $$
+CREATE TRIGGER attempts_after_insert AFTER INSERT ON attempts
+FOR EACH ROW
+BEGIN
+  DECLARE msec_diff BIGINT;
+
+  SET msec_diff = GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0);
+
+  INSERT INTO attempts_time_msecs_diff (batch_id, job_id, attempt_id, msecs_diff)
+  VALUES (NEW.batch_id, NEW.job_id, NEW.attempt_id, msec_diff);
 END $$
 
 DROP TRIGGER IF EXISTS attempts_after_update $$

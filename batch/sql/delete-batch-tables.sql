@@ -14,12 +14,17 @@ DROP PROCEDURE IF EXISTS add_attempt;
 DROP TRIGGER IF EXISTS instances_before_update;
 DROP TRIGGER IF EXISTS attempts_before_update;
 DROP TRIGGER IF EXISTS attempts_after_update;
+DROP TRIGGER IF EXISTS attempts_after_insert;
 DROP TRIGGER IF EXISTS jobs_after_update;
 DROP TRIGGER IF EXISTS attempt_resources_after_insert;
 
+DROP TABLE IF EXISTS `attempts_time_msecs_diff`;
 DROP TABLE IF EXISTS `aggregated_billing_project_resources`;
 DROP TABLE IF EXISTS `aggregated_batch_resources`;
 DROP TABLE IF EXISTS `aggregated_job_resources`;
+DROP TABLE IF EXISTS `aggregated_billing_project_resources_by_date`;
+DROP TABLE IF EXISTS `aggregated_batch_resources_by_date`;
+DROP TABLE IF EXISTS `aggregated_job_resources_by_date`;
 DROP TABLE IF EXISTS `attempt_resources`;
 DROP TABLE IF EXISTS `batch_cancellable_resources`;  # deprecated
 DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources`;

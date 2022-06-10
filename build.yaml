@@ -2039,6 +2039,8 @@ steps:
         script: /io/sql/add-agg-token-index.sql
       - name: migrate-billing-format-version-lt-3
         script: /io/sql/migrate_billing_format_version_lt_3.py
+      - name: add-agg-billing-by-date
+        script: /io/sql/add-agg-billing-by-date.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
