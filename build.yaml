@@ -2041,6 +2041,8 @@ steps:
         script: /io/sql/migrate_billing_format_version_lt_3.py
       - name: add-agg-billing-by-date
         script: /io/sql/add-agg-billing-by-date.sql
+      - name: populate-agg-billing-by-date
+        script: /io/sql/populate_agg_billing_by_date.py
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
