@@ -387,10 +387,9 @@ BEGIN
   SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
                    GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
 
-  INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
-  SELECT billing_project, resource, rand_token, msec_diff * quantity
+  INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
+  SELECT batch_id, job_id, resource, msec_diff * quantity
   FROM attempt_resources
-  JOIN batches ON batches.id = attempt_resources.batch_id
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
@@ -400,9 +399,10 @@ BEGIN
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
-  INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
-  SELECT batch_id, job_id, resource, msec_diff * quantity
+  INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
+  SELECT billing_project, resource, rand_token, msec_diff * quantity
   FROM attempt_resources
+  JOIN batches ON batches.id = attempt_resources.batch_id
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 END $$

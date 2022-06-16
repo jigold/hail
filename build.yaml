@@ -2035,6 +2035,9 @@ steps:
         script: /io/sql/add-nonpreemptible-pools.sql
       - name: set-test-and-dev-pools-to-8-core-max-2
         script: /io/sql/set-test-and-dev-pools-to-8-core-max-2.py
+      - name: fix-deadlock-errors-agg-billing
+        script: /io/sql/fix-deadlock-errors-agg-billing.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
