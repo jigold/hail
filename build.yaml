@@ -2038,6 +2038,9 @@ steps:
       - name: set-test-and-dev-jpim-to-max-5
         script: /io/sql/set-test-and-dev-jpim-to-max-5.py
         online: true
+      - name: rm-attempt-resources-deadlock
+        script: /io/sql/rm-attempt-resources-deadlock.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

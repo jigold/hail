@@ -599,8 +599,8 @@ BEGIN
 
   SET msec_diff = GREATEST(COALESCE(cur_end_time - cur_start_time, 0), 0);
 
-  INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
-  VALUES (NEW.batch_id, NEW.job_id, NEW.resource, NEW.quantity * msec_diff)
+  INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
+  VALUES (cur_billing_project, NEW.resource, rand_token, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 
@@ -609,8 +609,8 @@ BEGIN
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 
-  INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
-  VALUES (cur_billing_project, NEW.resource, rand_token, NEW.quantity * msec_diff)
+  INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
+  VALUES (NEW.batch_id, NEW.job_id, NEW.resource, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 END $$
