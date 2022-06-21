@@ -593,20 +593,50 @@ BEGIN
 
   SET msec_diff = GREATEST(COALESCE(cur_end_time - cur_start_time, 0), 0);
 
-  INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
-  VALUES (NEW.batch_id, NEW.job_id, NEW.resource, NEW.quantity * msec_diff)
-  ON DUPLICATE KEY UPDATE
-    `usage` = `usage` + NEW.quantity * msec_diff;
+  INSERT IGNORE INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
+  VALUES (cur_billing_project, NEW.resource, rand_token, NEW.quantity * msec_diff);
 
-  INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
-  VALUES (NEW.batch_id, NEW.resource, rand_token, NEW.quantity * msec_diff)
-  ON DUPLICATE KEY UPDATE
-    `usage` = `usage` + NEW.quantity * msec_diff;
+  IF ROW_COUNT() != 1 THEN
+    UPDATE aggregated_billing_project_resources
+    SET `usage` = `usage` + NEW.quantity * msec_diff
+    WHERE billing_project = cur_billing_project AND resource = NEW.resource AND token = rand_token;
 
-  INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
-  VALUES (cur_billing_project, NEW.resource, rand_token, NEW.quantity * msec_diff)
-  ON DUPLICATE KEY UPDATE
-    `usage` = `usage` + NEW.quantity * msec_diff;
+    IF ROW_COUNT() != 1 THEN
+      INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
+      VALUES (cur_billing_project, NEW.resource, rand_token, NEW.quantity * msec_diff)
+      ON DUPLICATE KEY UPDATE `usage` = `usage` + NEW.quantity * msec_diff;
+    END IF;
+  END IF;
+
+  INSERT IGNORE INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
+  VALUES (NEW.batch_id, NEW.resource, rand_token, NEW.quantity * msec_diff);
+
+  IF ROW_COUNT() != 1 THEN
+    UPDATE aggregated_batch_resources
+    SET `usage` = `usage` + NEW.quantity * msec_diff
+    WHERE batch_id = NEW.batch_id AND resource = NEW.resource AND token = rand_token;
+
+    IF ROW_COUNT() != 1 THEN
+      INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
+      VALUES (NEW.batch_id, NEW.resource, rand_token, NEW.quantity * msec_diff)
+      ON DUPLICATE KEY UPDATE `usage` = `usage` + NEW.quantity * msec_diff;
+    END IF;
+  END IF;
+
+  INSERT IGNORE INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
+  VALUES (NEW.batch_id, NEW.job_id, NEW.resource, NEW.quantity * msec_diff);
+
+  IF ROW_COUNT() != 1 THEN
+    UPDATE aggregated_job_resources
+    SET `usage` = `usage` + NEW.quantity * msec_diff
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND resource = NEW.resource;
+
+    IF ROW_COUNT() != 1 THEN
+      INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
+      VALUES (NEW.batch_id, NEW.job_id, NEW.resource, NEW.quantity * msec_diff)
+      ON DUPLICATE KEY UPDATE `usage` = `usage` + NEW.quantity * msec_diff;
+    END IF;
+  END IF;
 END $$
 
 DROP PROCEDURE IF EXISTS recompute_incremental $$
@@ -913,19 +943,30 @@ CREATE PROCEDURE add_attempt(
   OUT delta_cores_mcpu INT
 )
 BEGIN
+  DECLARE cur_instance_state VARCHAR(40);
+
   SET delta_cores_mcpu = IFNULL(delta_cores_mcpu, 0);
 
   IF in_attempt_id IS NOT NULL THEN
+    SELECT 1 FROM instances_free_cores_mcpu
+    WHERE instances_free_cores_mcpu.name = in_instance_name
+    FOR UPDATE;
+
     INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name)
     VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name)
     ON DUPLICATE KEY UPDATE batch_id = batch_id;
 
     IF ROW_COUNT() != 0 THEN
-      UPDATE instances, instances_free_cores_mcpu
-      SET free_cores_mcpu = free_cores_mcpu - in_cores_mcpu
-      WHERE instances.name = in_instance_name
-        AND instances.name = instances_free_cores_mcpu.name
-        AND (instances.state = 'pending' OR instances.state = 'active');
+      SELECT state INTO cur_instance_state
+      FROM instances
+      WHERE name = in_instance_name
+      LOCK IN SHARE MODE;
+
+      IF cur_instance_state = 'pending' OR cur_instance_state = 'active' THEN
+        UPDATE instances_free_cores_mcpu
+        SET free_cores_mcpu = free_cores_mcpu - in_cores_mcpu
+        WHERE instances_free_cores_mcpu.name = in_instance_name;
+      END IF;
 
       SET delta_cores_mcpu = -1 * in_cores_mcpu;
     END IF;

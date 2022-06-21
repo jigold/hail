@@ -2041,6 +2041,9 @@ steps:
       - name: remove-bad-foreign-key-constraints
         script: /io/sql/remove_bad_foreign_key_constraints.py
         online: true
+      - name: minimize-locking-in-triggers
+        script: /io/sql/minimize-locking-in-triggers.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
