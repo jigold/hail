@@ -1418,14 +1418,14 @@ class Job:
 
         full_status = self.status()
 
-        if self.format_version.has_full_status_in_gcs():
-            await retry_transient_errors(
-                self.worker.file_store.write_status_file,
-                self.batch_id,
-                self.job_id,
-                self.attempt_id,
-                json.dumps(full_status),
-            )
+        # if self.format_version.has_full_status_in_gcs():
+        #     await retry_transient_errors(
+        #         self.worker.file_store.write_status_file,
+        #         self.batch_id,
+        #         self.job_id,
+        #         self.attempt_id,
+        #         json.dumps(full_status),
+        #     )
 
         if not self.deleted:
             self.task_manager.ensure_future(self.worker.post_job_complete(self, full_status))
@@ -1618,6 +1618,7 @@ class DockerJob(Job):
 
             try:
                 self.mark_started()
+                return
 
                 self.state = 'initializing'
 
@@ -1708,7 +1709,8 @@ class DockerJob(Job):
             finally:
                 with self.step('post-job finally block'):
                     try:
-                        await self.cleanup()
+                        pass
+                        # await self.cleanup()
                     finally:
                         await self.mark_complete()
 
