@@ -308,36 +308,52 @@ BEGIN
 
   SET msec_diff = GREATEST(COALESCE(cur_end_time - cur_start_time, 0), 0);
 
-  UPDATE aggregated_billing_project_resources
-  SET `usage` = `usage` + NEW.quantity * msec_diff
-  WHERE billing_project = cur_billing_project AND resource = NEW.resource AND token = rand_token;
+  INSERT IGNORE INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
+  VALUES (cur_billing_project, NEW.resource, rand_token, NEW.quantity * msec_diff);
 
   IF ROW_COUNT() != 1 THEN
-    INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
-    VALUES (cur_billing_project, NEW.resource, rand_token, NEW.quantity * msec_diff)
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + NEW.quantity * msec_diff;
+    UPDATE aggregated_billing_project_resources
+    SET `usage` = `usage` + NEW.quantity * msec_diff
+    WHERE billing_project = cur_billing_project AND resource = NEW.resource AND token = rand_token;
+
+    IF ROW_COUNT() != 1 THEN
+      INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
+      VALUES (cur_billing_project, NEW.resource, rand_token, NEW.quantity * msec_diff)
+      ON DUPLICATE KEY UPDATE `usage` = `usage` + NEW.quantity * msec_diff;
+    END IF;
   END IF;
 
-  UPDATE aggregated_batch_resources
-  SET `usage` = `usage` + NEW.quantity * msec_diff
-  WHERE batch_id = NEW.batch_id AND resource = NEW.resource AND token = rand_token;
+  INSERT IGNORE INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
+  VALUES (NEW.batch_id, NEW.resource, rand_token, NEW.quantity * msec_diff);
 
   IF ROW_COUNT() != 1 THEN
-    INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
-    VALUES (NEW.batch_id, NEW.resource, rand_token, NEW.quantity * msec_diff)
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + NEW.quantity * msec_diff;
+    UPDATE aggregated_batch_resources
+    SET `usage` = `usage` + NEW.quantity * msec_diff
+    WHERE batch_id = NEW.batch_id AND resource = NEW.resource AND token = rand_token;
+
+    IF ROW_COUNT() != 1 THEN
+      INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
+      VALUES (NEW.batch_id, NEW.resource, rand_token, NEW.quantity * msec_diff)
+      ON DUPLICATE KEY UPDATE `usage` = `usage` + NEW.quantity * msec_diff;
+    END IF;
   END IF;
 
-  UPDATE aggregated_job_resources
-  SET `usage` = `usage` + NEW.quantity * msec_diff
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND resource = NEW.resource;
+  INSERT IGNORE INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
+  VALUES (NEW.batch_id, NEW.job_id, NEW.resource, NEW.quantity * msec_diff);
 
   IF ROW_COUNT() != 1 THEN
-    INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
-    VALUES (NEW.batch_id, NEW.job_id, NEW.resource, NEW.quantity * msec_diff)
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + NEW.quantity * msec_diff;
+    UPDATE aggregated_job_resources
+    SET `usage` = `usage` + NEW.quantity * msec_diff
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND resource = NEW.resource;
+
+    IF ROW_COUNT() != 1 THEN
+      INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
+      VALUES (NEW.batch_id, NEW.job_id, NEW.resource, NEW.quantity * msec_diff)
+      ON DUPLICATE KEY UPDATE `usage` = `usage` + NEW.quantity * msec_diff;
+    END IF;
   END IF;
 END $$
+
 
 DROP PROCEDURE IF EXISTS add_attempt $$
 CREATE PROCEDURE add_attempt(
