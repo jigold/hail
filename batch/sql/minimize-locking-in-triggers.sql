@@ -628,6 +628,10 @@ BEGIN
   SET delta_cores_mcpu = IFNULL(delta_cores_mcpu, 0);
 
   IF in_attempt_id IS NOT NULL THEN
+    SELECT 1 FROM instances_free_cores_mcpu
+    WHERE instances_free_cores_mcpu.name = in_instance_name
+    FOR UPDATE;
+
     INSERT IGNORE INTO attempts (batch_id, job_id, attempt_id, instance_name)
     VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
 
