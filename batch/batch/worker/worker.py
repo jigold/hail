@@ -1621,80 +1621,82 @@ class DockerJob(Job):
 
                 self.state = 'initializing'
 
-                os.makedirs(f'{self.scratch}/')
-
-                with self.step('setup_io'):
-                    await self.setup_io()
-
-                if not self.disk:
-                    data_disk_storage_in_bytes = storage_gib_to_bytes(
-                        self.external_storage_in_gib + self.data_disk_storage_in_gib
-                    )
-                else:
-                    data_disk_storage_in_bytes = storage_gib_to_bytes(self.data_disk_storage_in_gib)
-
-                with self.step('configuring xfsquota'):
-                    # Quota will not be applied to `/io` if the job has an attached disk mounted there
-                    await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
-                    await check_shell_output(
-                        f'xfs_quota -x -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_id}" /host/'
-                    )
-
-                with self.step('populating secrets'):
-                    if self.secrets:
-                        for secret in self.secrets:
-                            populate_secret_host_path(self.secret_host_path(secret), secret['data'])
-
-                with self.step('adding cloudfuse support'):
-                    if self.cloudfuse:
-                        os.makedirs(self.cloudfuse_base_path())
-
-                        await check_shell_output(
-                            f'xfs_quota -x -c "project -s -p {self.cloudfuse_base_path()} {self.project_id}" /host/'
-                        )
-
-                        for config in self.cloudfuse:
-                            bucket = config['bucket']
-                            assert bucket
-
-                            credentials = self.credentials.cloudfuse_credentials(config)
-                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
-                                self.scratch, credentials, bucket
-                            )
-
-                            os.makedirs(self.cloudfuse_data_path(bucket), exist_ok=True)
-                            os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
-
-                            await CLOUD_WORKER_API.mount_cloudfuse(
-                                credentials_path,
-                                self.cloudfuse_data_path(bucket),
-                                self.cloudfuse_tmp_path(bucket),
-                                config,
-                            )
-                            config['mounted'] = True
+                # os.makedirs(f'{self.scratch}/')
+                #
+                # with self.step('setup_io'):
+                #     await self.setup_io()
+                #
+                # if not self.disk:
+                #     data_disk_storage_in_bytes = storage_gib_to_bytes(
+                #         self.external_storage_in_gib + self.data_disk_storage_in_gib
+                #     )
+                # else:
+                #     data_disk_storage_in_bytes = storage_gib_to_bytes(self.data_disk_storage_in_gib)
+                #
+                # with self.step('configuring xfsquota'):
+                #     # Quota will not be applied to `/io` if the job has an attached disk mounted there
+                #     await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
+                #     await check_shell_output(
+                #         f'xfs_quota -x -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_id}" /host/'
+                #     )
+                #
+                # with self.step('populating secrets'):
+                #     if self.secrets:
+                #         for secret in self.secrets:
+                #             populate_secret_host_path(self.secret_host_path(secret), secret['data'])
+                #
+                # with self.step('adding cloudfuse support'):
+                #     if self.cloudfuse:
+                #         os.makedirs(self.cloudfuse_base_path())
+                #
+                #         await check_shell_output(
+                #             f'xfs_quota -x -c "project -s -p {self.cloudfuse_base_path()} {self.project_id}" /host/'
+                #         )
+                #
+                #         for config in self.cloudfuse:
+                #             bucket = config['bucket']
+                #             assert bucket
+                #
+                #             credentials = self.credentials.cloudfuse_credentials(config)
+                #             credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
+                #                 self.scratch, credentials, bucket
+                #             )
+                #
+                #             os.makedirs(self.cloudfuse_data_path(bucket), exist_ok=True)
+                #             os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
+                #
+                #             await CLOUD_WORKER_API.mount_cloudfuse(
+                #                 credentials_path,
+                #                 self.cloudfuse_data_path(bucket),
+                #                 self.cloudfuse_tmp_path(bucket),
+                #                 config,
+                #             )
+                #             config['mounted'] = True
 
                 self.state = 'running'
 
-                input = self.containers.get('input')
-                if input:
-                    await self.run_container(input, 'input')
+                # input = self.containers.get('input')
+                # if input:
+                #     await self.run_container(input, 'input')
+                #
+                # if not input or input.state == 'succeeded':
+                #     main = self.containers['main']
+                #     await self.run_container(main, 'main')
+                #
+                #     output = self.containers.get('output')
+                #     if output:
+                #         await self.run_container(output, 'output')
+                #
+                #     if main.state != 'succeeded':
+                #         self.state = main.state
+                #     elif output:
+                #         self.state = output.state
+                #     else:
+                #         self.state = 'succeeded'
+                # else:
+                #     self.state = input.state
 
-                if not input or input.state == 'succeeded':
-                    main = self.containers['main']
-                    await self.run_container(main, 'main')
-
-                    output = self.containers.get('output')
-                    if output:
-                        await self.run_container(output, 'output')
-
-                    if main.state != 'succeeded':
-                        self.state = main.state
-                    elif output:
-                        self.state = output.state
-                    else:
-                        self.state = 'succeeded'
-                else:
-                    self.state = input.state
+                self.state = 'succeeded'
             except asyncio.CancelledError:
                 raise
             except ContainerDeletedError:
@@ -1708,7 +1710,8 @@ class DockerJob(Job):
             finally:
                 with self.step('post-job finally block'):
                     try:
-                        await self.cleanup()
+                        pass
+                        # await self.cleanup()
                     finally:
                         await self.mark_complete()
 
