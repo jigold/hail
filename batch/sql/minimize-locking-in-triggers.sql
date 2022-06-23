@@ -371,7 +371,7 @@ BEGIN
     INSERT IGNORE INTO attempts (batch_id, job_id, attempt_id, instance_name)
     VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
 
-    IF ROW_COUNT() != 0 THEN
+    IF ROW_COUNT() == 1 THEN
       UPDATE instances, instances_free_cores_mcpu
       SET free_cores_mcpu = free_cores_mcpu - in_cores_mcpu
       WHERE instances.name = in_instance_name
