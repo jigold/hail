@@ -106,7 +106,7 @@ BEGIN
       INSERT IGNORE INTO user_inst_coll_resources (user, inst_coll, token, n_cancelled_running_jobs)
       VALUES (cur_user, OLD.inst_coll, rand_token, -1);
 
-      IF ROW_COUNT() != 1
+      IF ROW_COUNT() != 1 THEN
         UPDATE user_inst_coll_resources
         SET n_cancelled_running_jobs = n_cancelled_running_jobs - 1
         WHERE `user` = cur_user AND inst_coll = OLD.inst_coll AND token = rand_token;
