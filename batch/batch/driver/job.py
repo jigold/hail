@@ -190,6 +190,8 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
         log.info(f'error while marking job {id} started on {instance}')
         raise
 
+    log.info(f'mark_job_started rv {rv}')
+
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
