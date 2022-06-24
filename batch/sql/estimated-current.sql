@@ -914,11 +914,12 @@ CREATE PROCEDURE add_attempt(
 )
 BEGIN
   DECLARE cur_instance_state VARCHAR(40);
+  DECLARE dummy_lock INT;
 
   SET delta_cores_mcpu = IFNULL(delta_cores_mcpu, 0);
 
   IF in_attempt_id IS NOT NULL THEN
-    SELECT 1 FROM instances_free_cores_mcpu
+    SELECT 1 INTO dummy_lock FROM instances_free_cores_mcpu
     WHERE instances_free_cores_mcpu.name = in_instance_name
     FOR UPDATE;
 
