@@ -923,9 +923,8 @@ BEGIN
     WHERE instances_free_cores_mcpu.name = in_instance_name
     FOR UPDATE;
 
-    INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name)
-    VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name)
-    ON DUPLICATE KEY UPDATE batch_id = batch_id;
+    INSERT IGNORE INTO attempts (batch_id, job_id, attempt_id, instance_name)
+    VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
 
     IF ROW_COUNT() != 0 THEN
       SELECT state INTO cur_instance_state
