@@ -55,10 +55,13 @@ class Pool(InstanceCollection):
 
         async for record in db.select_and_fetchall(
             '''
-SELECT instances.*, instances_free_cores_mcpu.free_cores_mcpu
+SELECT instances.*, ifcm.free_cores_mcpu
 FROM instances
-INNER JOIN instances_free_cores_mcpu
-ON instances.name = instances_free_cores_mcpu.name
+INNER JOIN (
+  SELECT name, SUM(free_cores_mcpu) AS free_cores_mcpu
+  FROM instances_free_cores_mcpu
+  GROUP BY name
+) AS ifcm ON instances.name = ifcm.name
 WHERE removed = 0 AND inst_coll = %s;
 ''',
             (pool.name,),
