@@ -87,8 +87,9 @@ async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
 
             await db.execute_many(
                 '''
-INSERT IGNORE INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
-VALUES (%s, %s, %s, %s, %s);
+INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
+VALUES (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE quantity = quantity;
 ''',
                 resource_args,
                 'add_attempt_resources',
