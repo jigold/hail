@@ -1617,7 +1617,7 @@ class DockerJob(Job):
             self.start_time = time_msecs()
 
             try:
-                self.mark_started()
+                # self.mark_started()
 
                 self.state = 'initializing'
 
