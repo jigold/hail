@@ -598,10 +598,24 @@ async def _query_batches(request, user, q):
         where_args.extend(args)
 
     sql = f'''
-SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled,
+  COALESCE(SUM(`usage` * rate), 0) AS cost,
+  IF(batch_job_states.n_completed = batches.n_jobs, batch_job_states.time_completed, NULL) AS time_completed,
+  batch_job_states.n_completed,
+  batch_job_states.n_succeeded,
+  batch_job_states.n_failed,
+  batch_job_states.n_cancelled
 FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-  ON batches.id = batches_n_jobs_in_complete_states.id
+LEFT JOIN (
+  SELECT id,
+    MAX(batch_n_jobs_in_complete_states.time_completed) as time_completed,
+    COALESCE(SUM(batches_n_jobs_in_complete_states.n_completed), 0) as n_completed,
+    COALESCE(SUM(batches_n_jobs_in_complete_states.n_succeeded), 0) as n_succeeded,
+    COALESCE(SUM(batches_n_jobs_in_complete_states.n_failed), 0) as n_failed,
+    COALESCE(SUM(batches_n_jobs_in_complete_states.n_cancelled), 0) as n_cancelled
+  FROM batches_n_jobs_in_complete_states 
+  GROUP BY id, token
+) AS batch_job_states ON batches.id = batch_job_states.id  
 LEFT JOIN batches_cancelled
   ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources
@@ -1230,10 +1244,24 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost
+  IF(batch_job_states.n_completed = batches.n_jobs, batch_job_states.time_completed, NULL) AS time_completed,
+  batch_job_states.n_completed as n_completed,
+  batch_job_states.n_succeeded as n_succeeded,
+  batch_job_states.n_failed as n_failed,
+  batch_job_states.n_cancelled as n_cancelled
 FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-       ON batches.id = batches_n_jobs_in_complete_states.id
+LEFT JOIN (
+  SELECT id,
+    MAX(batch_n_jobs_in_complete_states.time_completed) as time_completed,
+    COALESCE(SUM(batches_n_jobs_in_complete_states.n_completed), 0) as n_completed,
+    COALESCE(SUM(batches_n_jobs_in_complete_states.n_succeeded), 0) as n_succeeded,
+    COALESCE(SUM(batches_n_jobs_in_complete_states.n_failed), 0) as n_failed,
+    COALESCE(SUM(batches_n_jobs_in_complete_states.n_cancelled), 0) as n_cancelled
+  FROM batches_n_jobs_in_complete_states
+  WHERE id = %s
+  GROUP BY id, token
+) AS batch_job_states ON batches.id = batch_job_states.id
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources
@@ -1243,7 +1271,7 @@ LEFT JOIN resources
 WHERE batches.id = %s AND NOT deleted
 GROUP BY batches.id, batches_cancelled.id;
 ''',
-        (batch_id),
+        (batch_id, batch_id),
     )
     if not record:
         raise web.HTTPNotFound()
