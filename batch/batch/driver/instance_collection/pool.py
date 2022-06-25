@@ -388,7 +388,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
             should_wait = True
             return should_wait
         user_share = {
-            user: max(int(1000 * resources['allocated_cores_mcpu'] / total + 0.5), 20)
+            user: max(int(300 * resources['allocated_cores_mcpu'] / total + 0.5), 20)
             for user, resources in user_resources.items()
         }
 
