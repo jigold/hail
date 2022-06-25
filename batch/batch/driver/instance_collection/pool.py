@@ -292,6 +292,7 @@ class PoolScheduler:
         self.pool = pool
         self.async_worker_pool = async_worker_pool
         self.exceeded_shares_counter = ExceededSharesCounter()
+        self.jobs_in_progress = set()
         task_manager.ensure_future(
             retry_long_running('schedule_loop', run_if_changed, self.scheduler_state_changed, self.schedule_loop_body)
         )
@@ -411,7 +412,7 @@ FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
 LIMIT %s;
 ''',
-                    (batch['id'], self.pool.name, remaining.value),
+                    (batch['id'], self.pool.name, 1000),  # remaining.value
                     "user_runnable_jobs__select_ready_always_run_jobs",
                 ):
                     record['batch_id'] = batch['id']
@@ -449,6 +450,9 @@ LIMIT %s;
 
             remaining = Box(share)
             async for record in user_runnable_jobs(user, remaining):
+                if (record['batch_id'], record['job_id']) in self.jobs_in_progress:
+                    continue
+
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
 
@@ -467,10 +471,13 @@ LIMIT %s;
 
                     async def schedule_with_error_handling(app, record, instance):
                         try:
+                            self.jobs_in_progress.add((record['batch_id'], record['job_id']))
                             await schedule_job(app, record, instance)
                         except Exception:
                             if instance.state == 'active':
                                 instance.adjust_free_cores_in_memory(record['cores_mcpu'])
+                        finally:
+                            self.jobs_in_progress.remove((record['batch_id'], record['job_id']))
 
                     await waitable_pool.call(schedule_with_error_handling, self.app, record, instance)
 
@@ -479,7 +486,7 @@ LIMIT %s;
                     should_wait = False
                     break
 
-        await waitable_pool.wait()
+        # await waitable_pool.wait()
 
         end = time_msecs()
 
