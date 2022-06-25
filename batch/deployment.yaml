@@ -38,11 +38,11 @@ spec:
         image: {{ batch_driver_nginx_image.image }}
         resources:
           requests:
-            cpu: "4"
-            memory: "2G"
+            cpu: "2"
+            memory: "1G"
           limits:
-            cpu: "4.5"
-            memory: "4G"
+            cpu: "2.5"
+            memory: "2G"
         ports:
          - containerPort: 443
         volumeMounts:
