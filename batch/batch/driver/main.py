@@ -968,7 +968,8 @@ LOCK IN SHARE MODE;
         agg_job_resources = tx.execute_and_fetchall(
             '''
 SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
-FROM aggregated_job_resources
+FROM aggregated_job_resources_by_date
+LEFT JOIN resources ON aggregated_job_resources_by_date.resource_id = resources.resource_id
 GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
 '''
@@ -978,9 +979,10 @@ LOCK IN SHARE MODE;
             '''
 SELECT batch_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
-  SELECT batch_id, resource, SUM(`usage`) AS `usage`
-  FROM aggregated_batch_resources
-  GROUP BY batch_id, resource) AS t
+  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_batch_resources_by_date
+  GROUP BY batch_id, resource_id) AS t
+LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
 GROUP BY t.batch_id, billing_project
 LOCK IN SHARE MODE;
@@ -991,9 +993,10 @@ LOCK IN SHARE MODE;
             '''
 SELECT billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
-  SELECT billing_project, resource, SUM(`usage`) AS `usage`
-  FROM aggregated_billing_project_resources
-  GROUP BY billing_project, resource) AS t
+  SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_billing_project_user_resources_by_date
+  GROUP BY billing_project, resource_id) AS t
+LEFT JOIN resources ON t.resource_id = resources.resource_id
 GROUP BY t.billing_project
 LOCK IN SHARE MODE;
 '''
