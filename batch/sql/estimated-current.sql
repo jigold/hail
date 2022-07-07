@@ -249,7 +249,6 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   `start_time` BIGINT,
   `end_time` BIGINT,
   `reason` VARCHAR(40),
-  `migrated` BOOLEAN DEFAULT FALSE,
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE,
@@ -428,7 +427,6 @@ BEGIN
   DECLARE job_cores_mcpu INT;
   DECLARE cur_billing_project VARCHAR(100);
   DECLARE msec_diff BIGINT;
-  DECLARE msec_diff_migration BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
   DECLARE cur_billing_timestamp DATE;
@@ -466,41 +464,33 @@ BEGIN
     LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
     WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
     ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
-  END IF;
 
-  IF NOT OLD.migrated THEN
-    SET msec_diff_migration = GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0);
-  ELSE
-    SET msec_diff_migration = msec_diff;
-  END IF;
-
-  IF msec_diff_migration != 0 THEN
     INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, user, resource_id, token, `usage`)
     SELECT billing_project, `user`,
       resource_id,
       rand_token,
-      msec_diff_migration * quantity
+      msec_diff * quantity
     FROM attempt_resources
     JOIN batches ON batches.id = attempt_resources.batch_id
     WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_migration * quantity;
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
     INSERT INTO aggregated_batch_resources_v2 (batch_id, resource_id, token, `usage`)
     SELECT attempt_resources.batch_id,
       resource_id,
       rand_token,
-      msec_diff_migration * quantity
+      msec_diff * quantity
     FROM attempt_resources
     WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_migration * quantity;
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
     INSERT INTO aggregated_job_resources_v2 (batch_id, job_id, resource_id, `usage`)
     SELECT attempt_resources.batch_id, attempt_resources.job_id,
       resource_id,
-      msec_diff_migration * quantity
+      msec_diff * quantity
     FROM attempt_resources
     WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_migration * quantity;
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
     IF NEW.end_time IS NOT NULL THEN
       SET cur_billing_timestamp = CAST(FROM_UNIXTIME(NEW.end_time / 1000) AS DATE);
@@ -511,11 +501,11 @@ BEGIN
         `user`,
         resource_id,
         rand_token,
-        msec_diff_migration * quantity
+        msec_diff * quantity
       FROM attempt_resources
       JOIN batches ON batches.id = attempt_resources.batch_id
       WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-      ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_migration * quantity;
+      ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
     END IF;
   END IF;
 END $$
