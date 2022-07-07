@@ -34,7 +34,7 @@ DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_by_date`;
 DROP TABLE IF EXISTS `aggregated_batch_resources_by_date`;
 DROP TABLE IF EXISTS `aggregated_job_resources_by_date`;
 DROP TABLE IF EXISTS `attempt_resources`;
-DROP TABLE IF EXISTS `attempts_aggregated_by_date`;
+DROP TABLE IF EXISTS `attempts_aggregated_by_date`;  # deprecated
 DROP TABLE IF EXISTS `batch_cancellable_resources`;  # deprecated
 DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources`;
 DROP TABLE IF EXISTS `globals`;
