@@ -39,7 +39,7 @@ LEFT JOIN batches_n_jobs_in_complete_states
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
-  ON aggregated_batch_resources.resource = resources.resource
+  ON aggregated_batch_resources.resource_id = resources.resource_id
 LEFT JOIN batches_cancelled
   ON batches.id = batches_cancelled.id
 WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND

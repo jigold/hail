@@ -953,12 +953,13 @@ async def check_resource_aggregation(app, db):
         attempt_resources = tx.execute_and_fetchall(
             '''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  JSON_OBJECTAGG(resource, quantity * GREATEST(COALESCE(end_time - start_time, 0), 0)) as resources
+  JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(end_time - start_time, 0), 0)) as resources
 FROM attempt_resources
 INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
   attempts.attempt_id = attempt_resources.attempt_id
+LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
 GROUP BY batch_id, job_id, attempt_id
 LOCK IN SHARE MODE;
 '''
@@ -966,8 +967,9 @@ LOCK IN SHARE MODE;
 
         agg_job_resources = tx.execute_and_fetchall(
             '''
-SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
+SELECT batch_id, job_id, JSON_OBJECTAGG(resources.resource, `usage`) as resources
 FROM aggregated_job_resources
+LEFT JOIN resources ON aggregated_job_resources.resource_id = resources.resource_id
 GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
 '''
@@ -977,9 +979,10 @@ LOCK IN SHARE MODE;
             '''
 SELECT batch_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
-  SELECT batch_id, resource, SUM(`usage`) AS `usage`
+  SELECT batch_id, resources.resource, SUM(`usage`) AS `usage`
   FROM aggregated_batch_resources
-  GROUP BY batch_id, resource) AS t
+  LEFT JOIN resources ON aggregated_batch_resources.resource_id = resources.resource_id
+  GROUP BY batch_id, resources.resource) AS t
 JOIN batches ON batches.id = t.batch_id
 GROUP BY t.batch_id, billing_project
 LOCK IN SHARE MODE;
@@ -990,9 +993,10 @@ LOCK IN SHARE MODE;
             '''
 SELECT billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
-  SELECT billing_project, resource, SUM(`usage`) AS `usage`
+  SELECT billing_project, resources.resource, SUM(`usage`) AS `usage`
   FROM aggregated_billing_project_resources
-  GROUP BY billing_project, resource) AS t
+  LEFT JOIN resources ON aggregated_billing_project_resources.resource_id = resources.resource_id
+  GROUP BY billing_project, resources.resource) AS t
 GROUP BY t.billing_project
 LOCK IN SHARE MODE;
 '''
