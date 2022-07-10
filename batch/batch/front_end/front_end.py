@@ -290,7 +290,7 @@ LEFT JOIN aggregated_job_resources
   ON jobs.batch_id = aggregated_job_resources.batch_id AND
      jobs.job_id = aggregated_job_resources.job_id
 LEFT JOIN resources
-  ON aggregated_job_resources.resource = resources.resource
+  ON aggregated_job_resources.resource_id = resources.resource_id
 WHERE {' AND '.join(where_conditions)}
 GROUP BY jobs.batch_id, jobs.job_id
 ORDER BY jobs.batch_id, jobs.job_id ASC
@@ -607,7 +607,7 @@ LEFT JOIN batches_cancelled
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
-  ON aggregated_batch_resources.resource = resources.resource
+  ON aggregated_batch_resources.resource_id = resources.resource_id
 WHERE {' AND '.join(where_conditions)}
 GROUP BY batches.id
 ORDER BY batches.id DESC
@@ -1162,7 +1162,7 @@ FROM billing_projects
 INNER JOIN aggregated_billing_project_resources
   ON billing_projects.name = aggregated_billing_project_resources.billing_project
 INNER JOIN resources
-  ON resources.resource = aggregated_billing_project_resources.resource
+  ON resources.resource_id = aggregated_billing_project_resources.resource_id
 WHERE billing_projects.name = %s
 ''',
             (billing_project,),
@@ -1239,7 +1239,7 @@ LEFT JOIN batches_cancelled
 LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
-       ON aggregated_batch_resources.resource = resources.resource
+       ON aggregated_batch_resources.resource_id = resources.resource_id
 WHERE batches.id = %s AND NOT deleted
 GROUP BY batches.id, batches_cancelled.id;
 ''',
@@ -1431,7 +1431,7 @@ LEFT JOIN aggregated_job_resources
   ON jobs.batch_id = aggregated_job_resources.batch_id AND
      jobs.job_id = aggregated_job_resources.job_id
 LEFT JOIN resources
-  ON aggregated_job_resources.resource = resources.resource
+  ON aggregated_job_resources.resource_id = resources.resource_id
 LEFT JOIN (
   SELECT batch_id, job_id, attempt_id
   FROM attempts
@@ -1815,7 +1815,7 @@ FROM batches
 LEFT JOIN aggregated_batch_resources
   ON aggregated_batch_resources.batch_id = batches.id
 LEFT JOIN resources
-  ON resources.resource = aggregated_batch_resources.resource
+  ON resources.resource_id = aggregated_batch_resources.resource_id
 LEFT JOIN billing_projects
   ON billing_projects.name = batches.billing_project
 WHERE {' AND '.join(where_conditions)}

@@ -149,7 +149,7 @@ RIGHT JOIN billing_projects
 LEFT JOIN aggregated_billing_project_resources
   ON aggregated_billing_project_resources.billing_project = billing_projects.name
 LEFT JOIN resources
-  ON resources.resource = aggregated_billing_project_resources.resource
+  ON resources.resource_id = aggregated_billing_project_resources.resource_id
 {where_condition}
 GROUP BY billing_projects.name, billing_projects.status, msec_mcpu, `limit`
 LOCK IN SHARE MODE;
