@@ -295,46 +295,46 @@ CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(25
 
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources` (
   `billing_project` VARCHAR(100) NOT NULL,
-  `resource` VARCHAR(100) NOT NULL,
+  `resource_id` INT NOT NULL,
   `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`billing_project`, `resource`, `token`),
+  PRIMARY KEY (`billing_project`, `resource_id`, `token`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
-  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
   `batch_id` BIGINT NOT NULL,
-  `resource` VARCHAR(100) NOT NULL,
+  `resource_id` INT NOT NULL,
   `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `resource`, `token`),
+  PRIMARY KEY (`batch_id`, `resource_id`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `aggregated_job_resources` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
-  `resource` VARCHAR(100) NOT NULL,
+  `resource_id` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `job_id`, `resource`),
+  PRIMARY KEY (`batch_id`, `job_id`, `resource_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `attempt_resources` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `attempt_id` VARCHAR(40) NOT NULL,
-  `resource` VARCHAR(100) NOT NULL,
+  `resource_id` INT NOT NULL,
   `quantity` BIGINT NOT NULL,
-  PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource`),
+  PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(`batch_id`, `job_id`, `attempt_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 DELIMITER $$
@@ -388,25 +388,22 @@ BEGIN
   SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
                    GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
 
-  INSERT INTO aggregated_billing_project_resources (billing_project, resource, resource_id, token, `usage`)
-  SELECT billing_project, attempt_resources.resource, attempt_resources.resource_id, rand_token, msec_diff * quantity
+  INSERT INTO aggregated_billing_project_resources (billing_project, resource_id, token, `usage`)
+  SELECT billing_project, resource_id, rand_token, msec_diff * quantity
   FROM attempt_resources
   JOIN batches ON batches.id = attempt_resources.batch_id
-  LEFT JOIN resources ON resources.resource = attempt_resources.resource
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
-  INSERT INTO aggregated_batch_resources (batch_id, resource, resource_id, token, `usage`)
-  SELECT batch_id, attempt_resources.resource, attempt_resources.resource_id, rand_token, msec_diff * quantity
+  INSERT INTO aggregated_batch_resources (batch_id, resource_id, token, `usage`)
+  SELECT batch_id, resource_id, rand_token, msec_diff * quantity
   FROM attempt_resources
-  LEFT JOIN resources ON resources.resource = attempt_resources.resource
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
-  INSERT INTO aggregated_job_resources (batch_id, job_id, resource, resource_id, `usage`)
-  SELECT batch_id, job_id, attempt_resources.resource, attempt_resources.resource_id, msec_diff * quantity
+  INSERT INTO aggregated_job_resources (batch_id, job_id, resource_id, `usage`)
+  SELECT batch_id, job_id, resource_id, msec_diff * quantity
   FROM attempt_resources
-  LEFT JOIN resources ON resources.resource = attempt_resources.resource
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 END $$
@@ -580,15 +577,6 @@ BEGIN
   END IF;
 END $$
 
-DROP TRIGGER IF EXISTS attempt_resources_before_insert $$
-CREATE TRIGGER attempt_resources_before_insert BEFORE INSERT ON attempt_resources
-FOR EACH ROW
-BEGIN
-  DECLARE cur_resource VARCHAR(100);
-  SELECT resource INTO cur_resource FROM resources WHERE resource_id = NEW.resource_id;
-  SET NEW.resource = cur_resource;
-END $$
-
 DROP TRIGGER IF EXISTS attempt_resources_after_insert $$
 CREATE TRIGGER attempt_resources_after_insert AFTER INSERT ON attempt_resources
 FOR EACH ROW
@@ -599,14 +587,11 @@ BEGIN
   DECLARE msec_diff BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
-  DECLARE cur_resource_id INT;
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
   SELECT billing_project INTO cur_billing_project FROM batches WHERE id = NEW.batch_id;
-
-  SELECT resource_id INTO cur_resource_id FROM resources WHERE resource = NEW.resource;
 
   SELECT start_time, end_time INTO cur_start_time, cur_end_time
   FROM attempts
@@ -615,18 +600,18 @@ BEGIN
 
   SET msec_diff = GREATEST(COALESCE(cur_end_time - cur_start_time, 0), 0);
 
-  INSERT INTO aggregated_billing_project_resources (billing_project, resource, resource_id, token, `usage`)
-  VALUES (cur_billing_project, NEW.resource, cur_resource_id, rand_token, NEW.quantity * msec_diff)
+  INSERT INTO aggregated_billing_project_resources (billing_project, resource_id, token, `usage`)
+  VALUES (cur_billing_project, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 
-  INSERT INTO aggregated_batch_resources (batch_id, resource, resource_id, token, `usage`)
-  VALUES (NEW.batch_id, NEW.resource, cur_resource_id, rand_token, NEW.quantity * msec_diff)
+  INSERT INTO aggregated_batch_resources (batch_id, resource_id, token, `usage`)
+  VALUES (NEW.batch_id, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 
-  INSERT INTO aggregated_job_resources (batch_id, job_id, resource, resource_id, `usage`)
-  VALUES (NEW.batch_id, NEW.job_id, NEW.resource, cur_resource_id, NEW.quantity * msec_diff)
+  INSERT INTO aggregated_job_resources (batch_id, job_id, resource_id, `usage`)
+  VALUES (NEW.batch_id, NEW.job_id, NEW.resource_id, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 END $$

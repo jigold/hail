@@ -86,7 +86,7 @@ async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
             resource_args = [(batch_id, job_id, attempt_id, quantity, name) for name, quantity in _resources.items()]
 
             await db.execute_many(
-                '''         
+                '''
 INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource_id, quantity)
 SELECT %s, %s, %s, resource_id, %s
 FROM resources
