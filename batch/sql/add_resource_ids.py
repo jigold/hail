@@ -27,9 +27,11 @@ def compile_query(start_f, end_f, start_offset, end_offset):
     if start_offset is None:
         assert end_offset
         where_cond, query_args = end_f(end_offset)
+        where_cond = f'WHERE {where_cond}'
     elif end_offset is None:
         assert start_offset
         where_cond, query_args = start_f(start_offset)
+        where_cond = f'WHERE {where_cond}'
     else:
         start_where_cond, start_query_args = start_f(start_offset)
         end_where_cond, end_query_args = end_f(end_offset)
@@ -430,7 +432,7 @@ async def update_resource_ids(db, table_name, get_offsets_f, process_chunk_f, ch
     print(f'finished populating records in {time.time() - populate_start_time}s for {table_name}')
 
 
-async def main(chunk_size=100):
+async def main(chunk_size=500):
     db = Database()
     await db.async_init(config_file=MYSQL_CONFIG_FILE)
 
