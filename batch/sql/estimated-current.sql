@@ -631,29 +631,6 @@ BEGIN
     `usage` = `usage` + NEW.quantity * msec_diff;
 END $$
 
--- DROP TRIGGER IF EXISTS attempt_resources_after_update $$
--- CREATE TRIGGER attempt_resources_after_update AFTER UPDATE ON attempt_resources
--- FOR EACH ROW
--- BEGIN
---   DECLARE cur_billing_project VARCHAR(100);
---   DECLARE cur_resource_id INT;
---
---   SELECT billing_project INTO cur_billing_project FROM batches WHERE id = NEW.batch_id;
---   SELECT resource_id INTO cur_resource_id FROM resources WHERE resource = NEW.resource;
---
---   UPDATE aggregated_billing_project_resources
---   SET resource_id = cur_resource_id
---   WHERE billing_project = cur_billing_project AND resource = NEW.resource;
---
---   UPDATE aggregated_batch_resources
---   SET resource_id = cur_resource_id
---   WHERE batch_id = NEW.batch_id AND resource = NEW.resource;
---
---   UPDATE aggregated_job_resources
---   SET resource_id = cur_resource_id
---   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND resource = NEW.resource;
--- END $$
-
 DROP PROCEDURE IF EXISTS recompute_incremental $$
 CREATE PROCEDURE recompute_incremental(
 ) BEGIN

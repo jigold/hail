@@ -208,67 +208,6 @@ async def process_agg_job_resources_chunk(counter, db, start_offset, end_offset,
     await process_chunk(counter, db, 'aggregated_job_resources', where_cond, query_args, start_offset, end_offset, quiet)
 
 
-# async def process_chunk(counter, db, start_offset, end_offset, quiet=True):
-#     start_time = time.time()
-#
-#     where_cond, query_args = attempts_offsets_to_where_statement(start_offset, end_offset)
-#
-#     await db.just_execute(
-#         f'''
-# UPDATE attempt_resources
-# SET resource_id = (
-#     SELECT resource_id
-#     FROM resources
-#     WHERE attempt_resources.resource = resources.resource
-# )
-# {where_cond};
-# ''',
-#         query_args)
-#
-#     await db.just_execute(
-#         f'''
-# UPDATE aggregated_billing_project_resources
-# SET resource_id = (
-#     SELECT resource_id
-#     FROM resources
-#     WHERE aggregated_billing_project_resources.resource = resources.resource
-# )
-# {where_cond};
-# ''',
-#         query_args)
-#
-#     await db.just_execute(
-#         f'''
-# UPDATE aggregated_batch_resources
-# SET resource_id = (
-#     SELECT resource_id
-#     FROM resources
-#     WHERE aggregated_batch_resources.resource = resources.resource
-# )
-# {where_cond};
-# ''',
-#         query_args)
-#
-#     await db.just_execute(
-#         f'''
-# UPDATE aggregated_job_resources
-# SET resource_id = (
-#     SELECT resource_id
-#     FROM resources
-#     WHERE aggregated_job_resources.resource = resources.resource
-# )
-# {where_cond};
-# ''',
-#         query_args)
-#
-#     if not quiet and counter.n % 100 == 0:
-#         print(f'processed chunk ({start_offset}, {end_offset}) in {time.time() - start_time}s')
-#
-#     counter.n += 1
-#     if counter.n % 500 == 0:
-#         print(f'processed {counter.n} complete chunks')
-
-
 async def audit_changes(db):
     attempt_resources_audit_start = time.time()
     print('starting auditing attempt resources records')
@@ -353,61 +292,6 @@ LIMIT 100;
             bad_aggregated_batch_resources_records or
             bad_aggregated_job_resources_records):
         raise Exception(f'errors found in audit')
-
-
-# async def find_complete_chunk_offsets(db, size):
-#     @transaction(db)
-#     async def _find_chunks(tx) -> List[Optional[Tuple[int, int, str]]]:
-#         start_time = time.time()
-#
-#         await tx.just_execute('SET @rank=0;')
-#
-#         query = f'''
-# SELECT t.batch_id, t.job_id, t.attempt_id FROM (
-#   SELECT attempts.batch_id, attempts.job_id, attempts.attempt_id
-#   FROM attempts
-#   LEFT JOIN batches ON attempts.batch_id = batches.id
-#   ORDER BY attempts.batch_id, attempts.job_id, attempts.attempt_id
-# ) AS t
-# WHERE MOD((@rank := @rank + 1), %s) = 0;
-# '''
-#
-#         offsets = tx.execute_and_fetchall(query, (size,))
-#         offsets = [(offset['batch_id'], offset['job_id'], offset['attempt_id']) async for offset in offsets]
-#
-#         offsets.append(None)
-#
-#         print(f'found chunk offsets in {round(time.time() - start_time, 4)}s')
-#         return offsets
-#
-#     return await _find_chunks()
-
-
-# async def find_attempt_resources_offsets(db, query, size):
-#     @transaction(db)
-#     async def _find_chunks(tx) -> List[Optional[Tuple[int, int, str]]]:
-#         start_time = time.time()
-#
-#         await tx.just_execute('SET @rank=0;')
-#
-#         query = f'''
-# SELECT t.batch_id, t.job_id, t.attempt_id, t.resource FROM (
-#   SELECT batch_id, job_id, attempt_id, resource
-#   FROM attempt_resources
-#   ORDER BY batch_id, job_id, attempt_id, resource
-# ) AS t
-# WHERE MOD((@rank := @rank + 1), %s) = 0;
-# '''
-#
-#         offsets = tx.execute_and_fetchall(query, (size,))
-#         offsets = [(offset['batch_id'], offset['job_id'], offset['attempt_id'], offset['resource']) async for offset in offsets]
-#
-#         offsets.append(None)
-#
-#         print(f'found chunk offsets in {round(time.time() - start_time, 4)}s')
-#         return offsets
-#
-#     return await _find_chunks()
 
 
 async def find_offsets(db, query, query_args):
@@ -560,7 +444,7 @@ async def main(chunk_size=100):
 
     try:
         populate_start_time = time.time()
-        
+
         await update_resource_ids(db, 'attempt_resources', find_attempt_resources_offsets,
                                   process_attempt_resources_chunk, chunk_size)
 
