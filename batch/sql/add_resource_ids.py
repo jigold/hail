@@ -17,156 +17,122 @@ class Counter:
         self.n = 0
 
 
-def attempt_resources_offsets_to_where_statement(start_offset, end_offset):
+def compile_query(start_f, end_f, start_offset, end_offset):
     # start inclusive, end exclusive
     if start_offset is None and end_offset is None:
         return ('', None)
 
-    assert start_offset != end_offset, str((start_offset, end_offset))    
-    
+    assert start_offset != end_offset, str((start_offset, end_offset))
+
     if start_offset is None:
         assert end_offset
-        end_batch_id, end_job_id, end_attempt_id, end_resource = end_offset
-        where_cond = 'WHERE attempt_resources.batch_id < %s OR ' \
-                     '(attempt_resources.batch_id = %s AND attempt_resources.job_id < %s) OR ' \
-                     '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id < %s) OR ' \
-                     '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id = %s AND attempt_resources.resource < %s)'
-        query_args = (end_batch_id, end_batch_id, end_job_id, end_batch_id, end_job_id, end_attempt_id, end_batch_id, end_job_id, end_attempt_id, end_resource)
+        where_cond, query_args = end_f(end_offset)
     elif end_offset is None:
         assert start_offset
-        start_batch_id, start_job_id, start_attempt_id, start_resource = start_offset
-        where_cond = 'WHERE attempt_resources.batch_id > %s OR ' \
-                     '(attempt_resources.batch_id = %s AND attempt_resources.job_id > %s) OR ' \
-                     '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id > %s) OR ' \
-                     '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id = %s AND attempt_resources.resource >= %s)'
-        query_args = (start_batch_id, start_batch_id, start_job_id, start_batch_id, start_job_id, start_attempt_id, start_batch_id, start_job_id, start_attempt_id, start_resource)
+        where_cond, query_args = start_f(start_offset)
     else:
-        start_batch_id, start_job_id, start_attempt_id, start_resource = start_offset
-        end_batch_id, end_job_id, end_attempt_id, end_resource = end_offset
-        where_cond = 'WHERE (attempt_resources.batch_id > %s OR ' \
-                     '(attempt_resources.batch_id = %s AND attempt_resources.job_id > %s) OR ' \
-                     '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id > %s) OR ' \
-                     '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id = %s AND attempt_resources.resource >= %s)) ' \
-                     'AND (attempt_resources.batch_id < %s OR ' \
+        start_where_cond, start_query_args = start_f(start_offset)
+        end_where_cond, end_query_args = end_f(end_offset)
+
+        where_cond = f'WHERE {start_where_cond} AND {end_where_cond}'
+        query_args = (*start_query_args, *end_query_args)
+
+    return (where_cond, query_args)
+
+
+def attempt_resources_offsets_to_where_statement(start_offset, end_offset):
+    def start(offset):
+        assert offset
+        start_batch_id, start_job_id, start_attempt_id, start_resource = offset
+        start_query = '(attempt_resources.batch_id > %s OR ' \
+                         '(attempt_resources.batch_id = %s AND attempt_resources.job_id > %s) OR ' \
+                         '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id > %s) OR ' \
+                         '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id = %s AND attempt_resources.resource >= %s))'
+        start_query_args = (start_batch_id, start_batch_id, start_job_id, start_batch_id, start_job_id, start_attempt_id, start_batch_id, start_job_id, start_attempt_id, start_resource)
+        return (start_query, start_query_args)
+
+    def end(offset):
+        assert offset
+        end_batch_id, end_job_id, end_attempt_id, end_resource = offset
+        end_query = '(attempt_resources.batch_id < %s OR ' \
                      '(attempt_resources.batch_id = %s AND attempt_resources.job_id < %s) OR ' \
                      '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id < %s) OR ' \
                      '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id = %s AND attempt_resources.resource < %s))'
-        query_args = (start_batch_id, start_batch_id, start_job_id, start_batch_id, start_job_id, start_attempt_id, start_batch_id, start_job_id, start_attempt_id, start_resource,
-                      end_batch_id, end_batch_id, end_job_id, end_batch_id, end_job_id, end_attempt_id, end_batch_id, end_job_id, end_attempt_id, end_resource)
+        end_query_args = (end_batch_id, end_batch_id, end_job_id, end_batch_id, end_job_id, end_attempt_id, end_batch_id, end_job_id, end_attempt_id, end_resource)
+        return (end_query, end_query_args)
 
-    return (where_cond, query_args)
+    return compile_query(start, end, start_offset, end_offset)
 
 
 def agg_billing_project_resources_offsets_to_where_statement(start_offset, end_offset):
-    # start inclusive, end exclusive
-    if start_offset is None and end_offset is None:
-        return ('', None)
+    def start(offset):
+        assert offset
+        start_bp, start_resource, start_token = offset
+        start_where_cond = '(aggregated_billing_project_resources.billing_project > %s OR ' \
+                           '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource > %s) OR ' \
+                           '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource = %s AND aggregated_billing_project_resources.token >= %s))'
+        start_query_args = (start_bp, start_bp, start_resource, start_bp, start_resource, start_token)
+        return (start_where_cond, start_query_args)
 
-    assert start_offset != end_offset, str((start_offset, end_offset))
+    def end(offset):
+        assert offset
+        end_bp, end_resource, end_token = offset
+        end_where_cond = '(aggregated_billing_project_resources.billing_project < %s OR ' \
+                         '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource < %s) OR ' \
+                         '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource = %s AND aggregated_billing_project_resources.token < %s))'
+        end_query_args = (end_bp, end_bp, end_resource, end_bp, end_resource, end_token)
+        return (end_where_cond, end_query_args)
 
-    if start_offset is None:
-        assert end_offset
-        end_bp, end_resource, end_token = end_offset
-        where_cond = 'WHERE aggregated_billing_project_resources.billing_project < %s OR ' \
-                     '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource < %s) OR ' \
-                     '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource = %s AND aggregated_billing_project_resources.token < %s)'
-        query_args = (end_bp, end_bp, end_resource, end_bp, end_resource, end_token)
-    elif end_offset is None:
-        assert start_offset
-        start_bp, start_resource, start_token = start_offset
-        where_cond = 'WHERE aggregated_billing_project_resources.billing_project > %s OR ' \
-                     '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource > %s) OR ' \
-                     '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource = %s AND aggregated_billing_project_resources.token >= %s)'
-        query_args = (start_bp, start_bp, start_resource, start_bp, start_resource, start_token)
-    else:
-        start_bp, start_resource, start_token = start_offset
-        end_bp, end_resource, end_token = end_offset
-        where_cond = 'WHERE (aggregated_billing_project_resources.billing_project > %s OR ' \
-                     '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource > %s) OR ' \
-                     '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource = %s AND aggregated_billing_project_resources.token >= %s)) ' \
-                     'AND (aggregated_billing_project_resources.billing_project < %s OR ' \
-                     '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource < %s) OR ' \
-                     '(aggregated_billing_project_resources.billing_project = %s AND aggregated_billing_project_resources.resource = %s AND aggregated_billing_project_resources.token < %s))'
-        query_args = (start_bp, start_bp, start_resource, start_bp, start_resource, start_token,
-                      end_bp, end_bp, end_resource, end_bp, end_resource, end_token)
-
-    return (where_cond, query_args)
+    return compile_query(start, end, start_offset, end_offset)
 
 
 def agg_batch_resources_offsets_to_where_statement(start_offset, end_offset):
-    # start inclusive, end exclusive
-    if start_offset is None and end_offset is None:
-        return ('', None)
+    def start(offset):
+        assert offset
+        start_batch_id, start_resource, start_token = offset
+        start_where_cond = '(aggregated_batch_resources.batch_id > %s OR ' \
+                           '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource > %s) OR ' \
+                           '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource = %s AND aggregated_batch_resources.token >= %s))'
+        start_query_args = (start_batch_id, start_batch_id, start_resource, start_batch_id, start_resource, start_token)
+        return (start_where_cond, start_query_args)
 
-    assert start_offset != end_offset, str((start_offset, end_offset))
+    def end(offset):
+        assert offset
+        end_batch_id, end_resource, end_token = offset
+        end_where_cond = '(aggregated_batch_resources.batch_id < %s OR ' \
+                         '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource < %s) OR ' \
+                         '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource = %s AND aggregated_batch_resources.token < %s))'
+        end_query_args = (end_batch_id, end_batch_id, end_resource, end_batch_id, end_resource, end_token)
+        return (end_where_cond, end_query_args)
 
-    if start_offset is None:
-        assert end_offset
-        end_batch_id, end_resource, end_token = end_offset
-        where_cond = 'WHERE aggregated_batch_resources.batch_id < %s OR ' \
-                     '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource < %s) OR ' \
-                     '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource = %s AND aggregated_batch_resources.token < %s)'
-        query_args = (end_batch_id, end_batch_id, end_resource, end_batch_id, end_resource, end_token)
-    elif end_offset is None:
-        assert start_offset
-        start_batch_id, start_resource, start_token = start_offset
-        where_cond = 'WHERE aggregated_batch_resources.batch_id > %s OR ' \
-                     '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource > %s) OR ' \
-                     '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource = %s AND aggregated_batch_resources.token >= %s)'
-        query_args = (start_batch_id, start_batch_id, start_resource, start_batch_id, start_resource, start_token)
-    else:
-        start_batch_id, start_resource, start_token = start_offset
-        end_batch_id, end_resource, end_token = end_offset
-        where_cond = 'WHERE (aggregated_batch_resources.batch_id > %s OR ' \
-                     '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource > %s) OR ' \
-                     '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource = %s AND aggregated_batch_resources.token >= %s)) ' \
-                     'AND (aggregated_batch_resources.batch_id < %s OR ' \
-                     '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource < %s) OR ' \
-                     '(aggregated_batch_resources.batch_id = %s AND aggregated_batch_resources.resource = %s AND aggregated_batch_resources.token < %s))'
-        query_args = (start_batch_id, start_batch_id, start_resource, start_batch_id, start_resource, start_token,
-                      end_batch_id, end_batch_id, end_resource, end_batch_id, end_resource, end_token)
-
-    return (where_cond, query_args)
+    return compile_query(start, end, start_offset, end_offset)
 
 
 def agg_job_resources_offsets_to_where_statement(start_offset, end_offset):
-    # start inclusive, end exclusive
-    if start_offset is None and end_offset is None:
-        return ('', None)
-
-    assert start_offset != end_offset, str((start_offset, end_offset))
-
-    if start_offset is None:
-        assert end_offset
-        end_batch_id, end_job_id, end_resource = end_offset
-        where_cond = 'WHERE aggregated_job_resources.batch_id < %s OR ' \
-                     '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id < %s) OR ' \
-                     '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id = %s AND aggregated_job_resources.resource < %s)'
-        query_args = (end_batch_id, end_batch_id, end_job_id, end_batch_id, end_job_id, end_resource)
-    elif end_offset is None:
-        assert start_offset
+    def start(offset):
+        assert offset
         start_batch_id, start_job_id, start_resource = start_offset
-        where_cond = 'WHERE aggregated_job_resources.batch_id > %s OR ' \
-                     '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id > %s) OR ' \
-                     '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id = %s AND aggregated_job_resources.resource >= %s)'
-        query_args = (start_batch_id, start_batch_id, start_job_id, start_batch_id, start_job_id, start_resource)
-    else:
-        start_batch_id, start_job_id, start_resource = start_offset
+        start_where_cond = '(aggregated_job_resources.batch_id > %s OR ' \
+                           '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id > %s) OR ' \
+                           '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id = %s AND aggregated_job_resources.resource >= %s))'
+        start_query_args = (start_batch_id, start_batch_id, start_job_id, start_batch_id, start_job_id, start_resource)
+        return (start_where_cond, start_query_args)
+
+    def end(offset):
+        assert offset
         end_batch_id, end_job_id, end_resource = end_offset
-        where_cond = 'WHERE (aggregated_job_resources.batch_id > %s OR ' \
-                     '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id > %s) OR ' \
-                     '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id = %s AND aggregated_job_resources.resource >= %s)) ' \
-                     'AND (aggregated_job_resources.batch_id < %s OR ' \
-                     '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id < %s) OR ' \
-                     '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id = %s AND aggregated_job_resources.resource < %s))'
-        query_args = (start_batch_id, start_batch_id, start_job_id, start_batch_id, start_job_id, start_resource,
-                      end_batch_id, end_batch_id, end_job_id, end_batch_id, end_job_id, end_resource)
+        end_where_cond = '(aggregated_job_resources.batch_id < %s OR ' \
+                         '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id < %s) OR ' \
+                         '(aggregated_job_resources.batch_id = %s AND aggregated_job_resources.job_id = %s AND aggregated_job_resources.resource < %s))'
+        end_query_args = (end_batch_id, end_batch_id, end_job_id, end_batch_id, end_job_id, end_resource)
+        return (end_where_cond, end_query_args)
 
-    return (where_cond, query_args)
+    return compile_query(start, end, start_offset, end_offset)
 
 
-async def process_chunk(counter, db, table_name, where_cond, query_args, start_offset, end_offset, quiet=True):
+async def process_chunk(counter, db, table_name, query_f, start_offset, end_offset, quiet=True):
     start_time = time.time()
+    where_cond, query_args = query_f(start_offset, end_offset)
 
     await db.just_execute(
         f'''
@@ -189,23 +155,51 @@ SET resource_id = (
 
 
 async def process_attempt_resources_chunk(counter, db, start_offset, end_offset, quiet=True):
-    where_cond, query_args = attempt_resources_offsets_to_where_statement(start_offset, end_offset)
-    await process_chunk(counter, db, 'attempt_resources', where_cond, query_args, start_offset, end_offset, quiet)
+    await process_chunk(
+        counter,
+        db,
+        'attempt_resources',
+        attempt_resources_offsets_to_where_statement,
+        start_offset,
+        end_offset,
+        quiet
+    )
 
 
 async def process_agg_billing_project_resources_chunk(counter, db, start_offset, end_offset, quiet=True):
-    where_cond, query_args = agg_billing_project_resources_offsets_to_where_statement(start_offset, end_offset)
-    await process_chunk(counter, db, 'aggregated_billing_project_resources', where_cond, query_args, start_offset, end_offset, quiet)
+    await process_chunk(
+        counter,
+        db,
+        'aggregated_billing_project_resources',
+        agg_billing_project_resources_offsets_to_where_statement,
+        start_offset,
+        end_offset,
+        quiet
+    )
 
 
 async def process_agg_batch_resources_chunk(counter, db, start_offset, end_offset, quiet=True):
-    where_cond, query_args = agg_batch_resources_offsets_to_where_statement(start_offset, end_offset)
-    await process_chunk(counter, db, 'aggregated_batch_resources', where_cond, query_args, start_offset, end_offset, quiet)
+    await process_chunk(
+        counter,
+        db,
+        'aggregated_batch_resources',
+        agg_batch_resources_offsets_to_where_statement,
+        start_offset,
+        end_offset,
+        quiet
+    )
 
 
 async def process_agg_job_resources_chunk(counter, db, start_offset, end_offset, quiet=True):
-    where_cond, query_args = agg_job_resources_offsets_to_where_statement(start_offset, end_offset)
-    await process_chunk(counter, db, 'aggregated_job_resources', where_cond, query_args, start_offset, end_offset, quiet)
+    await process_chunk(
+        counter,
+        db,
+        'aggregated_job_resources',
+        agg_job_resources_offsets_to_where_statement,
+        start_offset,
+        end_offset,
+        quiet
+    )
 
 
 async def audit_changes(db):
