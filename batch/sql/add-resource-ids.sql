@@ -45,7 +45,7 @@ BEGIN
                    GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
 
   INSERT INTO aggregated_billing_project_resources (billing_project, resource, resource_id, token, `usage`)
-  SELECT billing_project, attempt_resources.resource, resource_id, rand_token, msec_diff * quantity
+  SELECT billing_project, attempt_resources.resource, attempt_resources.resource_id, rand_token, msec_diff * quantity
   FROM attempt_resources
   JOIN batches ON batches.id = attempt_resources.batch_id
   LEFT JOIN resources ON resources.resource = attempt_resources.resource
@@ -53,14 +53,14 @@ BEGIN
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
   INSERT INTO aggregated_batch_resources (batch_id, resource, resource_id, token, `usage`)
-  SELECT batch_id, attempt_resources.resource, resource_id, rand_token, msec_diff * quantity
+  SELECT batch_id, attempt_resources.resource, attempt_resources.resource_id, rand_token, msec_diff * quantity
   FROM attempt_resources
   LEFT JOIN resources ON resources.resource = attempt_resources.resource
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
   INSERT INTO aggregated_job_resources (batch_id, job_id, resource, resource_id, `usage`)
-  SELECT batch_id, job_id, attempt_resources.resource, resource_id, msec_diff * quantity
+  SELECT batch_id, job_id, attempt_resources.resource, attempt_resources.resource_id, msec_diff * quantity
   FROM attempt_resources
   LEFT JOIN resources ON resources.resource = attempt_resources.resource
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
