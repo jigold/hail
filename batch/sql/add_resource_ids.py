@@ -45,9 +45,9 @@ def attempt_resources_offsets_to_where_statement(start_offset, end_offset):
         assert offset
         start_batch_id, start_job_id, start_attempt_id, start_resource = offset
         start_query = '(attempt_resources.batch_id > %s OR ' \
-                         '(attempt_resources.batch_id = %s AND attempt_resources.job_id > %s) OR ' \
-                         '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id > %s) OR ' \
-                         '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id = %s AND attempt_resources.resource >= %s))'
+                      '(attempt_resources.batch_id = %s AND attempt_resources.job_id > %s) OR ' \
+                      '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id > %s) OR ' \
+                      '(attempt_resources.batch_id = %s AND attempt_resources.job_id = %s AND attempt_resources.attempt_id = %s AND attempt_resources.resource >= %s))'
         start_query_args = (start_batch_id, start_batch_id, start_job_id, start_batch_id, start_job_id, start_attempt_id, start_batch_id, start_job_id, start_attempt_id, start_resource)
         return (start_query, start_query_args)
 
