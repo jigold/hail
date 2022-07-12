@@ -296,8 +296,9 @@ CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(25
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources` (
   `billing_project` VARCHAR(100) NOT NULL,
   `resource` VARCHAR(100) NOT NULL,
+  `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`billing_project`, `resource`),
+  PRIMARY KEY (`billing_project`, `resource`, `token`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -629,6 +630,29 @@ BEGIN
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 END $$
+
+-- DROP TRIGGER IF EXISTS attempt_resources_after_update $$
+-- CREATE TRIGGER attempt_resources_after_update AFTER UPDATE ON attempt_resources
+-- FOR EACH ROW
+-- BEGIN
+--   DECLARE cur_billing_project VARCHAR(100);
+--   DECLARE cur_resource_id INT;
+--
+--   SELECT billing_project INTO cur_billing_project FROM batches WHERE id = NEW.batch_id;
+--   SELECT resource_id INTO cur_resource_id FROM resources WHERE resource = NEW.resource;
+--
+--   UPDATE aggregated_billing_project_resources
+--   SET resource_id = cur_resource_id
+--   WHERE billing_project = cur_billing_project AND resource = NEW.resource;
+--
+--   UPDATE aggregated_batch_resources
+--   SET resource_id = cur_resource_id
+--   WHERE batch_id = NEW.batch_id AND resource = NEW.resource;
+--
+--   UPDATE aggregated_job_resources
+--   SET resource_id = cur_resource_id
+--   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND resource = NEW.resource;
+-- END $$
 
 DROP PROCEDURE IF EXISTS recompute_incremental $$
 CREATE PROCEDURE recompute_incremental(
