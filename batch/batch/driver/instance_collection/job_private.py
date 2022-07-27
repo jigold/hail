@@ -146,8 +146,8 @@ WHERE name = %s;
         async for record in self.db.select_and_fetchall(
             '''
 SELECT jobs.*, batches.format_version, batches.userdata, batches.user, attempts.instance_name
-FROM batches
-INNER JOIN jobs ON batches.id = jobs.batch_id
+FROM jobs
+STRAIGHT_JOIN batches ON batches.id = jobs.batch_id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE batches.state = 'running'
