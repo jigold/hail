@@ -3322,6 +3322,7 @@ steps:
     image: mcr.microsoft.com/azure-cli
     alwaysRun: true
     script: |
+      az aks install-cli
       set -e -o pipefail
       AZURE_USERNAME=$(jq -r '.appId' /test-gsa-key/key.json)
       AZURE_PASSWORD=$(jq -r '.password' /test-gsa-key/key.json)
