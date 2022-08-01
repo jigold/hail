@@ -1,3 +1,4 @@
+-- ALTER TABLE attempts DROP COLUMN dummy_aggregated_by_date, ALGORITHM=INPLACE, LOCK=NONE;
 ALTER TABLE attempts ADD COLUMN dummy_aggregated_by_date INT DEFAULT 0, ALGORITHM=INSTANT;
 
 DROP TABLE IF EXISTS `attempts_aggregated_by_date`;

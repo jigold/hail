@@ -83,7 +83,7 @@ async def audit_changes(db):
         '''
 SELECT old.batch_id, old.job_id, old.cost, new.cost, ABS(new.cost - old.cost) AS cost_diff
 FROM (
-  SELECT batch_id, job_id, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
+  SELECT batch_id, job_id, COALESCE(SUM(`usage` * rate), 0) AS cost
   FROM aggregated_job_resources
   LEFT JOIN batches ON batches.id = aggregated_job_resources.batch_id
   LEFT JOIN resources ON aggregated_job_resources.resource = resources.resource
