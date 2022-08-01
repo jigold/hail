@@ -211,30 +211,31 @@ async def main(chunk_size=100):
 
         chunk_offsets = list(zip(chunk_offsets[:-1], chunk_offsets[1:]))
 
-        print(f'found {len(chunk_offsets)} chunks to process')
+        if len(chunk_offsets) != 0:
+            print(f'found {len(chunk_offsets)} chunks to process')
 
-        random.shuffle(chunk_offsets)
+            random.shuffle(chunk_offsets)
 
-        burn_in_start = time.time()
-        n_burn_in_chunks = 1000
+            burn_in_start = time.time()
+            n_burn_in_chunks = 1000
 
-        burn_in_chunk_offsets = chunk_offsets[:n_burn_in_chunks]
-        chunk_offsets = chunk_offsets[n_burn_in_chunks:]  # processing a chunk is not idempotent
+            burn_in_chunk_offsets = chunk_offsets[:n_burn_in_chunks]
+            chunk_offsets = chunk_offsets[n_burn_in_chunks:]  # processing a chunk is not idempotent
 
-        for start_offset, end_offset in burn_in_chunk_offsets:
-            await process_chunk(chunk_counter, db, start_offset, end_offset)
+            for start_offset, end_offset in burn_in_chunk_offsets:
+                await process_chunk(chunk_counter, db, start_offset, end_offset)
 
-        print(f'finished burn-in in {time.time() - burn_in_start}s')
+            print(f'finished burn-in in {time.time() - burn_in_start}s')
 
-        parallel_insert_start = time.time()
+            parallel_insert_start = time.time()
 
-        # 4 core database, parallelism = 10 maxes out CPU
-        await bounded_gather(
-            *[functools.partial(process_chunk, chunk_counter, db, start_offset, end_offset, quiet=False)
-              for start_offset, end_offset in chunk_offsets],
-            parallelism=10
-        )
-        print(f'took {time.time() - parallel_insert_start}s to insert the remaining complete records in parallel ({(chunk_size * len(chunk_offsets)) / (time.time() - parallel_insert_start)}) attempts / sec')
+            # 4 core database, parallelism = 10 maxes out CPU
+            await bounded_gather(
+                *[functools.partial(process_chunk, chunk_counter, db, start_offset, end_offset, quiet=False)
+                  for start_offset, end_offset in chunk_offsets],
+                parallelism=10
+            )
+            print(f'took {time.time() - parallel_insert_start}s to insert the remaining complete records in parallel ({(chunk_size * len(chunk_offsets)) / (time.time() - parallel_insert_start)}) attempts / sec')
 
         print(f'finished populating records in {time.time() - populate_start_time}s')
 
