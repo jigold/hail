@@ -148,9 +148,9 @@ FROM base_t
 LEFT JOIN (
   SELECT base_t.billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM base_t
-  LEFT JOIN aggregated_billing_project_user_resources_by_date
-    ON base_t.billing_project = aggregated_billing_project_user_resources_by_date.billing_project
-  GROUP BY billing_project, resource_id
+  LEFT JOIN aggregated_billing_project_user_resources
+    ON base_t.billing_project = aggregated_billing_project_user_resources.billing_project
+  GROUP BY base_t.billing_project, resource_id
 ) AS usage_t ON usage_t.billing_project = base_t.billing_project
 LEFT JOIN resources ON resources.resource_id = usage_t.resource_id;
 '''
