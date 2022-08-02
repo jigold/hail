@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_by_date` (
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
   FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX aggregated_billing_project_user_resources_by_date_billing_timestamp_user ON `aggregated_billing_project_user_resources_by_date` (`billing_timestamp`, `user`);
+CREATE INDEX aggregated_billing_project_user_resources_by_date_ts_user ON `aggregated_billing_project_user_resources_by_date` (`billing_timestamp`, `user`);
 
 DROP TABLE IF EXISTS `aggregated_batch_resources_by_date`;
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_by_date` (
