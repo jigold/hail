@@ -48,7 +48,7 @@ BEGIN
   SELECT billing_project, `user`,
     resource_id,
     rand_token,
-    msec_diff_by_date * quantity
+    msec_diff * quantity
   FROM attempt_resources
   JOIN batches ON batches.id = attempt_resources.batch_id
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
