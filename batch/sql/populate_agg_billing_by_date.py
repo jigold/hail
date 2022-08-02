@@ -211,7 +211,7 @@ async def main(chunk_size=100):
 
         chunk_offsets = list(zip(chunk_offsets[:-1], chunk_offsets[1:]))
 
-        if len(chunk_offsets) != 0:
+        if chunk_offsets != [(None, None)]:
             print(f'found {len(chunk_offsets)} chunks to process')
 
             random.shuffle(chunk_offsets)
