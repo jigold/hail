@@ -766,20 +766,22 @@ BEGIN
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 
-  INSERT INTO aggregated_billing_project_user_resources_by_date (billing_timestamp, billing_project, user, resource_id, token, `usage`)
-  VALUES (cur_billing_timestamp, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
-  ON DUPLICATE KEY UPDATE
-    `usage` = `usage` + NEW.quantity * msec_diff;
+  IF cur_billing_timestamp IS NOT NULL THEN
+    INSERT INTO aggregated_billing_project_user_resources_by_date (billing_timestamp, billing_project, user, resource_id, token, `usage`)
+    VALUES (cur_billing_timestamp, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff;
 
-  INSERT INTO aggregated_batch_resources_by_date (batch_id, billing_timestamp, resource_id, token, `usage`)
-  VALUES (NEW.batch_id, cur_billing_timestamp, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
-  ON DUPLICATE KEY UPDATE
-    `usage` = `usage` + NEW.quantity * msec_diff;
+    INSERT INTO aggregated_batch_resources_by_date (batch_id, billing_timestamp, resource_id, token, `usage`)
+    VALUES (NEW.batch_id, cur_billing_timestamp, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff;
 
-  INSERT INTO aggregated_job_resources_by_date (batch_id, job_id, billing_timestamp, resource_id, `usage`)
-  VALUES (NEW.batch_id, NEW.job_id, cur_billing_timestamp, NEW.resource_id, NEW.quantity * msec_diff)
-  ON DUPLICATE KEY UPDATE
-    `usage` = `usage` + NEW.quantity * msec_diff;
+    INSERT INTO aggregated_job_resources_by_date (batch_id, job_id, billing_timestamp, resource_id, `usage`)
+    VALUES (NEW.batch_id, NEW.job_id, cur_billing_timestamp, NEW.resource_id, NEW.quantity * msec_diff)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff;
+  END IF;
 
   INSERT INTO attempts_aggregated_by_date (batch_id, job_id, attempt_id)
   VALUES (NEW.batch_id, NEW.job_id, NEW.attempt_id)
