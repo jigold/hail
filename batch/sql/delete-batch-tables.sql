@@ -26,6 +26,7 @@ DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources_staging`;
 DROP TABLE IF EXISTS `attempts_aggregated_by_date`;
 DROP TABLE IF EXISTS `batch_updates`;
 
+DROP TABLE IF EXISTS `aggregated_billing_project_user_resources`;
 DROP TABLE IF EXISTS `aggregated_billing_project_resources`;
 DROP TABLE IF EXISTS `aggregated_batch_resources`;
 DROP TABLE IF EXISTS `aggregated_job_resources`;
