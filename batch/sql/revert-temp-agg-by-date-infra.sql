@@ -102,8 +102,7 @@ BEGIN
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
   DECLARE cur_resource VARCHAR(100);
-  DECLARE start_time_agg_key BIGINT;
-  DECLARE end_time_agg_key BIGINT;
+  DECLARE cur_billing_timestamp DATE;
 
   SELECT billing_project, user INTO cur_billing_project, cur_user
   FROM batches WHERE id = NEW.batch_id;
@@ -120,8 +119,7 @@ BEGIN
 
   SET msec_diff = GREATEST(COALESCE(cur_end_time - cur_start_time, 0), 0);
 
-  SET start_time_agg_key = UNIX_TIMESTAMP(CAST(FROM_UNIXTIME(cur_end_time / 1000) AS DATE)) * 1000;
-  SET end_time_agg_key = UNIX_TIMESTAMP(ADDDATE(CAST(FROM_UNIXTIME(cur_end_time / 1000) AS DATE), INTERVAL 1 DAY)) * 1000;
+  SET cur_billing_timestamp = CAST(FROM_UNIXTIME(cur_end_time / 1000) AS DATE);
 
   INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
   VALUES (cur_billing_project, cur_resource, rand_token, NEW.quantity * msec_diff)
@@ -138,18 +136,23 @@ BEGIN
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 
-  INSERT INTO aggregated_billing_project_user_resources_by_date (billing_project, user, start_time, end_time, resource_id, token, `usage`)
-  VALUES (cur_billing_project, cur_user, start_time_agg_key, end_time_agg_key, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
+  INSERT INTO aggregated_billing_project_user_resources (billing_project, user, resource_id, token, `usage`)
+  VALUES (cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 
-  INSERT INTO aggregated_batch_resources_by_date (batch_id, start_time, end_time, resource_id, token, `usage`)
-  VALUES (NEW.batch_id, start_time_agg_key, end_time_agg_key, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
+  INSERT INTO aggregated_billing_project_user_resources_by_date (billing_timestamp, billing_project, user, resource_id, token, `usage`)
+  VALUES (cur_billing_project, cur_user, cur_billing_timestamp, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 
-  INSERT INTO aggregated_job_resources_by_date (batch_id, job_id, start_time, end_time, resource_id, `usage`)
-  VALUES (NEW.batch_id, NEW.job_id, start_time_agg_key, end_time_agg_key, NEW.resource_id, NEW.quantity * msec_diff)
+  INSERT INTO aggregated_batch_resources_by_date (batch_id, billing_timestamp, resource_id, token, `usage`)
+  VALUES (NEW.batch_id, cur_billing_timestamp, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
+  ON DUPLICATE KEY UPDATE
+    `usage` = `usage` + NEW.quantity * msec_diff;
+
+  INSERT INTO aggregated_job_resources_by_date (batch_id, job_id, billing_timestamp, resource_id, `usage`)
+  VALUES (NEW.batch_id, NEW.job_id, cur_billing_timestamp, NEW.resource_id, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 END $$
