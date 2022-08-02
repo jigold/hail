@@ -622,15 +622,14 @@ WITH base_t AS (
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM base_t
 LEFT JOIN (
-  SELECT aggregated_batch_resources_by_date.batch_id, aggregated_batch_resources_by_date.job_id, aggregated_batch_resources_by_date.resource_id,
-    CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM base_t
   LEFT JOIN aggregated_batch_resources_by_date ON base_t.id = aggregated_batch_resources_by_date.batch_id
-  GROUP BY aggregated_batch_resources_by_date.batch_id, aggregated_batch_resources_by_date.job_id, aggregated_batch_resources_by_date.resource_id
-) AS usage_t
+  GROUP BY batch_id, resource_id
+) AS usage_t ON base_t.id = usage_t.batch_id
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-ORDER BY base_t.id DESC
-GROUP BY base_t.id;
+GROUP BY id
+ORDER BY id DESC;
 '''
     sql_args = where_args
 
@@ -1178,7 +1177,7 @@ LOCK IN SHARE MODE''',
             '''
 SELECT billing_project, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM billing_projects
-INNER JOIN (
+LEFT JOIN (
   SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM billing_projects
   LEFT JOIN aggregated_billing_project_user_resources
@@ -1186,7 +1185,7 @@ INNER JOIN (
   WHERE billing_projects.name = %s
   GROUP BY aggregated_billing_project_user_resources.billing_project, aggregated_billing_project_user_resources.resource_id
 ) AS usage_t ON usage_t.billing_project = billing_projects.name
-INNER JOIN resources
+LEFT JOIN resources
   ON resources.resource_id = usage_t.resource_id
 WHERE billing_projects.name = %s
 GROUP BY usage_t.billing_project;
@@ -1275,9 +1274,9 @@ FROM base_t
 LEFT JOIN (
   SELECT aggregated_batch_resources_by_date.batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM base_t
-  LEFT JOIN aggregated_batch_resources_by_date ON batches.id = aggregated_batch_resources_by_date.batch_id
+  LEFT JOIN aggregated_batch_resources_by_date ON base_t.id = aggregated_batch_resources_by_date.batch_id
   GROUP BY aggregated_batch_resources_by_date.batch_id, aggregated_batch_resources_by_date.resource_id
-) AS usage_t
+) AS usage_t ON base_t.id = usage_t.batch_id
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY base_t.id;
 ''',
@@ -1486,9 +1485,9 @@ LEFT JOIN (
     ON aggregated_job_resources_by_date.batch_id = base_t.batch_id AND
        aggregated_job_resources_by_date.job_id = base_t.job_id
   GROUP BY aggregated_job_resources_by_date.batch_id, aggregated_job_resources_by_date.job_id, aggregated_job_resources_by_date.resource_id
-) AS usage_t
+) AS usage_t ON usage_t.batch_id = base_t.batch_id AND usage_t.job_id = base_t.job_id
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY usage_t.batch_id, usage_t.job_id;
+GROUP BY base_t.batch_id, base_t.job_id, base_t.last_cancelled_attempt_id;
 ''',
         (batch_id, job_id, batch_id, job_id),
     )
