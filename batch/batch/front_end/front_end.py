@@ -629,8 +629,8 @@ LEFT JOIN (
   GROUP BY aggregated_batch_resources_by_date.batch_id, aggregated_batch_resources_by_date.job_id, aggregated_batch_resources_by_date.resource_id
 ) AS usage_t
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY base_t.id
-ORDER BY base_t.id DESC;
+ORDER BY base_t.id DESC
+GROUP BY base_t.id;
 '''
     sql_args = where_args
 
