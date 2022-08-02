@@ -173,11 +173,11 @@ BEGIN
     FROM attempt_resources
     WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
     ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_by_date * quantity;
-
-    INSERT INTO attempts_aggregated_by_date (batch_id, job_id, attempt_id)
-    VALUES (NEW.batch_id, NEW.job_id, NEW.attempt_id)
-    ON DUPLICATE KEY UPDATE attempt_id = attempt_id;
   END IF;
+
+  INSERT INTO attempts_aggregated_by_date (batch_id, job_id, attempt_id)
+  VALUES (NEW.batch_id, NEW.job_id, NEW.attempt_id)
+  ON DUPLICATE KEY UPDATE attempt_id = attempt_id;
 END $$
 
 DROP TRIGGER IF EXISTS attempt_resources_after_insert $$
