@@ -142,7 +142,7 @@ BEGIN
     `usage` = `usage` + NEW.quantity * msec_diff;
 
   INSERT INTO aggregated_billing_project_user_resources_by_date (billing_timestamp, billing_project, user, resource_id, token, `usage`)
-  VALUES (cur_billing_project, cur_user, cur_billing_timestamp, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
+  VALUES (cur_billing_timestamp, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 
