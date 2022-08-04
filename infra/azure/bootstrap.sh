@@ -15,6 +15,17 @@ setup_az() {
     az login --identity
 }
 
+create_batch_worker_logs_collection() {
+    RESOURCE_GROUP=${RESOURCE_GROUP:-$1}
+    DCE_LOCATION=${DCE_LOCATION:-$2}
+    LOG_ANALYTICS_WORKSPACE_NAME=${LOG_ANALYTICS_WORKSPACE_NAME:-"${RESOURCE_GROUP}-logs"}
+
+    az deployment group create \
+        --resource-group $RESOURCE_GROUP \
+        --template-file batch_logs_collection_template.json \
+        --parameters log_analytics_workspace_name=$LOG_ANALYTICS_WORKSPACE_NAME dce_location=$DCE_LOCATION
+}
+
 create_terraform_remote_storage() {
     RESOURCE_GROUP=${RESOURCE_GROUP:-$1}
     STORAGE_CONTAINER_NAME=${STORAGE_CONTAINER_NAME:-"tfstate"}

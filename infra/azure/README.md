@@ -60,6 +60,14 @@ this new service principal admin consent:
 ./bootstrap.sh grant_auth_sp_admin_consent
 ```
 
+The last step is to deploy the infrastructure for setting up worker log collection
+with the Azure Monitor Agent. The <DCE_LOCATION> should be the same as the region
+where the batch workers reside.
+
+```
+./bootstrap.sh create_batch_worker_logs_collection <RESOURCE_GROUP> <DCE_LOCATION>
+```
+
 ## Bootstrap the cluster
 
 We'll complete the rest of the process on a VM. To create one, run

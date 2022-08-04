@@ -347,24 +347,25 @@ done
         },
         'resources': [
             {
-                'apiVersion': '2018-06-01',
-                'type': 'extensions',
-                'name': 'OMSExtension',
-                'location': "[parameters('location')]",
-                'tags': tags,
-                'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
+              "type": "Microsoft.Compute/virtualMachines/extensions",
+              "apiVersion": "2021-11-01",
+              "name": "[format('{0}/AzureMonitorLinuxAgent', parameters('vmName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "publisher": "Microsoft.Azure.Monitor",
+                "type": "AzureMonitorLinuxAgent",
+                "typeHandlerVersion": "1.5",
+                "autoUpgradeMinorVersion": False,
+                "enableAutomaticUpgrade": False
+              }
+            },
+            {
+                'type': "Microsoft.Insights/dataCollectionRuleAssociations",
+                'apiVersion': "2021-09-01-preview",
+                'scope': "[format('Microsoft.Compute/virtualMachines/{0}', parameters('vmName'))]",
+                'name': "[parameters('associationName')]",
                 'properties': {
-                    'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
-                    'type': 'OmsAgentForLinux',
-                    'typeHandlerVersion': '1.13',
-                    'autoUpgradeMinorVersion': False,
-                    'enableAutomaticUpgrade': False,
-                    'settings': {
-                        'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
-                    },
-                    'protectedSettings': {
-                        'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
-                    },
+                    'dataCollectionRuleId': "[parameters('dataCollectionRuleId')]"
                 },
             },
         ],
@@ -402,9 +403,15 @@ done
                 'workspaceName': {
                     'value': f'{resource_group}-logs',
                 },
+                'associationName': {
+                    'value': f'{machine_name}-batch-worker-dcr'
+                },
+                'dataCollectionRuleId': {
+                    'value': f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.Insights/dataCollectionRules/batch-worker-logs-dcr"
+                },
             },
             'template': {
-                '$schema': 'https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#',
+                '$schema': 'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
                 'contentVersion': '1.0.0.0',
                 'parameters': {
                     'location': {'type': 'string', 'defaultValue': '[resourceGroup().location]'},

@@ -1,0 +1,112 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "log_analytics_workspace_name": {
+            "type": "String"
+        },
+        "dce_location": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.OperationalInsights/workspaces/tables",
+            "apiVersion": "2021-12-01-preview",
+            "name": "[concat(parameters('log_analytics_workspace_name'), '/BatchWorkerLogs_CL')]",
+            "properties": {
+                "totalRetentionInDays": 30,
+                "plan": "Analytics",
+                "schema": {
+                    "name": "BatchWorkerLogs_CL",
+                    "columns": [
+                        {
+                            "name": "RawData",
+                            "type": "string"
+                        },
+                        {
+                            "name": "TimeGenerated",
+                            "type": "datetime"
+                        }
+                    ]
+                },
+                "retentionInDays": 30
+            }
+        },
+        {
+            "type": "Microsoft.Insights/dataCollectionEndpoints",
+            "apiVersion": "2021-09-01-preview",
+            "name": "batch-worker-logs-dce",
+            "location": "[parameters('dce_location')]",
+            "properties": {
+                "networkAcls": {
+                    "publicNetworkAccess": "Enabled"
+                }
+            }
+        },
+       {
+            "type": "Microsoft.Insights/dataCollectionRules",
+            "apiVersion": "2021-09-01-preview",
+            "name": "batch-worker-logs-dcr",
+            "location": "[parameters('dce_location')]",
+            "dependsOn": ["[resourceId('Microsoft.Insights/dataCollectionEndpoints', 'batch-worker-logs-dce')]",
+                          "[resourceId('Microsoft.OperationalInsights/workspaces/tables', parameters('log_analytics_workspace_name'), 'BatchWorkerLogs_CL')]"],
+            "properties": {
+                "dataCollectionEndpointId": "[resourceId('Microsoft.Insights/dataCollectionEndpoints', 'batch-worker-logs-dce')]",
+                "streamDeclarations": {
+                    "Custom-BatchWorkerFileFormat": {
+                        "columns": [
+                            {
+                                "name": "TimeGenerated",
+                                "type": "datetime"
+                            },
+                            {
+                                "name": "RawData",
+                                "type": "string"
+                            }
+                        ]
+                    }
+                },
+                "dataSources": {
+                    "logFiles": [
+                        {
+                            "streams": [
+                                "Custom-BatchWorkerFileFormat"
+                            ],
+                            "filePatterns": [
+                                "/worker.log"
+                            ],
+                            "format": "text",
+                            "settings": {
+                                "text": {
+                                    "recordStartTimestampFormat": "ISO 8601"
+                                }
+                            },
+                            "name": "batch_worker_log_file"
+                        }
+                    ]
+                },
+                "destinations": {
+                    "logAnalytics": [
+                        {
+                            "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('log_analytics_workspace_name'))]",
+                            "name": "batch_workspace_name"
+                        }
+                    ]
+                },
+                "dataFlows": [
+                    {
+                        "streams": [
+                            "Custom-BatchWorkerFileFormat"
+                        ],
+                        "destinations": [
+                            "batch_workspace_name"
+                        ],
+                        "transformKql": "source",
+                        "outputStream": "Custom-BatchWorkerLogs_CL"
+                    }
+                ]
+            }
+        }
+    ]
+}
