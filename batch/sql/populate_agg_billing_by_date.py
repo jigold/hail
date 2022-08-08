@@ -93,8 +93,8 @@ FROM (
 ) AS old
 LEFT JOIN (
   SELECT batch_id, job_id, COALESCE(SUM(`usage` * rate), 0) AS cost
-  FROM aggregated_job_resources_by_date
-  LEFT JOIN resources ON aggregated_job_resources_by_date.resource_id = resources.resource_id
+  FROM aggregated_job_resources_v2
+  LEFT JOIN resources ON aggregated_job_resources_v2.resource_id = resources.resource_id
   GROUP BY batch_id, job_id
 ) AS new ON old.batch_id = new.batch_id AND old.job_id = new.job_id
 WHERE ABS(new.cost - old.cost) >= 0.00001
@@ -136,8 +136,8 @@ FROM (
 ) AS old
 LEFT JOIN (
   SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
-  FROM aggregated_batch_resources_by_date
-  LEFT JOIN resources ON aggregated_batch_resources_by_date.resource_id = resources.resource_id
+  FROM aggregated_batch_resources_v2
+  LEFT JOIN resources ON aggregated_batch_resources_v2.resource_id = resources.resource_id
   GROUP BY batch_id
 ) AS new ON old.batch_id = new.batch_id
 WHERE ABS(new.cost - old.cost) >= 0.00001
