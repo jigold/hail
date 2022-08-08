@@ -390,7 +390,7 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
 
 DELIMITER $$
 
-DROP TRIGGER IF EXISTS instances_before_update;
+DROP TRIGGER IF EXISTS instances_before_update $$
 CREATE TRIGGER instances_before_update BEFORE UPDATE on instances
 FOR EACH ROW
 BEGIN
@@ -399,7 +399,7 @@ BEGIN
   END IF;
 END $$
 
-DROP TRIGGER IF EXISTS attempts_before_update;
+DROP TRIGGER IF EXISTS attempts_before_update $$
 CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
 FOR EACH ROW
 BEGIN
@@ -416,8 +416,6 @@ BEGIN
     SET NEW.end_time = OLD.end_time;
     SET NEW.reason = OLD.reason;
   END IF;
-
-  SET NEW.migrated = TRUE;
 END $$
 
 DROP TRIGGER IF EXISTS attempts_after_update $$
