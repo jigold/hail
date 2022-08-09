@@ -356,8 +356,8 @@ done
                     "publisher": "Microsoft.Azure.Monitor",
                     "type": "AzureMonitorLinuxAgent",
                     "typeHandlerVersion": "1.5",
-                    "autoUpgradeMinorVersion": False,
-                    "enableAutomaticUpgrade": False,
+                    "autoUpgradeMinorVersion": True,
+                    "enableAutomaticUpgrade": True,
                 },
             }
         ],
@@ -399,6 +399,9 @@ done
                 'dataCollectionRuleId': {
                     'value': f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.Insights/dataCollectionRules/batch-worker-logs-dcr"
                 },
+                'dataCollectionEndpointId': {
+                    'value': f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.Insights/dataCollectionEndpoints/batch-worker-logs-dce"
+                },
             },
             'template': {
                 '$schema': 'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
@@ -424,6 +427,7 @@ done
                     'workspaceName': {'type': 'string'},
                     'associationName': {'type': 'string'},
                     'dataCollectionRuleId': {'type': 'string'},
+                    'dataCollectionEndpointId': {'type': 'string'},
                 },
                 'variables': {
                     'ipName': "[concat(parameters('vmName'), '-ip')]",
@@ -473,7 +477,10 @@ done
                         'apiVersion': "2021-09-01-preview",
                         'scope': "[format('Microsoft.Compute/virtualMachines/{0}', parameters('vmName'))]",
                         'name': "[parameters('associationName')]",
-                        'properties': {'dataCollectionRuleId': "[parameters('dataCollectionRuleId')]"},
+                        'properties': {
+                            'dataCollectionRuleId': "[parameters('dataCollectionRuleId')]",
+                            'dataCollectionEndpointId': "[parameters('dataCollectionEndpointId')]",
+                        },
                         'dependsOn': [
                             "[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"
                         ],
