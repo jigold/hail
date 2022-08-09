@@ -432,6 +432,8 @@ done
                         },
                     },
                     'workspaceName': {'type': 'string'},
+                    'associationName': {'type': 'string'},
+                    'dataCollectionRuleId': {'type': 'string'},
                 },
                 'variables': {
                     'ipName': "[concat(parameters('vmName'), '-ip')]",
