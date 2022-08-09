@@ -359,17 +359,7 @@ done
                     "autoUpgradeMinorVersion": False,
                     "enableAutomaticUpgrade": False,
                 },
-            },
-            {
-                'type': "Microsoft.Insights/dataCollectionRuleAssociations",
-                'apiVersion': "2021-09-01-preview",
-                'scope': "[format('Microsoft.Compute/virtualMachines/{0}', parameters('vmName'))]",
-                'name': "[parameters('associationName')]",
-                'properties': {'dataCollectionRuleId': "[parameters('dataCollectionRuleId')]"},
-                'dependsOn': [
-                    "[concat('Microsoft.Compute/virtualMachines/extensions/', format('{0}/AzureMonitorLinuxAgent', parameters('vmName')))]"
-                ],
-            },
+            }
         ],
     }
 
@@ -478,6 +468,16 @@ done
                         },
                     },
                     vm_config,
+                    {
+                        'type': "Microsoft.Insights/dataCollectionRuleAssociations",
+                        'apiVersion': "2021-09-01-preview",
+                        'scope': "[format('Microsoft.Compute/virtualMachines/{0}', parameters('vmName'))]",
+                        'name': "[parameters('associationName')]",
+                        'properties': {'dataCollectionRuleId': "[parameters('dataCollectionRuleId')]"},
+                        'dependsOn': [
+                            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+                        ],
+                    },
                 ],
                 'outputs': {},
             },
