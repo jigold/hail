@@ -475,7 +475,7 @@ done
                         'name': "[parameters('associationName')]",
                         'properties': {'dataCollectionRuleId': "[parameters('dataCollectionRuleId')]"},
                         'dependsOn': [
-                            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+                            "[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"
                         ],
                     },
                 ],
