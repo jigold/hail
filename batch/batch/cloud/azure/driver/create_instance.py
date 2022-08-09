@@ -351,13 +351,14 @@ done
               "apiVersion": "2021-11-01",
               "name": "[format('{0}/AzureMonitorLinuxAgent', parameters('vmName'))]",
               "location": "[parameters('location')]",
+              "dependsOn": ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
               "properties": {
                 "publisher": "Microsoft.Azure.Monitor",
                 "type": "AzureMonitorLinuxAgent",
                 "typeHandlerVersion": "1.5",
                 "autoUpgradeMinorVersion": False,
                 "enableAutomaticUpgrade": False
-              }
+              },
             },
             {
                 'type': "Microsoft.Insights/dataCollectionRuleAssociations",
