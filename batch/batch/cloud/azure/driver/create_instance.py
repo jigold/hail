@@ -395,7 +395,7 @@ done
                 'workspaceName': {
                     'value': f'{resource_group}-logs',
                 },
-                'associationName': {'value': f'{machine_name}-batch-worker-dcr'},
+                'associationName': {'value': f'{machine_name}-batch-worker-dcr-assoc'},
                 'dataCollectionRuleId': {
                     'value': f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.Insights/dataCollectionRules/batch-worker-logs-dcr"
                 },

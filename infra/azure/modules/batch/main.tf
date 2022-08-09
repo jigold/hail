@@ -160,6 +160,7 @@ module "batch_sp" {
     "Network Contributor",
     "Managed Identity Operator",
     "Log Analytics Contributor",
+    "Monitoring Contributor"
   ]
 }
 
@@ -205,7 +206,8 @@ module "test_sp" {
   resource_group_roles = [
     "Network Contributor",
     "Managed Identity Operator",
-    "Log Analytics Contributor"
+    "Log Analytics Contributor",
+    "Monitoring Contributor"
   ]
 }
 
