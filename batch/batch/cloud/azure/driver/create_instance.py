@@ -367,7 +367,8 @@ done
                 'properties': {
                     'dataCollectionRuleId': "[parameters('dataCollectionRuleId')]",
                     'dataCollectionEndpointId': "[parameters('dataCollectionEndpointId')]",
-                }
+                },
+                'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
             }
         ],
     }
