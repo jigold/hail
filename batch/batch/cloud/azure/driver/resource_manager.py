@@ -43,6 +43,7 @@ class AzureResourceManager(CloudResourceManager):
         subscription_id: str,
         resource_group: str,
         ssh_public_key: str,
+        key_vault_name: str,
         arm_client: aioazure.AzureResourceManagerClient,  # BORROWED
         compute_client: aioazure.AzureComputeClient,  # BORROWED
         billing_manager: AzureBillingManager,
@@ -50,6 +51,7 @@ class AzureResourceManager(CloudResourceManager):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.ssh_public_key = ssh_public_key
+        self.key_vault_name = key_vault_name
         self.arm_client = arm_client
         self.compute_client = compute_client
         self.billing_manager = billing_manager
@@ -175,6 +177,7 @@ class AzureResourceManager(CloudResourceManager):
             self.subscription_id,
             self.resource_group,
             self.ssh_public_key,
+            self.key_vault_name,
             max_price,
             instance_config,
         )

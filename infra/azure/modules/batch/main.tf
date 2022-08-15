@@ -163,6 +163,20 @@ module "batch_sp" {
   ]
 }
 
+resource "azurerm_key_vault_access_policy" "batch_worker_kv" {
+  key_vault_id = var.key_vault.id
+  tenant_id    = var.key_vault.tenant_id
+  object_id    = module.batch_sp.principal_id
+
+  key_permissions = [
+    "Get",
+  ]
+
+  secret_permissions = [
+    "Get",
+  ]
+}
+
 resource "azurerm_role_assignment" "batch_batch_account_contributor" {
   scope                = azurerm_storage_account.batch.id
   role_definition_name = "Storage Blob Data Contributor"
@@ -206,6 +220,20 @@ module "test_sp" {
     "Network Contributor",
     "Managed Identity Operator",
     "Log Analytics Contributor"
+  ]
+}
+
+resource "azurerm_key_vault_access_policy" "batch_worker_kv" {
+  key_vault_id = var.key_vault.id
+  tenant_id    = var.key_vault.tenant_id
+  object_id    = module.test_sp.principal_id
+
+  key_permissions = [
+    "Get",
+  ]
+
+  secret_permissions = [
+    "Get",
   ]
 }
 

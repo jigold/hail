@@ -10,18 +10,21 @@ class AzureConfig:
             global_config['azure_subscription_id'],
             global_config['azure_resource_group'],
             global_config['azure_location'],
+            global_config['azure_key_vault_name'],
         )
 
-    def __init__(self, subscription_id: str, resource_group: str, region: str):
+    def __init__(self, subscription_id: str, resource_group: str, region: str, key_vault_name: str):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.region = region
+        self.key_vault_name = key_vault_name
 
     def __str__(self):
         data = {
             'subscription_id': self.subscription_id,
             'resource_group': self.resource_group,
             'region': self.region,
+            'key_vault_name': self.key_vault_name,
         }
         return str(data)
 

@@ -24,3 +24,7 @@ variable k8s_nonpreemptible_node_pool_name {
 variable container_registry_id {
   type = string
 }
+
+variable tenant_id {
+  type = string
+}

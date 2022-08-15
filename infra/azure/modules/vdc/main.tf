@@ -44,6 +44,32 @@ resource "azurerm_log_analytics_workspace" "logs" {
   retention_in_days   = 30
 }
 
+resource "random_id" "kv_name_suffix" {
+  byte_length = 4
+}
+
+resource "azurerm_key_vault" "kv" {
+  name                        = "${var.resource_group.name}-kv-${random_id.kv_name_suffix.hex}"
+  location                    = var.resource_group.location
+  resource_group_name         = var.resource_group.name
+  tenant_id                   = var.tenant_id
+  soft_delete_retention_days  = 7
+
+  sku_name = "standard"
+}
+
+resource "azurerm_key_vault_secret" "workspace_id" {
+  name         = "log-analytics-workspace-id"
+  value        = azurerm_log_analytics_workspace.logs.workspace_id
+  key_vault_id = azurerm_key_vault.kv.id
+}
+
+resource "azurerm_key_vault_secret" "primary_shared_key" {
+  name         = "log-analytics-primary-shared-key"
+  value        = azurerm_log_analytics_workspace.logs.primary_shared_key
+  key_vault_id = azurerm_key_vault.kv.id
+}
+
 resource "azurerm_kubernetes_cluster" "vdc" {
   name                = "vdc"
   resource_group_name = var.resource_group.name

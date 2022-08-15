@@ -38,6 +38,7 @@ def create_vm_config(
     subscription_id: str,
     resource_group: str,
     ssh_public_key: str,
+    key_vault_name: str,
     max_price: Optional[float],
     instance_config: InstanceConfig,
 ) -> dict:
@@ -143,28 +144,6 @@ sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
 
-# Forward syslog logs to Log Analytics Agent
-cat >>/etc/rsyslog.d/95-omsagent.conf <<EOF
-kern.warning       @127.0.0.1:25224
-user.warning       @127.0.0.1:25224
-daemon.warning     @127.0.0.1:25224
-auth.warning       @127.0.0.1:25224
-uucp.warning       @127.0.0.1:25224
-authpriv.warning   @127.0.0.1:25224
-ftp.warning        @127.0.0.1:25224
-cron.warning       @127.0.0.1:25224
-local0.warning     @127.0.0.1:25224
-local1.warning     @127.0.0.1:25224
-local2.warning     @127.0.0.1:25224
-local3.warning     @127.0.0.1:25224
-local4.warning     @127.0.0.1:25224
-local5.warning     @127.0.0.1:25224
-local6.warning     @127.0.0.1:25224
-local7.warning     @127.0.0.1:25224
-EOF
-
-sudo service rsyslog restart
-
 sudo mkdir -p /etc/netns
 
 curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/userData?api-version=2021-02-01&format=text" | \
@@ -184,6 +163,12 @@ INSTANCE_ID=$(jq -r '.instance_id' userdata)
 INSTANCE_CONFIG=$(jq -r '.instance_config' userdata)
 MAX_IDLE_TIME_MSECS=$(jq -r '.max_idle_time_msecs' userdata)
 NAME=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/name?api-version=2021-02-01&format=text")
+
+set +x
+ACCESS_TOKEN=$(curl -s  -H Metadata:true 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net' | jq -r '."access_token")
+WORKSPACE_ID=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" "https://{key_vault_name}.vault.azure.net/secrets/log-analytics-workspace-id?api-version=7.3" | jq -r '.value')
+AUTHENTICATION_KEY=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" "https://{key_vault_name}.vault.azure.net/secrets/log-analytics-workspace-id?api-version=7.3" | jq -r '.value')
+set -x
 
 BATCH_WORKER_IMAGE=$(jq -r '.batch_worker_image' userdata)
 DOCKER_ROOT_IMAGE=$(jq -r '.docker_root_image' userdata)
@@ -212,6 +197,45 @@ $INTERNAL_GATEWAY_IP batch-driver.hail
 $INTERNAL_GATEWAY_IP batch.hail
 $INTERNAL_GATEWAY_IP internal.hail
 EOF
+
+# FIXME -- put this in the boot disk image
+apt-get update && apt-get install -y ruby-full ubuntu-dev-tools
+gem install fluent-plugin-azure-loganalytics
+fluentd --setup /fluentd
+
+set +x
+cat >> /fluentd/fluentd.conf <<EOF
+<source>
+    @type tail
+    format json
+    path /worker.log
+    pos_file /fluentd/worker_pos_file
+    read_from_head true
+    tag worker
+</source>
+
+<filter worker>
+@type record_transformer
+enable_ruby
+auto_typecast true
+<record>
+    severity ${{ record["levelname"] }}
+    timestamp ${{ record["asctime"] }}
+    namespace {DEFAULT_NAMESPACE}
+    instance {machine_name}
+</record>
+</filter>
+
+<match worker>
+    @type azure-loganalytics
+    customer_id $WORKSPACE_ID
+    shared_key $AUTHENTICATION_KEY
+    log_type BatchWorkerLogsTest  # The name of the table that gets populated
+</match>
+EOF
+
+fluentd -c /fluentd/fluent.conf -qq &
+set -x
 
 {make_global_config_str}
 
@@ -344,30 +368,7 @@ done
                 },
             },
             'userData': "[parameters('userData')]",
-        },
-        'resources': [
-            {
-                'apiVersion': '2018-06-01',
-                'type': 'extensions',
-                'name': 'OMSExtension',
-                'location': "[parameters('location')]",
-                'tags': tags,
-                'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
-                'properties': {
-                    'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
-                    'type': 'OmsAgentForLinux',
-                    'typeHandlerVersion': '1.13',
-                    'autoUpgradeMinorVersion': False,
-                    'enableAutomaticUpgrade': False,
-                    'settings': {
-                        'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
-                    },
-                    'protectedSettings': {
-                        'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
-                    },
-                },
-            },
-        ],
+        }
     }
 
     properties = vm_config['properties']

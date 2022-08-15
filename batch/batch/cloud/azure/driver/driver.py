@@ -34,6 +34,7 @@ class AzureDriver(CloudDriver):
         resource_group = azure_config.resource_group
         region = azure_config.region
         regions = [region]
+        key_vault_name = azure_config.key_vault_name
 
         with open(os.environ['HAIL_SSH_PUBLIC_KEY'], encoding='utf-8') as f:
             ssh_public_key = f.read()
@@ -50,7 +51,7 @@ class AzureDriver(CloudDriver):
         billing_manager = await AzureBillingManager.create(db, pricing_client, regions)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor, region)
         resource_manager = AzureResourceManager(
-            subscription_id, resource_group, ssh_public_key, arm_client, compute_client, billing_manager
+            subscription_id, resource_group, ssh_public_key, key_vault_name, arm_client, compute_client, billing_manager
         )
 
         create_pools_coros = [
