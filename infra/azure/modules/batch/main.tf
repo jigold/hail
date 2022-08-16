@@ -163,9 +163,9 @@ module "batch_sp" {
   ]
 }
 
-resource "azurerm_key_vault_access_policy" "batch_worker_kv" {
-  key_vault_id = var.key_vault.id
-  tenant_id    = var.key_vault.tenant_id
+resource "azurerm_key_vault_access_policy" "batch_kv" {
+  key_vault_id = var.key_vault_id
+  tenant_id    = var.tenant_id
   object_id    = module.batch_sp.principal_id
 
   key_permissions = [
@@ -223,9 +223,9 @@ module "test_sp" {
   ]
 }
 
-resource "azurerm_key_vault_access_policy" "batch_worker_kv" {
-  key_vault_id = var.key_vault.id
-  tenant_id    = var.key_vault.tenant_id
+resource "azurerm_key_vault_access_policy" "test_kv" {
+  key_vault_id = var.key_vault_id
+  tenant_id    = var.tenant_id
   object_id    = module.test_sp.principal_id
 
   key_permissions = [

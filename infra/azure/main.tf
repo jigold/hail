@@ -69,7 +69,7 @@ module "vdc" {
   k8s_user_pool_machine_type         = var.k8s_user_pool_machine_type
   k8s_preemptible_node_pool_name     = var.k8s_preemptible_node_pool_name
   k8s_nonpreemptible_node_pool_name  = var.k8s_nonpreemptible_node_pool_name
-  tenant_id                          = azurerm_subscription.primary.tenant_id
+  tenant_id                          = data.azurerm_subscription.primary.tenant_id
 }
 
 module "db" {
@@ -95,7 +95,7 @@ module "batch" {
   resource_group        = data.azurerm_resource_group.rg
   container_registry_id = azurerm_container_registry.acr.id
   key_vault_id          = module.vdc.key_vault_id
-  key_vault_name        = module.vdc.key_vault_name
+  tenant_id             = data.azurerm_subscription.primary.tenant_id
 }
 
 module "global_config" {
@@ -116,7 +116,7 @@ module "global_config" {
     azure_subscription_id = data.azurerm_subscription.primary.subscription_id
     azure_resource_group  = data.azurerm_resource_group.rg.name
     azure_location        = data.azurerm_resource_group.rg.location
-    azure_key_vault_name  = data.azurerm_key_vault.kv.name
+    azure_key_vault_name  = module.vdc.key_vault_name
   }
 }
 
