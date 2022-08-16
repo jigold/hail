@@ -44,6 +44,8 @@ resource "azurerm_log_analytics_workspace" "logs" {
   retention_in_days   = 30
 }
 
+data "azurerm_client_config" "current" {}
+
 resource "random_id" "kv_name_suffix" {
   byte_length = 4
 }
@@ -56,6 +58,24 @@ resource "azurerm_key_vault" "kv" {
   soft_delete_retention_days  = 7
 
   sku_name = "standard"
+
+  access_policy {
+    tenant_id = data.azurerm_client_config.current.tenant_id
+    object_id = data.azurerm_client_config.current.object_id
+
+    key_permissions = [
+      "Create",
+      "Get",
+    ]
+
+    secret_permissions = [
+      "Set",
+      "Get",
+      "Delete",
+      "Purge",
+      "Recover"
+    ]
+  }
 }
 
 resource "azurerm_key_vault_secret" "workspace_id" {

@@ -116,7 +116,6 @@ module "global_config" {
     azure_subscription_id = data.azurerm_subscription.primary.subscription_id
     azure_resource_group  = data.azurerm_resource_group.rg.name
     azure_location        = data.azurerm_resource_group.rg.location
-    azure_key_vault_name  = module.vdc.key_vault_name
   }
 }
 
