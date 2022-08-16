@@ -42,6 +42,9 @@ Run terraform:
 terraform apply -var-file=global.tfvars
 ```
 
+It is okay to replace the access policy for the key vault as will happen if
+multiple users use an existing terraform project.
+
 Once terraform has completed successfully, you must create an A record for the
 domain of your choosing pointing at the `gateway_ip` with a DNS provider. The
 `gateway_ip` may be retrieved by executing the following command.
