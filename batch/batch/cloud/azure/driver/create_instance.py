@@ -230,7 +230,7 @@ auto_typecast true
     @type azure-loganalytics
     customer_id $WORKSPACE_ID
     shared_key $AUTHENTICATION_KEY
-    log_type BatchWorkerLogs  # The name of the table that gets populated
+    log_type BatchWorkerLogsTest  # The name of the table that gets populated
 </match>
 EOF
 
