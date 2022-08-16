@@ -198,11 +198,6 @@ $INTERNAL_GATEWAY_IP batch.hail
 $INTERNAL_GATEWAY_IP internal.hail
 EOF
 
-# FIXME -- put this in the boot disk image
-apt-get update && apt-get install -y ruby-full ubuntu-dev-tools
-gem install fluent-plugin-azure-loganalytics
-fluentd --setup /fluentd
-
 set +x
 cat >> /fluentd/fluentd.conf <<EOF
 <source>
@@ -219,8 +214,8 @@ cat >> /fluentd/fluentd.conf <<EOF
 enable_ruby
 auto_typecast true
 <record>
-    severity ${{ record["levelname"] }}
-    timestamp ${{ record["asctime"] }}
+    severity \${{ record["levelname"] }}
+    timestamp \${{ record["asctime"] }}
     namespace {DEFAULT_NAMESPACE}
     instance {machine_name}
 </record>
@@ -397,7 +392,7 @@ done
                 'imageReference': {
                     'value': {
                         'id': f'/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/'
-                        f'Microsoft.Compute/galleries/{resource_group}_batch/images/batch-worker/versions/0.0.12'
+                        f'Microsoft.Compute/galleries/{resource_group}_batch/images/batch-worker/versions/0.0.3005'
                     }
                 },
                 'workspaceName': {

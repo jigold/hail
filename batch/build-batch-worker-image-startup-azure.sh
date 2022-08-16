@@ -11,7 +11,9 @@ apt-get install -y \
     gnupg \
     jq \
     lsb-release \
-    software-properties-common
+    ruby-full \
+    software-properties-common \
+    ubuntu-dev-tools
 
 # Install Docker
 
@@ -50,3 +52,8 @@ docker pull {{ global.docker_root_image }}
 # add docker daemon debug logging
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
 mv daemon.json.tmp /etc/docker/daemon.json
+
+# Install fluentd
+mkdir /fluentd
+gem install fluent-plugin-azure-loganalytics
+fluentd --setup /fluentd

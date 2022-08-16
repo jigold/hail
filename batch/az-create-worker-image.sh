@@ -15,7 +15,7 @@ popd
 SHARED_GALLERY_NAME="${RESOURCE_GROUP}_batch"
 BUILD_IMAGE_RESOURCE_GROUP="${RESOURCE_GROUP}-build-batch-worker-image"
 VM_NAME=build-batch-worker-image
-WORKER_VERSION=0.0.12
+WORKER_VERSION=0.0.3005
 
 USERNAME=$(whoami)
 
