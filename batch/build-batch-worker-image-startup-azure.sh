@@ -54,6 +54,6 @@ jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
 mv daemon.json.tmp /etc/docker/daemon.json
 
 # Install fluentd
-mkdir /fluentd
+gem install fluentd --no-doc
 gem install fluent-plugin-azure-loganalytics
 fluentd --setup /fluentd

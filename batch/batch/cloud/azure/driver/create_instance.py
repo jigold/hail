@@ -229,7 +229,7 @@ auto_typecast true
 </match>
 EOF
 
-/usr/local/bin/fluentd -c /fluentd/fluent.conf -qq &
+fluentd -c /fluentd/fluent.conf -qq &
 set -x
 
 {make_global_config_str}
