@@ -199,6 +199,7 @@ $INTERNAL_GATEWAY_IP internal.hail
 EOF
 
 set +x
+mkdir /fluentd/
 touch /fluentd/fluentd.conf
 
 cat >> /fluentd/fluentd.conf <<EOF
