@@ -11,6 +11,7 @@ apt-get install -y \
     gnupg \
     jq \
     lsb-release \
+    ruby-dev \
     ruby-full \
     software-properties-common \
     ubuntu-dev-tools
@@ -54,6 +55,18 @@ jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
 mv daemon.json.tmp /etc/docker/daemon.json
 
 # Install fluentd
-gem install fluentd --no-doc
-gem install fluent-plugin-azure-loganalytics
-fluentd --setup /fluentd
+cat >> /etc/security/limits.conf <<EOF
+root soft nofile 65536
+root hard nofile 65536
+* soft nofile 65536
+* hard nofile 65536
+EOF
+
+curl -fsSL https://toolbelt.treasuredata.com/sh/install-ubuntu-bionic-td-agent4.sh | sh
+#apt-add-repository ppa:brightbox/ruby-ng && sudo apt-get update
+#apt-get update && apt-get install -y ruby2.7-dev ruby2.7-full
+td-agent-gem install fluent-plugin-azure-loganalytics
+
+#gem install fluentd --no-doc
+#gem install fluent-plugin-azure-loganalytics
+#fluentd --setup /fluentd

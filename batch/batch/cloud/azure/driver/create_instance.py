@@ -167,7 +167,7 @@ NAME=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/i
 set +x
 ACCESS_TOKEN=$(curl -s  -H Metadata:true 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net' | jq -r '."access_token"')
 WORKSPACE_ID=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" "https://{key_vault_name}.vault.azure.net/secrets/log-analytics-workspace-id?api-version=7.3" | jq -r '.value')
-AUTHENTICATION_KEY=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" "https://{key_vault_name}.vault.azure.net/secrets/log-analytics-workspace-id?api-version=7.3" | jq -r '.value')
+PRIMARY_SHARED_KEY=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" "https://{key_vault_name}.vault.azure.net/secrets/log-analytics-primary-shared-key?api-version=7.3" | jq -r '.value')
 set -x
 
 BATCH_WORKER_IMAGE=$(jq -r '.batch_worker_image' userdata)
@@ -198,11 +198,12 @@ $INTERNAL_GATEWAY_IP batch.hail
 $INTERNAL_GATEWAY_IP internal.hail
 EOF
 
-set +x
-mkdir /fluentd/
-touch /fluentd/fluentd.conf
+mkdir /fluentd
+touch /fluentd/worker_pos_file
+chmod 777 /fluentd/worker_pos_file
 
-cat >> /fluentd/fluentd.conf <<EOF
+set +x
+cat > /etc/td-agent/td-agent.conf <<EOF
 <source>
     @type tail
     format json
@@ -227,12 +228,12 @@ auto_typecast true
 <match worker>
     @type azure-loganalytics
     customer_id $WORKSPACE_ID
-    shared_key $AUTHENTICATION_KEY
+    shared_key $PRIMARY_SHARED_KEY
     log_type BatchWorkerLogsTest  # The name of the table that gets populated
 </match>
 EOF
 
-fluentd -c /fluentd/fluent.conf -qq &
+systemctl start td-agent.service
 set -x
 
 {make_global_config_str}
