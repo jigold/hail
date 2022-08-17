@@ -199,6 +199,8 @@ $INTERNAL_GATEWAY_IP internal.hail
 EOF
 
 set +x
+touch /fluentd/fluentd.conf
+
 cat >> /fluentd/fluentd.conf <<EOF
 <source>
     @type tail
