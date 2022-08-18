@@ -165,7 +165,7 @@ MAX_IDLE_TIME_MSECS=$(jq -r '.max_idle_time_msecs' userdata)
 NAME=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/name?api-version=2021-02-01&format=text")
 
 set +x
-ACCESS_TOKEN=$(curl -s  -H Metadata:true 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net' | jq -r '."access_token"')
+ACCESS_TOKEN=$(curl -s -H Metadata:true 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net' | jq -r '."access_token"')
 WORKSPACE_ID=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" "https://{key_vault_name}.vault.azure.net/secrets/log-analytics-workspace-id?api-version=7.3" | jq -r '.value')
 PRIMARY_SHARED_KEY=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" "https://{key_vault_name}.vault.azure.net/secrets/log-analytics-primary-shared-key?api-version=7.3" | jq -r '.value')
 set -x
