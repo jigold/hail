@@ -62,11 +62,5 @@ root hard nofile 65536
 * hard nofile 65536
 EOF
 
-curl -fsSL https://toolbelt.treasuredata.com/sh/install-ubuntu-bionic-td-agent4.sh | sh
-#apt-add-repository ppa:brightbox/ruby-ng && sudo apt-get update
-#apt-get update && apt-get install -y ruby2.7-dev ruby2.7-full
-td-agent-gem install fluent-plugin-azure-loganalytics
-
-#gem install fluentd --no-doc
-#gem install fluent-plugin-azure-loganalytics
-#fluentd --setup /fluentd
+curl -fsSL https://toolbelt.treasuredata.com/sh/install-ubuntu-focal-td-agent4.sh | sh
+/usr/sbin/td-agent-gem install fluent-plugin-azure-loganalytics
