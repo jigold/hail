@@ -6,13 +6,14 @@ apt-get update
 
 apt-get install -y \
     apt-transport-https \
+    autoconf \
     ca-certificates \
     curl \
+    gcc \
     gnupg \
     jq \
     lsb-release \
-    ruby-dev \
-    ruby-full \
+    make \
     software-properties-common \
     ubuntu-dev-tools
 
