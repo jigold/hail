@@ -11,7 +11,7 @@ import yaml
 from gear.cloud_config import get_global_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
 
-from .environment import BUILDKIT_IMAGE, CI_UTILS_IMAGE, CLOUD, DEFAULT_NAMESPACE, DOCKER_PREFIX, DOMAIN, STORAGE_URI
+from .environment import BUILDKIT_IMAGE, CI_UTILS_IMAGE, CLOUD, DEFAULT_NAMESPACE, DOCKER_PREFIX, DOMAIN, REGION, STORAGE_URI
 from .globals import is_test_deployment
 from .utils import generate_token
 
@@ -372,6 +372,7 @@ cat /home/user/trace
             parents=self.deps_parents(),
             network='private',
             unconfined=True,
+            region=REGION,
         )
 
     def cleanup(self, batch, scope, parents):
@@ -437,6 +438,7 @@ true
             always_run=True,
             network='private',
             timeout=5 * 60,
+            region=REGION,
         )
 
 
@@ -560,6 +562,7 @@ class RunImageStep(Step):
             timeout=self.timeout,
             network='private',
             env=env,
+            region=REGION,
         )
 
     def cleanup(self, batch, scope, parents):
@@ -730,6 +733,7 @@ date
             service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
             parents=self.deps_parents(),
             network='private',
+            region=REGION,
         )
 
     def cleanup(self, batch, scope, parents):
@@ -758,6 +762,7 @@ true
             parents=parents,
             always_run=True,
             network='private',
+            region=REGION,
         )
 
 
@@ -884,6 +889,7 @@ date
             service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
             parents=self.deps_parents(),
             network='private',
+            region=REGION,
         )
 
     def cleanup(self, batch, scope, parents):  # pylint: disable=unused-argument
@@ -909,6 +915,7 @@ date
                 parents=parents,
                 always_run=True,
                 network='private',
+                region=REGION,
             )
 
 
@@ -1042,6 +1049,7 @@ EOF
                 attributes={'name': self.name + "_create_passwords"},
                 output_files=[(x[1], x[0]) for x in password_files_input],
                 parents=self.deps_parents(),
+                region=REGION,
             )
 
         n_cores = 4 if scope == 'deploy' and not is_test_deployment else 1
@@ -1062,6 +1070,7 @@ EOF
             parents=[self.create_passwords_job] if self.create_passwords_job else self.deps_parents(),
             network='private',
             resources={'preemptible': False, 'cpu': str(n_cores)},
+            region=REGION,
         )
 
     def cleanup(self, batch, scope, parents):
@@ -1102,4 +1111,5 @@ done
             parents=parents,
             always_run=True,
             network='private',
+            region=REGION,
         )

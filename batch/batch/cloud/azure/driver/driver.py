@@ -33,7 +33,7 @@ class AzureDriver(CloudDriver):
         subscription_id = azure_config.subscription_id
         resource_group = azure_config.resource_group
         region = azure_config.region
-        regions = [region]
+        regions = azure_config.regions
 
         with open(os.environ['HAIL_SSH_PUBLIC_KEY'], encoding='utf-8') as f:
             ssh_public_key = f.read()

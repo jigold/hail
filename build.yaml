@@ -2064,6 +2064,9 @@ steps:
       - name: add-real-time-billing
         script: /io/sql/add-real-time-billing.sql
         online: true
+      - name: add-job-regions
+        script: /io/sql/add-job-regions.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

@@ -681,7 +681,8 @@ class ServiceBackend(Backend[bc.Batch]):
                                     env=env,
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
-                                    user_code=user_code)
+                                    user_code=user_code,
+                                    region=job._region)
 
             n_jobs_submitted += 1
 

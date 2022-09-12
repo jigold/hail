@@ -23,14 +23,22 @@ from hailtop.utils.validate import (
     str_type,
     switch,
 )
+from gear.cloud_config import get_azure_config, get_gcp_config
 
 from ..globals import memory_types
+from ..batch_configuration import CLOUD
 
 k8s_str = regex(r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*', maxlen=253)
 
 # FIXME validate image
 # https://github.com/docker/distribution/blob/master/reference/regexp.go#L68
 image_str = str_type
+
+if CLOUD == 'gcp':
+    valid_regions = get_gcp_config().regions
+else:
+    assert CLOUD == 'azure'
+    valid_region = get_azure_config().regions
 
 
 # DEPRECATED:
@@ -80,6 +88,7 @@ job_validator = keyed(
             },
         ),
         'requester_pays_project': str_type,
+        'region': oneof(*valid_regions),
         'resources': keyed(
             {
                 'memory': anyof(regex(MEMORY_REGEXPAT, MEMORY_REGEX), oneof(*memory_types)),

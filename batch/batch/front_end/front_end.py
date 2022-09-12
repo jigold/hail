@@ -968,6 +968,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 cores_mcpu,
                 len(parent_ids),
                 inst_coll_name,
+                spec['region'],
             )
         )
 
@@ -989,8 +990,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
             try:
                 await tx.execute_many(
                     '''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, region)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                     jobs_args,
                 )

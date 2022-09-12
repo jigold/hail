@@ -79,6 +79,7 @@ class Job:
         self._storage: Optional[str] = None
         self._image: Optional[str] = None
         self._always_run: bool = False
+        self._region: Optional[str] = None
         self._preemptible: Optional[bool] = None
         self._machine_type: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
@@ -341,6 +342,44 @@ class Job:
             raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
 
         self._always_run = always_run
+        return self
+
+    def region(self, region: Optional[str] = None) -> 'Job':
+        """
+        Set the cloud region the job runs in.
+
+        Notes
+        -----
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        Warning
+        -------
+        Jobs set with a region equal to None can be run in any region.
+
+        Examples
+        --------
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.always_run()
+        ...   .command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        region:
+            The specific region in which to run the job. Possible values for region depend on the specific Batch service.
+            For the Hail Batch Service on GCP, possible regions are "us-central1", "us-east1", "us-east4", "us-west1",
+            "us-west2", "us-west3", and "us-west4". For the Hail Batch Service on Azure, possible regions are `eastus`.
+
+        Returns
+        -------
+        Same job object set with a given region.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
+
+        self._region = region
         return self
 
     def timeout(self, timeout: Optional[Union[float, int]]) -> 'Job':

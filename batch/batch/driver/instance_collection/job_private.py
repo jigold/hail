@@ -280,7 +280,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             machine_type=machine_type,
             job_private=True,
             location=None,
-            region=None,
+            region=machine_spec['region'],
             preemptible=preemptible,
             max_idle_time_msecs=None,
             local_ssd_data_disk=False,
@@ -322,7 +322,7 @@ WHERE user = %s AND `state` = 'running';
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
-SELECT jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
+SELECT jobs.job_id, jobs.spec, jobs.cores_mcpu, jobs.region, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
@@ -342,7 +342,7 @@ LIMIT %s;
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         '''
-SELECT jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
+SELECT jobs.job_id, jobs.spec, jobs.cores_mcpu, jobs.region, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
@@ -402,6 +402,7 @@ LIMIT %s;
                         batch_format_version = BatchFormatVersion(record['format_version'])
                         spec = json.loads(record['spec'])
                         machine_spec = batch_format_version.get_spec_machine_spec(spec)
+                        machine_spec['region'] = record['region']
                         instance, total_resources_on_instance = await self.create_instance(machine_spec)
                         log.info(f'created {instance} for {(batch_id, job_id)}')
                         await mark_job_creating(

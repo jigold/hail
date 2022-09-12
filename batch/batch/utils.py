@@ -3,12 +3,13 @@ import logging
 import secrets
 from collections import deque
 from functools import wraps
+from sortedcontainers import SortedSet
 from typing import Deque, Set, Tuple
 
 from aiohttp import web
 
 from gear import maybe_parse_bearer_header
-from hailtop.utils import secret_alnum_string
+from hailtop.utils import secret_alnum_string, time_msecs
 
 log = logging.getLogger('utils')
 
@@ -50,6 +51,26 @@ class Box:
 
     def __str__(self):
         return f'{self.value}'
+
+
+class EventRateCounter:
+    def __init__(self, time_span_seconds):
+        self._time_span_seconds = time_span_seconds
+        self._events = SortedSet([], key=lambda x: x)
+
+    def _remove_old_events(self):
+        one_minute_ago = time_msecs() - (self._time_span_seconds * 1000)
+        first_valid_timestamp_index = self._events.bisect_key_left(one_minute_ago)
+        del self._events[:first_valid_timestamp_index]
+
+    def record_event(self):
+        self._remove_old_events()
+        now = time_msecs()
+        self._events.add(now)
+
+    def event_rate_per_second(self):
+        self._remove_old_events()
+        return len(self._events) / self._time_span_seconds
 
 
 class WindowFractionCounter:

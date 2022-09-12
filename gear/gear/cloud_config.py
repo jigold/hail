@@ -3,7 +3,11 @@ import os
 from typing import Dict, Set
 
 
-class AzureConfig:
+class CloudConfig:
+    regions: List[str]
+
+
+class AzureConfig(CloudConfig):
     @staticmethod
     def from_global_config(global_config):
         return AzureConfig(
@@ -16,6 +20,7 @@ class AzureConfig:
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.region = region
+        self.regions = [region]
 
     def __str__(self):
         data = {
@@ -26,7 +31,7 @@ class AzureConfig:
         return str(data)
 
 
-class GCPConfig:
+class GCPConfig(CloudConfig):
     @staticmethod
     def from_global_config(global_config):
         regions: Set[str] = set(json.loads(global_config['batch_gcp_regions']))

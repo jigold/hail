@@ -1,12 +1,18 @@
 import json
 import os
 
-from gear.cloud_config import get_global_config
+from gear.cloud_config import get_azure_config, get_gcp_config, get_global_config
 
 global_config = get_global_config()
 
 CLOUD = global_config['cloud']
 assert CLOUD in ('gcp', 'azure'), CLOUD
+
+if CLOUD == 'gcp':
+    REGION = get_gcp_config().region
+else:
+    assert CLOUD == 'azure', CLOUD
+    REGION = get_azure_config().region
 
 DOCKER_PREFIX = global_config['docker_prefix']
 DOCKER_ROOT_IMAGE = global_config['docker_root_image']

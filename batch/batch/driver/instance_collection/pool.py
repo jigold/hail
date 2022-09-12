@@ -19,9 +19,9 @@ from hailtop.utils import (
     time_msecs,
 )
 
-from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
+from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, ESTIMATED_JOB_SCHEDULING_RATE_PER_SECOND
 from ...inst_coll_config import PoolConfig
-from ...utils import Box, ExceededSharesCounter
+from ...utils import Box, EventRateCounter, ExceededSharesCounter
 from ..instance import Instance
 from ..job import schedule_job
 from ..resource_manager import CloudResourceManager
@@ -111,7 +111,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.preemptible = config.preemptible
 
         # FIXME: CI needs to submit jobs to a specific region
-        # instead of batch making this decicion on behalf of CI
+        # instead of batch making this decision on behalf of CI
         self._ci_region = self.inst_coll_manager._default_region
 
     @property
@@ -163,12 +163,14 @@ WHERE removed = 0 AND inst_coll = %s;
         if instance.state == 'active' and instance.failed_request_count <= 1:
             self.healthy_instances_by_free_cores.add(instance)
 
-    def get_instance(self, user, cores_mcpu):
+    def get_instance(self, user, cores_mcpu, region):
         i = self.healthy_instances_by_free_cores.bisect_key_left(cores_mcpu)
         while i < len(self.healthy_instances_by_free_cores):
             instance = self.healthy_instances_by_free_cores[i]
             assert cores_mcpu <= instance.free_cores_mcpu
-            if user != 'ci' or (user == 'ci' and instance.region == self._ci_region):
+            if (user != 'ci' and (region is None or instance.region == region)) or (
+                user == 'ci' and instance.region == self._ci_region
+            ):
                 return instance
             i += 1
         return None
@@ -231,10 +233,73 @@ WHERE removed = 0 AND inst_coll = %s;
                 ]
             )
 
+    async def estimate_ready_cores_per_region(self):
+        jobs_query = []
+        jobs_query_args = []
+
+        fair_share = await self.scheduler.compute_fair_share()
+        total = sum(resources['allocated_cores_mcpu'] for resources in fair_share.values())
+
+        user_share = {
+            user: max(int(10000 * resources['allocated_cores_mcpu'] / total + 0.5), 500)
+            for user, resources in fair_share.items()
+        }
+
+        for user, share in user_share.items():
+            user_job_query = f'''
+SELECT user, batch_id, job_id, cores_mcpu, region, always_run
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+LEFT JOIN batches ON jobs.batch_id = batches.id
+LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run = 1 OR (always_run = 0 AND batches_cancelled.id IS NULL)) AND inst_coll = %s
+ORDER BY -region DESC, always_run DESC, batch_id, job_id
+LIMIT {share}
+'''
+            jobs_query.append(user_job_query)
+            jobs_query_args += [user, self.name]
+
+        estimated_five_minute_row_number = int(self.scheduler.scheduling_rate_per_second() * 300) + 1
+        estimated_scheduling_window_job_row_number_span = int(
+            ESTIMATED_JOB_SCHEDULING_RATE_PER_SECOND * 300 / 2
+        )  # 5 minute window total
+
+        job_scheduling_probability = f'''
+GREATEST(0, (ABS(-(ROW_NUMBER() - {estimated_five_minute_row_number})) / {estimated_scheduling_window_job_row_number_span}) + 1)
+'''
+
+        result = await self.db.select_and_fetchall(
+            f'''
+SELECT region, SUM(ready_cores_mcpu) AS ready_cores_mcpu
+FROM (
+  SELECT region,
+    cores_mcpu * {job_scheduling_probability} OVER() AS ready_cores_mcpu,
+    ROW_NUMBER() OVER() AS rn1,
+    ROW_NUMBER() OVER(PARTITION BY region) AS rn2,
+  FROM (
+    {" UNION ".join(jobs_query)}
+  ) AS ready_jobs
+)
+GROUP BY region, rn1 - rn2
+ORDER BY rn1;
+''',
+            jobs_query_args,
+        )
+
+        return [record async for record in result]
+
     async def create_instances(self):
         if self.app['frozen']:
             log.info(f'not creating instances for {self}; batch is frozen')
             return
+
+        ready_cores_per_region = await self.estimate_ready_cores_per_region()
+
+        free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores])
+        free_cores = free_cores_mcpu / 1000
+
+        for region, ready_cores_mcpu in ready_cores_per_region:
+            if ready_cores_mcpu > 0 and free_cores < 500:
+                await self.create_instances_from_ready_cores(ready_cores_mcpu, region=region)
 
         ready_cores_mcpu_per_user = self.db.select_and_fetchall(
             '''
@@ -250,21 +315,8 @@ GROUP BY user;
         if ready_cores_mcpu_per_user is None:
             ready_cores_mcpu_per_user = {}
         else:
-            ready_cores_mcpu_per_user = {r['user']: r['ready_cores_mcpu'] async for r in ready_cores_mcpu_per_user}
-
-        ready_cores_mcpu = sum(ready_cores_mcpu_per_user.values())
-
-        free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores])
-        free_cores = free_cores_mcpu / 1000
-
-        log.info(
-            f'{self} n_instances {self.n_instances} {self.n_instances_by_state}'
-            f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
-            f' ready_cores {ready_cores_mcpu / 1000}'
-        )
-
-        if ready_cores_mcpu > 0 and free_cores < 500:
-            await self.create_instances_from_ready_cores(ready_cores_mcpu)
+            ready_cores_mcpu_per_user = {r['user']: r['ready_cores_mcpu'] async for r in
+                                         ready_cores_mcpu_per_user}
 
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
         if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[self._ci_region] == 0:
@@ -299,9 +351,13 @@ class PoolScheduler:
         self.pool = pool
         self.async_worker_pool = async_worker_pool
         self.exceeded_shares_counter = ExceededSharesCounter()
+        self.event_rate_counter = EventRateCounter(60)
         task_manager.ensure_future(
             retry_long_running('schedule_loop', run_if_changed, self.scheduler_state_changed, self.schedule_loop_body)
         )
+
+    def scheduling_rate_per_second(self):
+        return self.event_rate_counter.event_rate_per_second()
 
     async def compute_fair_share(self):
         free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.pool.healthy_instances_by_free_cores])
@@ -416,6 +472,7 @@ WHERE user = %s AND `state` = 'running';
 SELECT job_id, spec, cores_mcpu
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
+ORDER BY -region DESC
 LIMIT %s;
 ''',
                     (batch['id'], self.pool.name, remaining.value),
@@ -432,6 +489,7 @@ LIMIT %s;
 SELECT job_id, spec, cores_mcpu
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
+ORDER BY -region DESC
 LIMIT %s;
 ''',
                         (batch['id'], self.pool.name, remaining.value),
@@ -466,7 +524,7 @@ LIMIT %s;
                         break
                     self.exceeded_shares_counter.push(False)
 
-                instance = self.pool.get_instance(user, record['cores_mcpu'])
+                instance = self.pool.get_instance(record['user'], record['cores_mcpu'], record['region'])
                 if instance:
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
@@ -475,6 +533,7 @@ LIMIT %s;
                     async def schedule_with_error_handling(app, record, instance):
                         try:
                             await schedule_job(app, record, instance)
+                            self.event_rate_counter.record_event()
                         except Exception:
                             if instance.state == 'active':
                                 instance.adjust_free_cores_in_memory(record['cores_mcpu'])

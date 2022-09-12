@@ -86,7 +86,10 @@ class Batch:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
-
+    default_region:
+        The default cloud region in which to run jobs. Only
+        applicable for the :class:`.ServiceBackend` and possible values depend on the
+        specific Batch Service being used.
     """
 
     _counter = 0
@@ -112,7 +115,8 @@ class Batch:
                  default_shell: Optional[str] = None,
                  default_python_image: Optional[str] = None,
                  project: Optional[str] = None,
-                 cancel_after_n_failures: Optional[int] = None):
+                 cancel_after_n_failures: Optional[int] = None,
+                 default_region: Optional[str] = None):
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -137,6 +141,7 @@ class Batch:
         self._default_cpu = default_cpu
         self._default_storage = default_storage
         self._default_timeout = default_timeout
+        self._default_region = default_region
         self._default_shell = default_shell
         self._default_python_image = default_python_image
 

@@ -1072,3 +1072,11 @@ def test_job_private_instance_cancel(client: BatchClient):
     b.cancel()
     status = j.wait()
     assert status['state'] == 'Cancelled', str((status, b.debug_info()))
+
+
+def test_job_in_specific_region(client: BatchClient):
+    builder = client.create_batch()
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'], region='us-east1')
+    b = builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))

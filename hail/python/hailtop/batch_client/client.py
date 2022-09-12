@@ -214,7 +214,8 @@ class BatchBuilder:
                    input_files=None, output_files=None, always_run=False,
                    timeout=None, cloudfuse=None, requester_pays_project=None,
                    mount_tokens=False, network: Optional[str] = None,
-                   unconfined: bool = False, user_code: Optional[str] = None) -> Job:
+                   unconfined: bool = False, user_code: Optional[str] = None,
+                   region: Optional[str] = None) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]
 

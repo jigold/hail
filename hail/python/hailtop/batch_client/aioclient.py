@@ -453,7 +453,8 @@ class BatchBuilder:
                     mount_tokens: bool = False,
                     network: Optional[str] = None,
                     unconfined: bool = False,
-                    user_code: Optional[str] = None):
+                    user_code: Optional[str] = None,
+                    region: Optional[str] = None):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
 
@@ -527,6 +528,8 @@ class BatchBuilder:
             job_spec['unconfined'] = unconfined
         if user_code:
             job_spec['user_code'] = user_code
+        if region:
+            job_spec['region'] = region
 
         self._job_specs.append(job_spec)
 
