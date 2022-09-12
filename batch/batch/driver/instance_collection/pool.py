@@ -234,14 +234,18 @@ WHERE removed = 0 AND inst_coll = %s;
             )
 
     async def estimate_ready_cores_per_region(self):
+        n_free_cores = int(10 * 20 * self.worker_cores)  # maximum number of new cores in 5 minutes
         jobs_query = []
         jobs_query_args = []
 
-        fair_share = await self.scheduler.compute_fair_share()
-        total = sum(resources['allocated_cores_mcpu'] for resources in fair_share.values())
+        def allocated_n_ready_jobs(resources):
+            return resources['allocated_cores_mcpu'] / (resources['ready_cores_mcpu'] / resources['n_ready_jobs'])
+
+        fair_share = await self.scheduler._compute_fair_share(n_free_cores)
+        total_n_ready_jobs = sum(allocated_n_ready_jobs(resources) for resources in fair_share.values())
 
         user_share = {
-            user: max(int(10000 * resources['allocated_cores_mcpu'] / total + 0.5), 500)
+            user: max(int(18000 * allocated_n_ready_jobs(resources) / total_n_ready_jobs + 0.5), 500)  # 18000 is 60 jobs/sec * 300 sec
             for user, resources in fair_share.items()
         }
 
@@ -361,7 +365,9 @@ class PoolScheduler:
 
     async def compute_fair_share(self):
         free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.pool.healthy_instances_by_free_cores])
+        return await self._compute_fair_share(free_cores_mcpu)
 
+    async def _compute_fair_share(self, free_cores_mcpu):
         user_running_cores_mcpu = {}
         user_total_cores_mcpu = {}
         result = {}
