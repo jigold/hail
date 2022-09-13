@@ -282,7 +282,7 @@ ORDER BY rn1;
             jobs_query_args,
         )
 
-        return [record async for record in result]
+        return [(record['region'], record['ready_cores_mcpu']) async for record in result]
 
     async def create_instances(self):
         if self.app['frozen']:
