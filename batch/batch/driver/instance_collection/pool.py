@@ -246,7 +246,7 @@ WHERE removed = 0 AND inst_coll = %s;
 
         # estimate of number of jobs scheduled per scheduling loop approximately every second
         user_share = {
-            user: max(int(300 * allocated_n_ready_jobs(resources) / total_n_ready_jobs + 0.5), 500)  # 18000 is 60 jobs/sec * 300 sec
+            user: max(int(300 * allocated_n_ready_jobs(resources) / total_n_ready_jobs + 0.5), 20)
             for user, resources in fair_share.items()
         }
 
