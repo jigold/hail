@@ -234,7 +234,7 @@ WHERE removed = 0 AND inst_coll = %s;
             )
 
     async def estimate_ready_cores_per_region(self):
-        n_free_cores = int(10 * 20 * self.worker_cores)  # maximum number of new cores in 5 minutes
+        n_free_cores = int(10 * 20 * self.worker_cores)  # maximum number of new cores in 5 minutes estimated from 10 instances being the max instances created every 15 seconds
         jobs_query = []
         jobs_query_args = []
 
@@ -245,31 +245,34 @@ WHERE removed = 0 AND inst_coll = %s;
         total_n_ready_jobs = sum(allocated_n_ready_jobs(resources) for resources in fair_share.values())
 
         user_share = {
-            user: max(int(18000 * allocated_n_ready_jobs(resources) / total_n_ready_jobs + 0.5), 500)  # 18000 is 60 jobs/sec * 300 sec
+            user: max(int(300 * allocated_n_ready_jobs(resources) / total_n_ready_jobs + 0.5), 500)  # 18000 is 60 jobs/sec * 300 sec
             for user, resources in fair_share.items()
         }
 
         for user, share in user_share.items():
             user_job_query = f'''
-SELECT user, batch_id, job_id, cores_mcpu, region, always_run
+SELECT user, batch_id, job_id, cores_mcpu, region, always_run, ROW_NUMBER() DIV {share} OVER() AS user_rn
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
 WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run = 1 OR (always_run = 0 AND batches_cancelled.id IS NULL)) AND inst_coll = %s
 ORDER BY -region DESC, always_run DESC, batch_id, job_id
-LIMIT {share}
+LIMIT {share * 300}
 '''
             jobs_query.append(user_job_query)
             jobs_query_args += [user, self.name]
 
-        estimated_five_minute_row_number = int(self.scheduler.scheduling_rate_per_second() * 300) + 1
-        estimated_scheduling_window_job_row_number_span = int(
-            ESTIMATED_JOB_SCHEDULING_RATE_PER_SECOND * 300 / 2
-        )  # 5 minute window total
+        ### MORE COMPLICATED ALGORITHM
+        # estimated_five_minute_row_number = int(self.scheduler.scheduling_rate_per_second() * 300) + 1
+        # estimated_scheduling_window_job_row_number_span = int(
+        #     ESTIMATED_JOB_SCHEDULING_RATE_PER_SECOND * 300 / 2
+        # )  # 5 minute window total
 
-        job_scheduling_probability = f'''
-GREATEST(0, (ABS(-(ROW_NUMBER() - {estimated_five_minute_row_number})) / {estimated_scheduling_window_job_row_number_span}) + 1)
-'''
+#         job_scheduling_probability = f'''
+# GREATEST(0, (ABS(-(ROW_NUMBER() - {estimated_five_minute_row_number})) / {estimated_scheduling_window_job_row_number_span}) + 1)
+# '''
+
+        job_scheduling_probability = '1'
 
         result = await self.db.select_and_fetchall(
             f'''
@@ -281,6 +284,7 @@ FROM (
     ROW_NUMBER() OVER(PARTITION BY region) AS rn2,
   FROM (
     {" UNION ".join(jobs_query)}
+    ORDER BY user_rn
   ) AS ready_jobs
 )
 GROUP BY region, rn1 - rn2
