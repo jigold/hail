@@ -244,6 +244,7 @@ WHERE removed = 0 AND inst_coll = %s;
         fair_share = await self.scheduler._compute_fair_share(n_free_cores)
         total_n_ready_jobs = sum(allocated_n_ready_jobs(resources) for resources in fair_share.values())
 
+        # estimate of number of jobs scheduled per scheduling loop approximately every second
         user_share = {
             user: max(int(300 * allocated_n_ready_jobs(resources) / total_n_ready_jobs + 0.5), 500)  # 18000 is 60 jobs/sec * 300 sec
             for user, resources in fair_share.items()
@@ -262,24 +263,12 @@ LIMIT {share * 300}
             jobs_query.append(user_job_query)
             jobs_query_args += [user, self.name]
 
-        ### MORE COMPLICATED ALGORITHM
-        # estimated_five_minute_row_number = int(self.scheduler.scheduling_rate_per_second() * 300) + 1
-        # estimated_scheduling_window_job_row_number_span = int(
-        #     ESTIMATED_JOB_SCHEDULING_RATE_PER_SECOND * 300 / 2
-        # )  # 5 minute window total
-
-#         job_scheduling_probability = f'''
-# GREATEST(0, (ABS(-(ROW_NUMBER() - {estimated_five_minute_row_number})) / {estimated_scheduling_window_job_row_number_span}) + 1)
-# '''
-
-        job_scheduling_probability = '1'
-
         result = await self.db.select_and_fetchall(
             f'''
 SELECT region, SUM(ready_cores_mcpu) AS ready_cores_mcpu
 FROM (
   SELECT region,
-    cores_mcpu * {job_scheduling_probability} OVER() AS ready_cores_mcpu,
+    cores_mcpu AS ready_cores_mcpu,
     ROW_NUMBER() OVER() AS rn1,
     ROW_NUMBER() OVER(PARTITION BY region) AS rn2,
   FROM (
