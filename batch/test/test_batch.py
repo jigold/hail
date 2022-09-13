@@ -1076,6 +1076,7 @@ def test_job_private_instance_cancel(client: BatchClient):
 
 def test_job_in_specific_region(client: BatchClient):
     builder = client.create_batch()
+    # FIXME: region needs to be gcp or azure region
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'], region='us-east1')
     b = builder.submit()
     status = j.wait()

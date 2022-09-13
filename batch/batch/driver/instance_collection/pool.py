@@ -295,6 +295,8 @@ ORDER BY rn1;
         free_cores = free_cores_mcpu / 1000
 
         for region, ready_cores_mcpu in ready_cores_per_region:
+            # free cores check might be an issue since we're not creating all instances at once
+            # maybe push check up more
             if ready_cores_mcpu > 0 and free_cores < 500:
                 await self.create_instances_from_ready_cores(ready_cores_mcpu, region=region)
 
@@ -468,7 +470,7 @@ WHERE user = %s AND `state` = 'running';
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
-SELECT job_id, spec, cores_mcpu
+SELECT job_id, spec, cores_mcpu, region
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
 ORDER BY -region DESC
@@ -485,7 +487,7 @@ LIMIT %s;
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         '''
-SELECT job_id, spec, cores_mcpu
+SELECT job_id, spec, cores_mcpu, region
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
 ORDER BY -region DESC
