@@ -252,7 +252,7 @@ WHERE removed = 0 AND inst_coll = %s;
 
         for user, share in user_share.items():
             user_job_query = f'''
-SELECT user, batch_id, job_id, cores_mcpu, region, always_run, ROW_NUMBER() DIV {share} OVER() AS user_rn
+SELECT user, batch_id, job_id, cores_mcpu, region, always_run, ROW_NUMBER() DIV {share} OVER() AS approx_scheduling_iteration
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
@@ -273,7 +273,7 @@ FROM (
     ROW_NUMBER() OVER(PARTITION BY region) AS rn2,
   FROM (
     {" UNION ".join(jobs_query)}
-    ORDER BY user_rn
+    ORDER BY approx_scheduling_iteration, user, batch_id, job_id, always_run DESC
   ) AS ready_jobs
 )
 GROUP BY region, rn1 - rn2
