@@ -23,7 +23,7 @@ from hailtop.utils import (
 from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import PoolConfig
-from ...utils import ExceededSharesCounter, json_to_value, regions_bits_rep_to_regions
+from ...utils import Box, ExceededSharesCounter, json_to_value
 from ..instance import Instance
 from ..job import mark_job_errored, schedule_job
 from ..resource_manager import CloudResourceManager
@@ -304,26 +304,32 @@ WHERE removed = 0 AND inst_coll = %s;
         for user_idx, (user, share) in enumerate(user_share.items(), start=1):
             user_job_query = f'''
 (
-  SELECT scheduling_iteration, user_idx, n_regions, regions_bits_rep_int, CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+  SELECT scheduling_iteration, user_idx, n_regions, regions_bits_rep_int, regions, CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
   FROM (
-    SELECT {user_idx} AS user_idx, batch_id, job_id, cores_mcpu, always_run, n_regions, regions_bits_rep_int,
+    SELECT {user_idx} AS user_idx, batch_id, job_id, cores_mcpu, regions, always_run, n_regions, regions_bits_rep_int,
       ROW_NUMBER() OVER (ORDER BY batch_id, always_run DESC, -n_regions DESC, regions_bits_rep_int, job_id ASC) DIV {share} AS scheduling_iteration
     FROM (
       (
-        SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep_int
+        SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep_int, JSON_ARRAYAGG(region) AS regions
         FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
         LEFT JOIN batches ON jobs.batch_id = batches.id
+        LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
+        LEFT JOIN regions ON job_regions.region_id = regions.region_id
         WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run AND inst_coll = %s
+        GROUP BY user, jobs.batch_id, jobs.job_id, cores_mcpu
         ORDER BY jobs.batch_id ASC, jobs.job_id ASC
         LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
       )
       UNION
       (
-        SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep_int
+        SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep_int, JSON_ARRAYAGG(region) AS regions
         FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
         LEFT JOIN batches ON jobs.batch_id = batches.id
         LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+        LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
+        LEFT JOIN regions ON job_regions.region_id = regions.region_id
         WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND NOT always_run AND batches_cancelled.id IS NULL AND inst_coll = %s
+        GROUP BY user, jobs.batch_id, jobs.job_id, cores_mcpu
         ORDER BY jobs.batch_id ASC, jobs.job_id ASC
         LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
       )
@@ -331,7 +337,7 @@ WHERE removed = 0 AND inst_coll = %s;
     ORDER BY batch_id, always_run DESC, -n_regions DESC, regions_bits_rep_int, job_id ASC
     LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
   ) AS t2
-  GROUP BY scheduling_iteration, user_idx, regions_bits_rep_int, n_regions
+  GROUP BY scheduling_iteration, user_idx, regions_bits_rep_int, n_regions, regions
   HAVING ready_cores_mcpu > 0
   LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores}
 )
@@ -346,7 +352,7 @@ WHERE removed = 0 AND inst_coll = %s;
 WITH ready_cores_by_scheduling_iteration_regions AS (
     {" UNION ".join(jobs_query)}
 )
-SELECT regions_bits_rep_int, ready_cores_mcpu
+SELECT regions, ready_cores_mcpu
 FROM ready_cores_by_scheduling_iteration_regions
 ORDER BY scheduling_iteration, user_idx, -n_regions DESC, regions_bits_rep_int
 LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores};
@@ -355,21 +361,14 @@ LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores};
             query_name='get_job_queue_head',
         )
 
-        # def extract_regions(regions_str):
-        #     regions = json_to_value(regions_str)
-        #     # Left join with JSON_ARRAYAGG returns [null]; treat this case as no regions selected
-        #     if regions == [None]:
-        #         return self.all_supported_regions
-        #     return regions
-
-        def extract_regions(regions_bits_rep):
-            if regions_bits_rep is None:
+        def extract_regions(regions_str):
+            regions = json_to_value(regions_str)
+            # Left join with JSON_ARRAYAGG returns [null]; treat this case as no regions selected
+            if regions == [None]:
                 return self.all_supported_regions
-            return regions_bits_rep_to_regions(regions_bits_rep, self.app['regions'])
+            return regions
 
-        return [(extract_regions(record['regions_bits_rep_int']), record['ready_cores_mcpu']) async for record in result]
-
-        # return [(extract_regions(record['regions']), record['ready_cores_mcpu']) async for record in result]
+        return [(extract_regions(record['regions']), record['ready_cores_mcpu']) async for record in result]
 
     async def ready_cores_mcpu_per_user(self):
         ready_cores_mcpu_per_user = self.db.select_and_fetchall(
@@ -599,9 +598,12 @@ WHERE user = %s AND `state` = 'running';
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
-SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep_int
+SELECT jobs.job_id, spec, cores_mcpu, JSON_ARRAYAGG(region) AS regions
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
+LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
+LEFT JOIN regions ON job_regions.region_id = regions.region_id
 WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND inst_coll = %s
+GROUP BY jobs.job_id, spec, cores_mcpu
 ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep_int, jobs.job_id
 LIMIT 5000;
 ''',
@@ -616,9 +618,12 @@ LIMIT 5000;
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         '''
-SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep_int
+SELECT jobs.job_id, spec, cores_mcpu, JSON_ARRAYAGG(region) AS regions
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
+LEFT JOIN regions ON job_regions.region_id = regions.region_id
 WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
+GROUP BY jobs.job_id, spec, cores_mcpu
 ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep_int, jobs.job_id
 LIMIT 5000;
 ''',
@@ -646,13 +651,11 @@ LIMIT 5000;
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
 
-                regions = regions_bits_rep_to_regions(record['regions_bits_rep_int'], self.app['regions'])
+                regions = json_to_value(record['regions'])
                 supported_regions = self.pool.all_supported_regions
-                if regions is None:
-                    regions = supported_regions
                 # Left join with JSON_ARRAYAGG returns [null]; treat this case as no regions selected
-                # if regions == [None]:
-                #     regions = supported_regions
+                if regions == [None]:
+                    regions = supported_regions
                 if len(set(regions).intersection(supported_regions)) == 0:
                     await mark_job_errored(
                         self.app,
