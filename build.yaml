@@ -2053,6 +2053,18 @@ steps:
       - name: add-commit-updates
         script: /io/sql/add-commit-updates.sql
         online: true
+      - name: add-billing-project-ids
+        script: /io/sql/add-billing-project-ids.sql
+        online: true
+      - name: populate-batch-billing-project-ids
+        script: /io/sql/populate_batch_billing_project_ids.py
+        online: true
+      - name: populate-agg-tables-with-billing-project-ids
+        script: /io/sql/populate_agg_tables_with_billing_project_ids.py
+        online: true
+      - name: add-billing-project-ids-part-2
+        script: /io/sql/add-billing-project-ids-part-2.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

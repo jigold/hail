@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS `billing_projects` (
   `status` ENUM('open', 'closed', 'deleted') NOT NULL DEFAULT 'open',
   `limit` DOUBLE DEFAULT NULL,
   `msec_mcpu` BIGINT DEFAULT 0,
+  `billing_project_id` INT AUTO_INCREMENT UNIQUE NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `billing_project_status` ON `billing_projects` (`status`);
@@ -413,6 +414,38 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
 ) ENGINE = InnoDB;
 
 DELIMITER $$
+
+DROP TRIGGER IF EXISTS batches_before_insert $$
+CREATE TRIGGER batches_before_insert BEFORE INSERT ON batches
+FOR EACH ROW
+BEGIN
+  DECLARE cur_billing_project_id INT;
+
+  SELECT billing_project_id INTO cur_billing_project_id
+  FROM billing_projects
+  WHERE billing_project = NEW.billing_project;
+
+  IF NEW.billing_project_id IS NULL THEN
+    SET NEW.billing_project_id = cur_billing_project_id;
+  END IF;
+END $$
+
+DROP TRIGGER IF EXISTS batches_before_update $$
+CREATE TRIGGER batches_before_update BEFORE UPDATE ON batches
+FOR EACH ROW
+BEGIN
+  DECLARE cur_billing_project_id INT;
+
+  SELECT billing_project_id INTO cur_billing_project_id
+  FROM billing_projects
+  WHERE billing_project = NEW.billing_project;
+
+  IF NEW.billing_project_id IS NULL THEN
+    SET NEW.billing_project_id = cur_billing_project_id;
+  END IF;
+
+  SET NEW.billing_project_updated = TRUE;
+END $$
 
 DROP TRIGGER IF EXISTS instances_before_update $$
 CREATE TRIGGER instances_before_update BEFORE UPDATE on instances

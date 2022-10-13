@@ -2040,8 +2040,8 @@ SELECT
   COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM (
   SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_billing_project_user_resources_by_date_v2
-  LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_user_resources_by_date_v2.billing_project
+  FROM aggregated_billing_project_id_user_resources_by_date_v3
+  LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_id_user_resources_by_date_v3.billing_project
   WHERE {' AND '.join(where_conditions)}
   GROUP BY billing_project, `user`, resource_id
 ) AS t
