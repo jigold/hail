@@ -1984,6 +1984,9 @@ steps:
       - name: add-batch-state-index
         script: /io/sql/add-batch-state-index.sql
         online: true
+      - name: add-run-conditions
+        script: /io/sql/add-run-conditions.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
