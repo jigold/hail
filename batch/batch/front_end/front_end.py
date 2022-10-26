@@ -1071,8 +1071,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         spec_writer.add(json.dumps(spec))
         db_spec = batch_format_version.db_spec(spec)
 
-        run_condition = spec.get('run_condition', 'all')
-
         jobs_args.append(
             (
                 batch_id,
@@ -1086,7 +1084,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 inst_coll_name,
                 n_regions,
                 regions_bits_rep,
-                run_condition == 'any' and len(parent_ids) > 0,
+                spec['run_condition'],
+                0,
             )
         )
 
@@ -1108,8 +1107,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             try:
                 await tx.execute_many(
                     '''
-INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep, cancelled)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep, run_condition, n_succeeded_parents)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                     jobs_args,
                     query_name='insert_jobs',
