@@ -1,7 +1,10 @@
 import json
+import os
 import re
-import time
+from shlex import quote as shq
 import subprocess as sp
+import sys
+import time
 
 
 CONSEQUENCE_REGEX = re.compile(f'CSQ=[^;^\t]+')
@@ -71,31 +74,6 @@ class Variant:
         return f'{self.contig}:{self.position}:{self.ref}:{",".join(self.alts)}'
 
 
-class Config:
-    @staticmethod
-    def from_file(file):
-        with open(file, 'r') as f:
-            config = json.loads(f.read())
-
-        cmd = config.get('command')
-        env = config.get('env')
-        vep_json_schema = config.get('vep_json_schema')
-
-        if cmd is None:
-            raise ValueError("the field 'command' was not found in the config file")
-        if env is None:
-            raise ValueError("the field 'env' was not found in the config file")
-        if vep_json_schema is None:
-            raise ValueError("the field 'vep_json_schema' was not found in the config file")
-
-        return Config(cmd, env, vep_json_schema)
-
-    def __init__(self, cmd, env, vep_json_schema):
-        self.cmd = cmd
-        self.env = env
-        self.vep_json_schema = vep_json_schema
-
-
 def consume_header(f) -> str:
     header = ''
     line = None
@@ -109,31 +87,8 @@ def consume_header(f) -> str:
     return header
 
 
-def read_config(config_file):
-    return Config.from_file(config_file)
-
-
-def adjust_config_cmd(config, consequence, data_dir):
-    dir_found = False
-    for i, c in enumerate(config.cmd):
-        if c == '__OUTPUT_FORMAT_FLAG__':
-            if consequence:
-                config.cmd[i] = '--vcf'
-            else:
-                config.cmd[i] = '--json'
-        elif data_dir is not None and c.startswith('--dir='):
-            config.cmd[i] = f'--dir={data_dir}'
-            dir_found = True
-    if data_dir is not None and not dir_found:
-        config.cmd.append(f'--dir={data_dir}')
-    config.cmd.append(f'--dir_plugins={data_dir}Plugins')
-
-
-def get_csq_header(config_file, data_dir):
-    config = read_config(config_file)
-    adjust_config_cmd(config, consequence=True, data_dir=data_dir)
-
-    with sp.Popen(config.cmd, env=config.env, stdin=sp.PIPE, stdout=sp.PIPE, encoding='utf-8') as proc:
+def get_csq_header(vep_cmd):
+    with sp.Popen(['bash', '-c', shq(vep_cmd)], env=os.environ, stdin=sp.PIPE, stdout=sp.PIPE, encoding='utf-8') as proc:
         header = context()
         v = Variant(1, 13372, 'G', ['C'])
         data = f'{header}\n{v.to_vcf_line()}'
@@ -150,58 +105,7 @@ def get_csq_header(config_file, data_dir):
         return None
 
 
-def run_vcf_grch38(input_file):
-    import subprocess as sp
-    out = sp.run('ls -l /opt/vep/.vep/', stdout=sp.PIPE, stderr=sp.STDOUT)
-    print(out)
-
-    out = sp.run('ls -l /opt/vep/Plugins/', stdout=sp.PIPE, stderr=sp.STDOUT)
-    print(out)
-
-    out = sp.run(f'''/vep --input_file {input_file} \
-    --format vcf \
-    --vcf \
-    --everything \
-    --allele_number \
-    --no_stats \
-    --cache \
-    --offline \
-    --minimal \
-    --verbose \
-    --assembly GRCh38 \
-    --dir=/opt/vep/.vep \
-    --fasta /opt/vep/.vep/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
-    --plugin LoF,loftee_path:/opt/vep/Plugins/,gerp_bigwig:/opt/vep/.vep/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:/opt/vep/.vep/human_ancestor.fa.gz,conservation_file:/opt/vep/.vep/loftee.sql \
-    --dir_plugins /opt/vep/Plugins/ \
-    -o /tmp/test-loftee-output.vcf
-''', shell=True, stderr=sp.STDOUT, stdout=sp.PIPE, env={'PERL5LIB': '/vep_data/loftee'})
-    print(out.stdout)
-
-
-def run_vcf_grch37(input_file):
-    # Had to add loftee_path:/vep_bin/loftee in order to get the loftee plugin to be found
-    # Had to add dir = /root/.vep for the cache to be found because the home dir can no longer be /vep
-    import os
-    os.system(f'''/vep --input_file {input_file} \
-     --format vcf \
-     --vcf \
-     --everything \
-     --allele_number \
-     --no_stats \
-     --cache \
-     --offline \
-     --minimal \
-     --assembly GRCh37 \
-     --dir=/root/.vep \
-     --plugin LoF,loftee_path:/vep_bin/loftee,human_ancestor_fa:/root/.vep/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:/root/.vep/loftee_data/phylocsf_gerp.sql,gerp_file:/root/.vep/loftee_data/GERP_scores.final.sorted.txt.gz
-     /tmp/test-loftee-output.vcf
-''')
-
-
-def run(input_file, config_file, block_size, data_dir, consequence, tolerate_parse_error, part_id):
-    config = read_config(config_file)
-    adjust_config_cmd(config, consequence, data_dir)
-
+def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, part_id, env):
     results = []
 
     with open(input_file, 'r') as inp:
@@ -214,7 +118,7 @@ def run(input_file, config_file, block_size, data_dir, consequence, tolerate_par
             variants = [Variant.from_vcf_line(l.rstrip()) for l in block]
             non_star_to_orig_variants = {str(v.strip_star_allele()): str(v) for v in variants}
 
-            with sp.Popen(config.cmd, env=config.env, stdin=sp.PIPE, stdout=sp.PIPE,
+            with sp.Popen(['bash', '-c', shq(vep_cmd)], env=env, stdin=sp.PIPE, stdout=sp.PIPE,
                           stderr=sp.PIPE, encoding='utf-8') as proc:
                 data = f'{header}{"".join(block)}'
 
@@ -245,7 +149,7 @@ def run(input_file, config_file, block_size, data_dir, consequence, tolerate_par
                             try:
                                 jv = json.loads(line)
                             except json.decoder.JSONDecodeError as e:
-                                msg = f'VEP failed to produce parsable JSON!\n' \
+                                msg = f'VEP failed to produce parseable JSON!\n' \
                                     f'json: {line}\n' \
                                     f'error: {e.msg}'
                                 if tolerate_parse_error:
@@ -269,7 +173,7 @@ def run(input_file, config_file, block_size, data_dir, consequence, tolerate_par
                         results.append(result)
 
                 if proc.returncode != 0:
-                    raise ValueError(f'VEP command {" ".join(config.cmd)} failed with non-zero exit status {proc.returncode}\n'
+                    raise ValueError(f'VEP command {" ".join(vep_cmd)} failed with non-zero exit status {proc.returncode}\n'
                                      f'VEP error output:\n'
                                      f'{stderr}')
 
@@ -277,3 +181,65 @@ def run(input_file, config_file, block_size, data_dir, consequence, tolerate_par
             print(f'processed {n_processed} variants in {elapsed_time}')
 
     return results
+
+
+if __name__ == '__main__':
+    action = sys.argv[1]
+
+    vep_json_schema = json.loads(os.environ['VEP_JSON_SCHEMA'])
+    consequence = bool(os.environ['VEP_CONSEQUENCE'])
+    tolerate_parse_error = bool(os.environ['VEP_TOLERATE_PARSE_ERROR'])
+    block_size = int(os.environ['VEP_BLOCK_SIZE'])
+    input_file = os.environ['VEP_INPUT_FILE']
+    output_file = os.environ['VEP_OUTPUT_FILE']
+    data_dir = os.environ['VEP_DATA_MOUNT']
+    part_id = os.environ['VEP_PART_ID']
+
+    reference_genome = os.environ['REFERENCE_GENOME']
+    if reference_genome == 'grch37':
+        # Had to add loftee_path:/vep_bin/loftee in order to get the loftee plugin to be found
+        # Had to add dir = /root/.vep for the cache to be found because the home dir can no longer be /vep
+        vep_cmd = f'''
+/vep --input_file {input_file} \
+    --format vcf \
+    {'--vcf' if consequence else '--json'} \
+    --everything \
+    --allele_number \
+    --no_stats \
+    --cache \
+    --offline \
+    --minimal \
+    --assembly GRCh37 \
+    --dir={data_dir} \
+    --dir_plugins={data_dir}/Plugins/ \
+    --plugin LoF,loftee_path:/vep_bin/loftee,human_ancestor_fa:{data_dir}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:{data_dir}/loftee_data/phylocsf_gerp.sql,gerp_file:{data_dir}/loftee_data/GERP_scores.final.sorted.txt.gz
+    {output_file}
+'''
+    else:
+        assert reference_genome == 'grch38'
+        vep_cmd = f'''
+/vep --input_file {input_file} \
+    --format vcf \
+    {'--vcf' if consequence else '--json'} \
+    --everything \
+    --allele_number \
+    --no_stats \
+    --cache \
+    --offline \
+    --minimal \
+    --verbose \
+    --assembly GRCh38 \
+    --dir={data_dir} \
+    --fasta /opt/vep/.vep/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
+    --plugin LoF,loftee_path:/opt/vep/Plugins/,gerp_bigwig:{data_dir}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:{data_dir}/human_ancestor.fa.gz,conservation_file:{data_dir}/loftee.sql \
+    --dir_plugins {data_dir}/Plugins/ \
+    -o {output_file}
+'''
+
+    if action == 'csq_header':
+        csq_header = get_csq_header(vep_cmd)
+        with open(output_file, 'w') as out:
+            out.write(f'{csq_header}\n')
+    else:
+        assert action == 'vep'
+        run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, part_id, os.environ)

@@ -545,7 +545,7 @@ def _service_vep(ht, config, block_size, csq, tolerate_parse_error):
             local_env['VEP_CONSEQUENCE'] = str(int(csq))
             local_env['VEP_TOLERATE_PARSE_ERROR'] = str(int(tolerate_parse_error))
             local_env['VEP_JSON_SCHEMA'] = local_config['vep_json_schema']
-            
+
             bb.create_job(image,
                           ['bash', '-c', shq(csq_command)],
                           attributes={'name': 'csq-header'},
@@ -707,6 +707,8 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     - `VEP_CONSEQUENCE` - integer equal to 0 or 1 on whether `csq` is False or True
     - `VEP_TOLERATE_PARSE_ERROR` - integer equal to 0 or 1 on whether `tolerate_parse_error` is False or True
     - `VEP_JSON_SCHEMA` - type of the vep JSON schema (same as `vep_json_schema` in the config)
+
+    The VEP input VCF shard is available at `/io/input`. Hail expects an output TSV file with VEP data at `/io/output`.
 
      If no config file is specified, this function will check to see if environment variable `VEP_CONFIG_URI` is set with a path to a config file.
 

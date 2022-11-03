@@ -2,6 +2,7 @@ FROM konradjk/vep85_loftee:1.0.3
 
 ENV VEP_VERSION 85
 ENV VEP_DIR /vep_bin
+ENV REFERENCE_GENOME grch37
 
 RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
     mkdir -p /usr/share/keyrings/ && \

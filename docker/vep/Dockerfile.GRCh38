@@ -2,6 +2,7 @@ FROM konradjk/vep95_loftee:0.2
 
 ENV VEP_VERSION 95
 ENV VEP_DIR /vep_bin
+ENV REFERENCE_GENOME grch38
 
 WORKDIR /
 USER root
