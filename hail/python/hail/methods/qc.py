@@ -1,13 +1,16 @@
+import copy
+
 import hail as hl
 from collections import Counter
 import os
 import json
+from shlex import quote as shq
 
 from typing import Tuple, List, Union
 
-from hailtop.utils import secret_alnum_string
-import hailtop.batch as _batch
+from hailtop.utils import async_to_blocking, secret_alnum_string
 from hailtop.config import get_deploy_config
+import hailtop.batch_client as bc
 
 from hail.backend.service_backend import ServiceBackend
 from hail.typecheck import typecheck, oneof, anytype, nullable
@@ -501,83 +504,26 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     return glob, per_sample.cols(), per_variant.rows()
 
 
-def _service_vep(ht, config, block_size, csq, tolerate_parse_error, image, data_bucket,
-                 data_mount, token, checkpoint, requester_pays_project):
-    reference_genome = ht.locus.dtype.reference_genome.name
-    deploy_config = get_deploy_config()
-    service_domain = deploy_config._domain
+def _service_vep(ht, config, block_size, csq, tolerate_parse_error):
+    token = secret_alnum_string(16)
 
-    if config is None:
-        if service_domain == 'hail.is':
-            if reference_genome == 'GRCh37':
-                config = 'gs://hail-us-vep/vep85-loftee-gcloud.json'
-            elif reference_genome == 'GRCh38':
-                config = 'gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json'
-            else:
-                raise ValueError("No config set and the dataset reference genome is not GRCh37 or GRCh38")
-        else:
-            raise ValueError(f"No config set and no known config for service domain {service_domain}")
+    backend = hl.context.current_backend()
+    assert isinstance(backend, hl.backend.service_backend.ServiceBackend)
 
-    if image is None:
-        if service_domain == 'hail.is':
-            # FIXME: make the image names not have test in them
-            if reference_genome == 'GRCh37':
-                image = 'gcr.io/hail-vdc/vep-test/grch37/vep85_loftee:1.0.3'
-            elif reference_genome == 'GRCh38':
-                image = 'gcr.io/hail-vdc/vep-test/grch38/vep95_loftee:0.2'
-            else:
-                raise ValueError("No image set and the dataset reference genome is not GRCh37 or GRCh38")
-        else:
-            raise ValueError(f"No image set and no known image for service domain {service_domain}")
+    tmp_dir = hl.backend.service_backend.tmp_dir()
 
-    if data_mount is None:
-        if service_domain == 'hail.is':
-            if reference_genome == 'GRCh37':
-                data_mount = '/root/.vep/'
-            elif reference_genome == 'GRCh38':
-                data_mount = '/opt/vep/.vep/'
-            else:
-                raise ValueError("No data_mount set and the dataset reference genome is not GRCh37 or GRCh38")
-        else:
-            raise ValueError(f"No data_mount set and no known data_mount for service domain {service_domain}")
+    vep_input_path = f'{tmp_dir}/vep/inputs/{token}.vcf'
+    vep_output_path = f'{tmp_dir}/vep/outputs/{token}'
 
-    if data_bucket is None:
-        if service_domain == 'hail.is':
-            # FIXME: make the bucket names more descriptive, public, and requester pays
-            if reference_genome == 'GRCh37':
-                data_bucket = 'hail-vep-test'
-            elif reference_genome == 'GRCh38':
-                data_bucket = 'hail-vep-test-grch38'
-            else:
-                raise ValueError("No data_bucket set and the dataset reference genome is not GRCh37 or GRCh38")
-        else:
-            raise ValueError(f"No data_bucket set and no known data_bucket for service domain {service_domain}")
-
-    # FIXME: hard coded this as a gs path until the service backend works
-    # tmp_dir = hl.tmp_dir()
-    tmp_dir = f'gs://hail-jigold'
-
-    if token is None:
-        token = secret_alnum_string(16)
-
-    base_path = f'{tmp_dir}/vep/{token}'
-    # base_path = f'gs://hail-jigold/vep/12345'
-    checkpoint_path = f'{tmp_dir}/vep/checkpoints/{token}/vep.ht'
-
-    if checkpoint and hl.hadoop_exists(f'{checkpoint_path}/_SUCCESS'):
-        return hl.read_table(checkpoint_path)
-
-    input_file = f'{base_path}/inputs/input.vcf'
-    hl.export_vcf(ht, input_file, parallel='header_per_shard')
-
-    # FIXME: hard coded these parameters until we can use the service backend
-    batch_backend = _batch.ServiceBackend('hail', 'hail-jigold')
-    # batch_backend = _batch.ServiceBackend(backend._billing_project, backend._bucket)
-    b = _batch.Batch(backend=batch_backend, name=f'vep-{token}', project='hail-vdc',
-                     requester_pays_project=requester_pays_project)
+    hl.export_vcf(ht, vep_input_path, parallel='header_per_shard')
 
     with hl.hadoop_open(config, 'r') as f:
         local_config = json.loads(f.read())
+        image = local_config['image']
+        data_bucket = local_config['data_bucket']
+        data_mount = local_config['data_mount']
+        region = local_config['region']
+        env = local_config['env']
 
     if csq:
         vep_typ = hl.tstr
@@ -587,103 +533,82 @@ def _service_vep(ht, config, block_size, csq, tolerate_parse_error, image, data_
             raise ValueError("'vep_json_schema' not found in config.")
         vep_typ = java_typ_to_dtyp(vep_json_schema)
 
-    config = b.read_input(config)
+    def build_vep_batch(bb: bc.aioclient.BatchBuilder):
+        requester_pays_project = bb._client.flags.get('gcs_requester_pays_project')
 
-    files = hl.hadoop_ls(f'{input_file}/')
-    outputs = []
-    for f in files:
-        path = f['path']
-        part_name = os.path.basename(path)
-        if not part_name.startswith('part-'):
-            continue
-        part_id = int(part_name.split('-')[1])
+        if csq:
+            csq_command = local_config['csq_header_command']
 
-        input = b.read_input(path)
-        output = f'{base_path}/annotated/{part_name}.tsv.gz'
+            local_env = copy.deepcopy(env)
+            local_env['VEP_BLOCK_SIZE'] = str(block_size)
+            local_env['VEP_DATA_MOUNT'] = shq(data_mount)
+            local_env['VEP_CONSEQUENCE'] = str(int(csq))
+            local_env['VEP_TOLERATE_PARSE_ERROR'] = str(int(tolerate_parse_error))
+            local_env['VEP_JSON_SCHEMA'] = local_config['vep_json_schema']
+            
+            bb.create_job(image,
+                          ['bash', '-c', shq(csq_command)],
+                          attributes={'name': 'csq-header'},
+                          resources={'cpu': '1', 'memory': 'standard'},
+                          cloudfuse=[(data_bucket, data_mount, True)],
+                          input_files=[(config, '/config.json')],
+                          output_files=[('/io/output', f'{vep_output_path}/csq-header')],
+                          regions=[region],
+                          requester_pays_project=requester_pays_project,
+                          env=local_config['env'],
+                          )
 
-        j = b.new_job(name=f'{part_name}', attributes={'input': path,
-                                                       'output': output,
-                                                       'part_id': str(part_id)})
-        j.cpu(1)
-        j.memory('3.75Gi')
-        j.gcsfuse(data_bucket, data_mount, read_only=True)
-        j.image(image)
+        for f in hl.hadoop_ls(vep_input_path):
+            path = f['path']
+            part_name = os.path.basename(path)
+            if not part_name.startswith('part-'):
+                continue
+            part_id = int(part_name.split('-')[1])
 
-        # Tried running the command to output a VCF and debug environment
-        j.command(f'''
-cat /vep
-echo $PERL5LIB
-python3 /hail-vep/run_vep.py \
-    --input {input} \
-    --config {config} \
-    {'--consequence' if csq else ''} \
-    --data-dir {data_mount} \
-    --block-size {block_size} \
-    {'--tolerate-parse-error' if tolerate_parse_error else ''} \
-    --part-id {part_id} \
-    --output /tmp/vep_output.tsv
-cp /tmp/test-loftee-output.vcf {j.vcf_out}
-''')
-        b.write_output(j.vcf_out, 'gs://hail-jigold/vep/vcf/test-loftee-variant.vcf')
+            run_vep_command = local_config['command']
 
-        # this is the real command
+            local_env = copy.deepcopy(env)
+            local_env['VEP_BLOCK_SIZE'] = str(block_size)
+            local_env['VEP_PART_ID'] = str(part_id)
+            local_env['VEP_DATA_MOUNT'] = shq(data_mount)
+            local_env['VEP_CONSEQUENCE'] = str(int(csq))
+            local_env['VEP_TOLERATE_PARSE_ERROR'] = str(int(tolerate_parse_error))
+            local_env['VEP_JSON_SCHEMA'] = local_config['vep_json_schema']
 
-#         j.command(f'''
-# cat /vep
-# echo $PERL5LIB
-# python3 /hail-vep/run_vep.py \
-#     --input {input} \
-#     --config {config} \
-#     {'--consequence' if csq else ''} \
-#     --data-dir {data_mount} \
-#     --block-size {block_size} \
-#     {'--tolerate-parse-error' if tolerate_parse_error else ''} \
-#     --part-id {part_id} \
-#     --output /tmp/vep_output.tsv
-# bgzip -f /tmp/vep_output.tsv
-# cp /tmp/vep_output.tsv.gz {j.out}
-# ''')
-        # b.write_output(j.out, output)
+            bb.create_job(image,
+                          ['bash', '-c', run_vep_command],
+                          attributes={'name': f'vep-{part_id}'},
+                          resources={'cpu': '1', 'memory': 'standard'},
+                          input_files=[(path, '/io/input')],
+                          output_files=[('/io/output', f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
+                          cloudfuse=[(data_bucket, data_mount, True)],
+                          regions=[region],
+                          requester_pays_project=requester_pays_project,
+                          env=local_env,
+                          )
 
-        outputs.append(output)
+        async_to_blocking(backend._submit_batch(
+            build_vep_batch, 'vep', attributes={'vep': '1', 'token': token}, cancel_after_n_failures=1
+        ))
 
-    if csq:
-        csq_j = b.new_job(name='csq-header')
-        csq_j.cpu(1)
-        csq_j.memory('3Gi')
-        csq_j.gcsfuse(data_bucket, data_mount, read_only=True)
-        csq_j.image(image)
-        csq_j.command(f'''
-python3 /hail-vep/csq_header.py \
-    --config {config} \
-    --data-dir {data_mount} \
-    --output {csq_j.out}
-    ''')
-        b.write_output(csq_j.out, f'{base_path}/csq-header')
+        annotations = hl.import_table(f'{vep_output_path}/annotations/*',
+                                      key='variant',
+                                      types={'variant': hl.tstr, 'vep': vep_typ,
+                                             'vep_proc_id': hl.tstruct(part_id=hl.tint,
+                                                                       block_id=hl.tint)},
+                                      force_bgz=True)
 
-    result = b.run()
-    if result.status()['state'] != 'success':
-        deploy_config = get_deploy_config()
-        url = deploy_config.url('batch', f'/batches/{result.id}')
-        raise _batch.BatchException(f'At least one VEP partition failed to run successfully. See {url}')
+        reference_genome = ht.locus.dtype.reference_genome.name
+        annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
 
-    annotations = hl.import_table(f'{base_path}/annotated/*',
-                                  key='variant',
-                                  types={'variant': hl.tstr, 'vep': vep_typ, 'vep_proc_id': hl.tstruct(part_id=hl.tint,
-                                                                                                       block_id=hl.tint)},
-                                  force_bgz=True)
-    annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
+        if csq:
+            with hl.hadoop_open(f'{vep_output_path}/csq-header') as f:
+                vep_csq_header = f.read().rstrip()
+        else:
+            vep_csq_header = ''
 
-    if csq:
-        with hl.hadoop_open(f'{base_path}/csq-header') as f:
-            vep_csq_header = f.read().rstrip()
-    else:
-        vep_csq_header = ''
-
-    annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
-    annotations = annotations.checkpoint(checkpoint_path, overwrite=True)
-
-    return annotations
+        annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
+        return annotations
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),
@@ -691,16 +616,9 @@ python3 /hail-vep/csq_header.py \
            block_size=int,
            name=str,
            csq=bool,
-           tolerate_parse_error=bool,
-           image=nullable(str),
-           data_bucket=nullable(str),
-           data_mount=nullable(str),
-           token=nullable(str),
-           checkpoint=bool,
-           requester_pays_project=nullable(str))
-def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='vep', csq=False, *,
-        tolerate_parse_error=False, image=None, data_bucket=None, data_mount=None, token=None,
-        checkpoint=False, requester_pays_project=None):
+           tolerate_parse_error=bool)
+def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='vep', csq=False,
+        tolerate_parse_error=False):
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -734,7 +652,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     there are detailed instructions below.
 
     The format of the configuration file is JSON, and :func:`.vep`
-    expects a JSON object with three fields:
+    expects a JSON object with three fields when using the Spark backend:
 
     - `command` (array of string) -- The VEP command line to run.  The string literal `__OUTPUT_FORMAT_FLAG__` is replaced with `--json` or `--vcf` depending on `csq`.
     - `env` (object) -- A map of environment variables to values to add to the environment when invoking the command.  The value of each object member must be a string.
@@ -770,6 +688,26 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
      - ``GRCh37``: ``gs://hail-us-vep/vep85-loftee-gcloud.json``
      - ``GRCh38``: ``gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json``
 
+    The config file when using the service backend must contain the following fields:
+
+    - `command` (array of string) -- The VEP command line to run.
+    - `csq_header_command` (array of string) -- The command line to run when generating the consequence header.
+    - `env` (object) -- A map of environment variables to values to add to the environment when invoking the command.  The value of each object member must be a string.
+    - `vep_json_schema` (string): The type of the VEP JSON schema (as produced by the VEP when invoked with the `--json` option).  Note: This is the old-style 'parseable' Hail type syntax.  This will change.
+    - `image` (string) -- The docker image to run VEP.
+    - `data_bucket` (string) -- The location where the VEP data is stored.
+    - `data_mount` (string) -- The location in the container where the data should be mounted.
+    - `region` (string) -- The cloud region in which to run VEP jobs.
+
+    The following environment variables are added to the job's environment based on the input to the vep command:
+
+    - `VEP_BLOCK_SIZE` - block size
+    - `VEP_PART_ID` - partition id
+    - `VEP_DATA_MOUNT` - location where the vep data is mounted (same as `data_mount` in the config)
+    - `VEP_CONSEQUENCE` - integer equal to 0 or 1 on whether `csq` is False or True
+    - `VEP_TOLERATE_PARSE_ERROR` - integer equal to 0 or 1 on whether `tolerate_parse_error` is False or True
+    - `VEP_JSON_SCHEMA` - type of the vep JSON schema (same as `vep_json_schema` in the config)
+
      If no config file is specified, this function will check to see if environment variable `VEP_CONFIG_URI` is set with a path to a config file.
 
     **Annotations**
@@ -804,10 +742,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
 
     """
 
-    # backend = Env.backend()
-    is_service_backend = True  # isinstance(backend, ServiceBackend)
-
-    if config is None and not is_service_backend:
+    if config is None:
         maybe_cloud_spark_provider = guess_cloud_spark_provider()
         maybe_config = os.getenv("VEP_CONFIG_URI")
         if maybe_config is not None:
@@ -827,9 +762,9 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
 
     ht = ht.distinct()
 
+    is_service_backend = isinstance(Env.backend(), ServiceBackend)
     if is_service_backend:
-        annotations = _service_vep(ht, config, block_size, csq, tolerate_parse_error, image,
-                                   data_bucket, data_mount, token, checkpoint, requester_pays_project)
+        annotations = _service_vep(ht, config, block_size, csq, tolerate_parse_error)
     else:
         annotations = Table(TableToTableApply(ht._tir,
                                               {'name': 'VEP',
