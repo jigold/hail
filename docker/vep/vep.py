@@ -3,7 +3,6 @@ import json
 import os
 import re
 import shlex
-from shlex import quote as shq
 import subprocess as sp
 import sys
 import time
@@ -196,16 +195,6 @@ if __name__ == '__main__':
 
     reference_genome = os.environ['REFERENCE_GENOME']
     if reference_genome == 'grch37':
-        # Had to add loftee_path:/vep_bin/loftee in order to get the loftee plugin to be found
-        # Had to add dir = /root/.vep for the cache to be found because the home dir can no longer be /vep
-        #     --dir_plugins={data_dir}/Plugins/ \
-        # ls / vep_data // loftee_data / GERP_scores.final.sorted.txt.gz
-        # ls / vep_data // loftee_data / phylocsf_gerp.sql
-        # ls / vep_data // loftee_data / human_ancestor.fa.gz
-        # ls / vep_bin / loftee
-        # ls
-        # {input_file}
-
         vep_cmd = f'''/vep \
 --input_file {input_file} \
 --format vcf \
@@ -223,25 +212,7 @@ if __name__ == '__main__':
 '''
         vep_cmd = shlex.split(vep_cmd)
     else:
-        ## FIXME: vep executable path is wrong
-        assert reference_genome == 'grch38'
-        vep_cmd = f'''
-/vep --input_file {input_file} \
-    --format vcf \
-    {"--vcf" if consequence else "--json"} \
-    --everything \
-    --allele_number \
-    --no_stats \
-    --cache \
-    --offline \
-    --minimal \
-    --verbose \
-    --assembly GRCh38 \
-    --dir={data_dir} \
-    --fasta /opt/vep/.vep/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
-    --plugin LoF,loftee_path:/opt/vep/Plugins/,gerp_bigwig:{data_dir}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:{data_dir}/human_ancestor.fa.gz,conservation_file:{data_dir}/loftee.sql \
-    --dir_plugins {data_dir}/Plugins/
-'''
+        raise NotImplementedError(reference_genome)
 
     if action == 'csq_header':
         csq_header = get_csq_header(vep_cmd)

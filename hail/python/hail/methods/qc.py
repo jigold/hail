@@ -697,25 +697,29 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
 
     The config file when using the service backend must contain the following fields:
 
-    - `command` (array of string) -- The command line to run for a VEP job for a partition.
-    - `csq_header_command` (array of string) -- The command line to run when generating the consequence header.
-    - `env` (object) -- A map of environment variables to values to add to the environment when invoking the command.  The value of each object member must be a string.
-    - `vep_json_schema` (string): The type of the VEP JSON schema (as produced by the VEP when invoked with the `--json` option).  Note: This is the old-style 'parseable' Hail type syntax.  This will change.
-    - `image` (string) -- The docker image to run VEP.
-    - `data_bucket` (string) -- The location where the VEP data is stored.
-    - `data_mount` (string) -- The location in the container where the data should be mounted.
-    - `region` (string) -- The cloud region in which to run VEP jobs.
+     - `command` (array of string) -- The command line to run for a VEP job for a partition.
+     - `csq_header_command` (array of string) -- The command line to run when generating the consequence header.
+     - `env` (object) -- A map of environment variables to values to add to the environment when invoking the command.  The value of each object member must be a string.
+     - `vep_json_schema` (string): The type of the VEP JSON schema (as produced by the VEP when invoked with the `--json` option).  Note: This is the old-style 'parseable' Hail type syntax.  This will change.
+     - `image` (string) -- The docker image to run VEP.
+     - `data_bucket` (string) -- The location where the VEP data is stored.
+     - `data_mount` (string) -- The location in the container where the data should be mounted.
+     - `region` (string) -- The cloud region in which to run VEP jobs.
 
     The following environment variables are added to the job's environment based on the input to the vep command:
 
-    - `VEP_BLOCK_SIZE` - block size
-    - `VEP_PART_ID` - partition id
-    - `VEP_DATA_MOUNT` - location where the vep data is mounted (same as `data_mount` in the config)
-    - `VEP_CONSEQUENCE` - integer equal to 0 or 1 on whether `csq` is False or True
-    - `VEP_TOLERATE_PARSE_ERROR` - integer equal to 0 or 1 on whether `tolerate_parse_error` is False or True
-    - `VEP_JSON_SCHEMA` - type of the vep JSON schema (same as `vep_json_schema` in the config)
+     - `VEP_BLOCK_SIZE` - block size
+     - `VEP_PART_ID` - partition id
+     - `VEP_DATA_MOUNT` - location where the vep data is mounted (same as `data_mount` in the config)
+     - `VEP_CONSEQUENCE` - integer equal to 0 or 1 on whether `csq` is False or True
+     - `VEP_TOLERATE_PARSE_ERROR` - integer equal to 0 or 1 on whether `tolerate_parse_error` is False or True
+     - `VEP_JSON_SCHEMA` - type of the vep JSON schema (same as `vep_json_schema` in the config)
 
-    The VEP input VCF shard is available at `/io/input`. Hail expects an output TSV file with VEP data at `/io/output`.
+    The VEP input VCF shard is available at `/io/input`. Hail expects an output TSV file with VEP data at `/io/output.gz`.
+
+    The following configuration files are available:
+
+     - (``GRCh37``, ``gcp``, ``us-central1``): ``gs://hail-common/qob-vep/qob-vep-config-grch37.json``
 
      If no config file is specified, this function will check to see if environment variable `VEP_CONFIG_URI` is set with a path to a config file.
 
