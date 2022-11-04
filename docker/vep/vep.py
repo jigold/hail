@@ -1,6 +1,8 @@
+import gzip
 import json
 import os
 import re
+import shlex
 from shlex import quote as shq
 import subprocess as sp
 import sys
@@ -88,7 +90,7 @@ def consume_header(f) -> str:
 
 
 def get_csq_header(vep_cmd):
-    with sp.Popen(['bash', '-c', shq(vep_cmd)], env=os.environ, stdin=sp.PIPE, stdout=sp.PIPE, encoding='utf-8') as proc:
+    with sp.Popen(vep_cmd, env=os.environ, stdin=sp.PIPE, stdout=sp.PIPE, encoding='utf-8') as proc:
         header = context()
         v = Variant(1, 13372, 'G', ['C'])
         data = f'{header}\n{v.to_vcf_line()}'
@@ -184,8 +186,8 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
 if __name__ == '__main__':
     action = sys.argv[1]
 
-    consequence = bool(os.environ['VEP_CONSEQUENCE'])
-    tolerate_parse_error = bool(os.environ['VEP_TOLERATE_PARSE_ERROR'])
+    consequence = bool(int(os.environ['VEP_CONSEQUENCE']))
+    tolerate_parse_error = bool(int(os.environ['VEP_TOLERATE_PARSE_ERROR']))
     block_size = int(os.environ['VEP_BLOCK_SIZE'])
     input_file = os.environ['VEP_INPUT_FILE']
     output_file = os.environ['VEP_OUTPUT_FILE']
@@ -196,23 +198,32 @@ if __name__ == '__main__':
     if reference_genome == 'grch37':
         # Had to add loftee_path:/vep_bin/loftee in order to get the loftee plugin to be found
         # Had to add dir = /root/.vep for the cache to be found because the home dir can no longer be /vep
-        vep_cmd = f'''
-/vep --input_file {input_file} \
-    --format vcf \
-    {"--vcf" if consequence else "--json"} \
-    --everything \
-    --allele_number \
-    --no_stats \
-    --cache \
-    --offline \
-    --minimal \
-    --assembly GRCh37 \
-    --dir={data_dir} \
-    --dir_plugins={data_dir}/Plugins/ \
-    --plugin LoF,loftee_path:/vep_bin/loftee,human_ancestor_fa:{data_dir}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:{data_dir}/loftee_data/phylocsf_gerp.sql,gerp_file:{data_dir}/loftee_data/GERP_scores.final.sorted.txt.gz
-    {output_file}
+        #     --dir_plugins={data_dir}/Plugins/ \
+        # ls / vep_data // loftee_data / GERP_scores.final.sorted.txt.gz
+        # ls / vep_data // loftee_data / phylocsf_gerp.sql
+        # ls / vep_data // loftee_data / human_ancestor.fa.gz
+        # ls / vep_bin / loftee
+        # ls
+        # {input_file}
+
+        vep_cmd = f'''/vep \
+--input_file {input_file} \
+--format vcf \
+{"--vcf" if consequence else "--json"} \
+--everything \
+--allele_number \
+--no_stats \
+--cache \
+--offline \
+--minimal \
+--assembly GRCh37 \
+--dir={data_dir} \
+--plugin LoF,loftee_path:/vep_bin/loftee,human_ancestor_fa:{data_dir}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:{data_dir}/loftee_data/phylocsf_gerp.sql,gerp_file:{data_dir}/loftee_data/GERP_scores.final.sorted.txt.gz
+-o STDOUT
 '''
+        vep_cmd = shlex.split(vep_cmd)
     else:
+        ## FIXME: vep executable path is wrong
         assert reference_genome == 'grch38'
         vep_cmd = f'''
 /vep --input_file {input_file} \
@@ -229,8 +240,7 @@ if __name__ == '__main__':
     --dir={data_dir} \
     --fasta /opt/vep/.vep/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
     --plugin LoF,loftee_path:/opt/vep/Plugins/,gerp_bigwig:{data_dir}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:{data_dir}/human_ancestor.fa.gz,conservation_file:{data_dir}/loftee.sql \
-    --dir_plugins {data_dir}/Plugins/ \
-    -o {output_file}
+    --dir_plugins {data_dir}/Plugins/
 '''
 
     if action == 'csq_header':
@@ -239,4 +249,8 @@ if __name__ == '__main__':
             out.write(f'{csq_header}\n')
     else:
         assert action == 'vep'
-        run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, part_id, os.environ)
+        results = run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, part_id, os.environ)
+        with gzip.open(output_file, 'wt') as out:
+            out.write(f'variant\tvep\tvep_proc_id\n')
+            for v, a, proc_id in results:
+                out.write(f'{v}\t{a}\t{proc_id}\n')

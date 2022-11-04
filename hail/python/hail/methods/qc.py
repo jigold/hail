@@ -570,7 +570,7 @@ def _service_vep(ht, config, block_size, csq, tolerate_parse_error):
             run_vep_command = local_config['command']
 
             local_input_file = '/io/input'
-            local_output_file = '/io/output'
+            local_output_file = '/io/output.gz'
 
             local_env = copy.deepcopy(env)
             local_env['VEP_BLOCK_SIZE'] = str(block_size)
@@ -594,15 +594,16 @@ def _service_vep(ht, config, block_size, csq, tolerate_parse_error):
                           )
 
     async_to_blocking(backend._submit_batch(
-        build_vep_batch, 'vep', attributes={'vep': '1', 'token': token}, cancel_after_n_failures=1
+        build_vep_batch, 'vep(...)', attributes={'vep': '1', 'token': token}, cancel_after_n_failures=1
     ))
 
     annotations = hl.import_table(f'{vep_output_path}/annotations/*',
                                   key='variant',
-                                  types={'variant': hl.tstr, 'vep': vep_typ,
+                                  types={'variant': hl.tstr,
+                                         'vep': vep_typ,
                                          'vep_proc_id': hl.tstruct(part_id=hl.tint,
                                                                    block_id=hl.tint)},
-                                  force_bgz=True)
+                                  force=True)
 
     reference_genome = ht.locus.dtype.reference_genome.name
     annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
@@ -614,7 +615,6 @@ def _service_vep(ht, config, block_size, csq, tolerate_parse_error):
         vep_csq_header = ''
 
     annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
-    print(annotations)
     return annotations
 
 
