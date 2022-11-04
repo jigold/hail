@@ -33,11 +33,7 @@ RUN chmod +x /vep
 #RUN echo "perl $VEP_DIR/src/ensembl-vep/vep \"\$@\"" >> /vep
 #RUN chmod +x /vep
 
-COPY vep/hail-vep/ /hail-vep/
+COPY vep.py /hail-vep/
 ENV PYTHONPATH "${PYTHONPATH}:/hail-vep/"
 
 WORKDIR /opt/vep/
-
-# ENV HOME "/opt/vep/"
-
-# USER vep

@@ -37,6 +37,15 @@ service-base-image-ref: base hail_version
 	../docker-build.sh .. docker/Dockerfile.service-base.out $(SERVICE_BASE_IMAGE)
 	echo $(SERVICE_BASE_IMAGE) > $@
 
+.PHONY: vep-grch37
+vep-grch37:
+	../docker-build.sh vep Dockerfile.GRCh37 $(VEP_GRCH37_IMAGE) "konradjk/vep85_loftee:1.0.3"
+
+.PHONY: vep-grch38
+vep-grch38:
+	../docker-build.sh vep Dockerfile.GRCh38 $(VEP_GRCH38_IMAGE) "konradjk/vep95_loftee:0.2"
+
+
 .PHONY: deploy
 deploy: build
 
@@ -53,11 +62,3 @@ generate-pip-lockfile:
 .PHONY: clean
 clean:
 	rm -f base hail-ubuntu-image-ref base service-base
-
-.PHONY: vep-grch37
-vep-grch37:
-	../docker-build.sh vep Dockerfile.GRCh37 $(VEP_GRCH37_IMAGE) "konradjk/vep85_loftee:1.0.3"
-
-.PHONY: vep-grch38
-vep-grch38:
-	../docker-build.sh vep Dockerfile.GRCh38 $(VEP_GRCH38_IMAGE) "konradjk/vep95_loftee:0.2"

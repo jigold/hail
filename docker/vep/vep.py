@@ -7,8 +7,8 @@ import sys
 import time
 
 
-CONSEQUENCE_REGEX = re.compile(f'CSQ=[^;^\t]+')
-CONSEQUENCE_HEADER_REGEX = re.compile('ID=CSQ[^>]+Description="([^"]+)')
+CONSEQUENCE_REGEX = re.compile(r'CSQ=[^;^\t]+')
+CONSEQUENCE_HEADER_REGEX = re.compile(r'ID=CSQ[^>]+Description="([^"]+)')
 
 
 def grouped_iterator(n, it):
@@ -62,7 +62,8 @@ class Variant:
 
     def to_vcf_line(self):
         v = self.strip_star_allele()
-        return f'{v.contig}\t{v.position}\t.\t{v.ref}\t{",".join(v.alts)}\t.\t.\tGT\n'
+        result = [v.contig, v.position, v.ref, ','.join(v.alts), '.', '.', 'GT']
+        return '\t'.join(str(field) for field in result) + '\n'
 
     def to_locus_alleles(self):
         return ((self.contig, self.position), self.ref + self.alts)
@@ -71,7 +72,8 @@ class Variant:
         return Variant(self.contig, self.position, self.ref, [a for a in self.alts if a != '*'])
 
     def __str__(self):
-        return f'{self.contig}:{self.position}:{self.ref}:{",".join(self.alts)}'
+        result = [self.contig, self.position, self.ref, ','.join(self.alts)]
+        return ':'.join(str(field) for field in result)
 
 
 def consume_header(f) -> str:
@@ -114,7 +116,7 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
             n_processed = len(block)
             start_time = time.time()
 
-            proc_id = f'{{"part_id":{part_id},"block_id":{block_id}}}'
+            proc_id = '{{"part_id":{0},block_id:{1}}}'.format(part_id, block_id)
             variants = [Variant.from_vcf_line(l.rstrip()) for l in block]
             non_star_to_orig_variants = {str(v.strip_star_allele()): str(v) for v in variants}
 
@@ -128,7 +130,6 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
 
                 for line in stdout.split('\n'):
                     line = line.rstrip()
-                    print(repr(line))
                     if line != '' and not line.startswith('#'):
                         if consequence:
                             vep_v = Variant.from_vcf_line(line)
@@ -141,17 +142,17 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
                                     first: str = x[0]
                                     result = (orig_v, first[4:].split(','), proc_id)
                                 else:
-                                    print(f'WARNING: No CSQ INFO field for VEP output variant {vep_v}. VEP output is {line}')
+                                    print('WARNING: No CSQ INFO field for VEP output variant {0}. VEP output is {1}'.format(vep_v, line))
                                     result = (orig_v, None, proc_id)
                             else:
-                                raise ValueError(f'VEP output variant {vep_v} not found in original variants. VEP output is {line}')
+                                raise ValueError('VEP output variant {0} not found in original variants. VEP output is {1}'.format(vep_v, line))
                         else:
                             try:
                                 jv = json.loads(line)
                             except json.decoder.JSONDecodeError as e:
-                                msg = f'VEP failed to produce parseable JSON!\n' \
-                                    f'json: {line}\n' \
-                                    f'error: {e.msg}'
+                                msg = 'VEP failed to produce parseable JSON!\n'
+                                      f'json: {line}\n'
+                                      f'error: {e.msg}'
                                 if tolerate_parse_error:
                                     print(msg)
                                     continue
@@ -159,7 +160,7 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
                             else:
                                 variant_string = jv.get('input')
                                 if variant_string is None:
-                                    raise ValueError(f'VEP generated null variant string\n'
+                                    raise ValueError('VEP generated null variant string\n'
                                                      f'json: {line}\n'
                                                      f'parsed: {jv}')
                                 v = Variant.from_vcf_line(variant_string)
@@ -173,8 +174,8 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
                         results.append(result)
 
                 if proc.returncode != 0:
-                    raise ValueError(f'VEP command {" ".join(vep_cmd)} failed with non-zero exit status {proc.returncode}\n'
-                                     f'VEP error output:\n'
+                    raise ValueError(f'VEP command {vep_cmd} failed with non-zero exit status {proc.returncode}\n'
+                                     'VEP error output:\n'
                                      f'{stderr}')
 
             elapsed_time = time.time() - start_time
@@ -186,7 +187,6 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
 if __name__ == '__main__':
     action = sys.argv[1]
 
-    vep_json_schema = json.loads(os.environ['VEP_JSON_SCHEMA'])
     consequence = bool(os.environ['VEP_CONSEQUENCE'])
     tolerate_parse_error = bool(os.environ['VEP_TOLERATE_PARSE_ERROR'])
     block_size = int(os.environ['VEP_BLOCK_SIZE'])
@@ -202,7 +202,7 @@ if __name__ == '__main__':
         vep_cmd = f'''
 /vep --input_file {input_file} \
     --format vcf \
-    {'--vcf' if consequence else '--json'} \
+    {"--vcf" if consequence else "--json"} \
     --everything \
     --allele_number \
     --no_stats \
@@ -220,7 +220,7 @@ if __name__ == '__main__':
         vep_cmd = f'''
 /vep --input_file {input_file} \
     --format vcf \
-    {'--vcf' if consequence else '--json'} \
+    {"--vcf" if consequence else "--json"} \
     --everything \
     --allele_number \
     --no_stats \
@@ -237,9 +237,11 @@ if __name__ == '__main__':
 '''
 
     if action == 'csq_header':
-        csq_header = get_csq_header(vep_cmd)
-        with open(output_file, 'w') as out:
-            out.write(f'{csq_header}\n')
+        print('running csq header function')
+        # csq_header = get_csq_header(vep_cmd)
+        # with open(output_file, 'w') as out:
+        #     out.write(f'{csq_header}\n')
     else:
         assert action == 'vep'
-        run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, part_id, os.environ)
+        # print('running vep function')
+        # run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, part_id, os.environ)

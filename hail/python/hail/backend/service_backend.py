@@ -334,7 +334,7 @@ class ServiceBackend(Backend):
             if 'name' not in batch_attributes:
                 batch_attributes = {**batch_attributes, 'name': self.name_prefix + name}
             bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
-            build_batch_f(bb)
+            build_batch_f(bb, self.flags)
             b = await bb.submit(disable_progress_bar=True)
 
         with timings.step("wait batch"):
@@ -353,7 +353,8 @@ class ServiceBackend(Backend):
 
         with timings.step("parse status"):
             if status['n_succeeded'] != status['n_jobs']:
-                failing_job = [job async for job in b.jobs('failure')][0]
+                failing_job = [job async for job in b.jobs('!success')][0]
+                failing_job = await b.get_job(failing_job['job_id'])
                 job_status = await failing_job.status()
                 if 'status' in job_status:
                     if 'error' in job_status['status']:
@@ -363,8 +364,7 @@ class ServiceBackend(Backend):
                     logs[k] = yaml_literally_shown_str(logs[k].strip())
                 message = {'batch_status': status,
                            'job_status': job_status,
-                           'log': logs,
-                           'url': url}
+                           'log': logs}
                 log.error(yaml.dump(message))
                 raise FatalError(message)
 

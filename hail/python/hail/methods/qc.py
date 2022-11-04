@@ -533,26 +533,28 @@ def _service_vep(ht, config, block_size, csq, tolerate_parse_error):
             raise ValueError("'vep_json_schema' not found in config.")
         vep_typ = java_typ_to_dtyp(vep_json_schema)
 
-    def build_vep_batch(bb: bc.aioclient.BatchBuilder):
-        requester_pays_project = bb._client.flags.get('gcs_requester_pays_project')
+    def build_vep_batch(bb: bc.aioclient.BatchBuilder, flags):
+        requester_pays_project = flags.get('gcs_requester_pays_project')
 
         if csq:
             csq_command = local_config['csq_header_command']
+            local_output_file = '/io/output'
 
             local_env = copy.deepcopy(env)
             local_env['VEP_BLOCK_SIZE'] = str(block_size)
             local_env['VEP_DATA_MOUNT'] = shq(data_mount)
             local_env['VEP_CONSEQUENCE'] = str(int(csq))
             local_env['VEP_TOLERATE_PARSE_ERROR'] = str(int(tolerate_parse_error))
-            local_env['VEP_JSON_SCHEMA'] = local_config['vep_json_schema']
+            local_env['VEP_PART_ID'] = '-1'
+            local_env['VEP_INPUT_FILE'] = 'null'
+            local_env['VEP_OUTPUT_FILE'] = local_output_file
 
             bb.create_job(image,
-                          ['bash', '-c', shq(csq_command)],
+                          csq_command,
                           attributes={'name': 'csq-header'},
                           resources={'cpu': '1', 'memory': 'standard'},
                           cloudfuse=[(data_bucket, data_mount, True)],
-                          input_files=[(config, '/config.json')],
-                          output_files=[('/io/output', f'{vep_output_path}/csq-header')],
+                          output_files=[(local_output_file, f'{vep_output_path}/csq-header')],
                           regions=[region],
                           requester_pays_project=requester_pays_project,
                           env=local_config['env'],
@@ -567,48 +569,53 @@ def _service_vep(ht, config, block_size, csq, tolerate_parse_error):
 
             run_vep_command = local_config['command']
 
+            local_input_file = '/io/input'
+            local_output_file = '/io/output'
+
             local_env = copy.deepcopy(env)
             local_env['VEP_BLOCK_SIZE'] = str(block_size)
             local_env['VEP_PART_ID'] = str(part_id)
             local_env['VEP_DATA_MOUNT'] = shq(data_mount)
             local_env['VEP_CONSEQUENCE'] = str(int(csq))
             local_env['VEP_TOLERATE_PARSE_ERROR'] = str(int(tolerate_parse_error))
-            local_env['VEP_JSON_SCHEMA'] = local_config['vep_json_schema']
+            local_env['VEP_INPUT_FILE'] = local_input_file
+            local_env['VEP_OUTPUT_FILE'] = local_output_file
 
             bb.create_job(image,
-                          ['bash', '-c', run_vep_command],
+                          run_vep_command,
                           attributes={'name': f'vep-{part_id}'},
                           resources={'cpu': '1', 'memory': 'standard'},
-                          input_files=[(path, '/io/input')],
-                          output_files=[('/io/output', f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
+                          input_files=[(path, local_input_file)],
+                          output_files=[(local_output_file, f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
                           cloudfuse=[(data_bucket, data_mount, True)],
                           regions=[region],
                           requester_pays_project=requester_pays_project,
                           env=local_env,
                           )
 
-        async_to_blocking(backend._submit_batch(
-            build_vep_batch, 'vep', attributes={'vep': '1', 'token': token}, cancel_after_n_failures=1
-        ))
+    async_to_blocking(backend._submit_batch(
+        build_vep_batch, 'vep', attributes={'vep': '1', 'token': token}, cancel_after_n_failures=1
+    ))
 
-        annotations = hl.import_table(f'{vep_output_path}/annotations/*',
-                                      key='variant',
-                                      types={'variant': hl.tstr, 'vep': vep_typ,
-                                             'vep_proc_id': hl.tstruct(part_id=hl.tint,
-                                                                       block_id=hl.tint)},
-                                      force_bgz=True)
+    annotations = hl.import_table(f'{vep_output_path}/annotations/*',
+                                  key='variant',
+                                  types={'variant': hl.tstr, 'vep': vep_typ,
+                                         'vep_proc_id': hl.tstruct(part_id=hl.tint,
+                                                                   block_id=hl.tint)},
+                                  force_bgz=True)
 
-        reference_genome = ht.locus.dtype.reference_genome.name
-        annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
+    reference_genome = ht.locus.dtype.reference_genome.name
+    annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
 
-        if csq:
-            with hl.hadoop_open(f'{vep_output_path}/csq-header') as f:
-                vep_csq_header = f.read().rstrip()
-        else:
-            vep_csq_header = ''
+    if csq:
+        with hl.hadoop_open(f'{vep_output_path}/csq-header') as f:
+            vep_csq_header = f.read().rstrip()
+    else:
+        vep_csq_header = ''
 
-        annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
-        return annotations
+    annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
+    print(annotations)
+    return annotations
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),
@@ -690,7 +697,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
 
     The config file when using the service backend must contain the following fields:
 
-    - `command` (array of string) -- The VEP command line to run.
+    - `command` (array of string) -- The command line to run for a VEP job for a partition.
     - `csq_header_command` (array of string) -- The command line to run when generating the consequence header.
     - `env` (object) -- A map of environment variables to values to add to the environment when invoking the command.  The value of each object member must be a string.
     - `vep_json_schema` (string): The type of the VEP JSON schema (as produced by the VEP when invoked with the `--json` option).  Note: This is the old-style 'parseable' Hail type syntax.  This will change.
