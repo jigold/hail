@@ -713,7 +713,6 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
      - `VEP_DATA_MOUNT` - location where the vep data is mounted (same as `data_mount` in the config)
      - `VEP_CONSEQUENCE` - integer equal to 0 or 1 on whether `csq` is False or True
      - `VEP_TOLERATE_PARSE_ERROR` - integer equal to 0 or 1 on whether `tolerate_parse_error` is False or True
-     - `VEP_JSON_SCHEMA` - type of the vep JSON schema (same as `vep_json_schema` in the config)
 
     The VEP input VCF shard is available at `/io/input`. Hail expects an output TSV file with VEP data at `/io/output.gz`.
 
