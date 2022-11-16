@@ -15,7 +15,7 @@ popd
 SHARED_GALLERY_NAME="${RESOURCE_GROUP}_batch"
 BUILD_IMAGE_RESOURCE_GROUP="${RESOURCE_GROUP}-build-batch-worker-image"
 VM_NAME=build-batch-worker-image
-WORKER_VERSION=0.0.3005
+WORKER_VERSION=0.0.3006
 
 USERNAME=$(whoami)
 
@@ -32,8 +32,8 @@ BATCH_WORKER_IDENTITY=$(az identity show \
 
 echo "Creating $BUILD_IMAGE_RESOURCE_GROUP resource group..."
 
-az group delete --name $BUILD_IMAGE_RESOURCE_GROUP --yes || true
-az group create --name $BUILD_IMAGE_RESOURCE_GROUP --location ${LOCATION}
+#az group delete --name $BUILD_IMAGE_RESOURCE_GROUP --yes || true
+#az group create --name $BUILD_IMAGE_RESOURCE_GROUP --location ${LOCATION}
 
 az role assignment create \
     --resource-group $BUILD_IMAGE_RESOURCE_GROUP \
@@ -48,7 +48,7 @@ IP=$(az vm create \
     --image Canonical:0001-com-ubuntu-server-focal:20_04-lts:latest \
     --generate-ssh-keys \
     --public-ip-sku Standard \
-    --assign-identity ${BATCH_WORKER_IDENTITY} \
+    --assign-identity ${BATCH_WORKER_IDENTITY} \    
     | jq -jr '.publicIpAddress')
 
 echo "$VM_NAME VM created successfully!"

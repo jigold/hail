@@ -63,5 +63,5 @@ root hard nofile 65536
 * hard nofile 65536
 EOF
 
-curl -fsSL https://toolbelt.treasuredata.com/sh/install-ubuntu-focal-td-agent4.sh | sh
-/usr/sbin/td-agent-gem install fluent-plugin-azure-loganalytics
+sudo curl -fsSL https://toolbelt.treasuredata.com/sh/install-ubuntu-focal-td-agent4.sh | sh
+sudo /usr/sbin/td-agent-gem install --force fluent-plugin-azure-loganalytics
