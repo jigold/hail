@@ -672,8 +672,8 @@ supported_vep_configs = {
         '/vep_data/',
         {'PERL5LIB': '/vep_data/loftee'},
         VEPConfig.default_vep_json_typ,
-        ["python3.8", "/hail-vep/vep.py", "vep"],
-        ["python3.8", "/hail-vep/vep.py", "csq_header"],
+        ["python3", "/hail-vep/run_vep_grch37.py", "vep"],
+        ["python3", "/hail-vep/run_vep_grch37.py", "csq_header"],
     ),
 }
 
