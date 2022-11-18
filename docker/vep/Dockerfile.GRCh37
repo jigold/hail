@@ -1,36 +1,58 @@
-FROM konradjk/vep85_loftee:1.0.3
+FROM {{ hail_ubuntu_image.image }}
 
 ENV VEP_VERSION 85
-ENV VEP_DIR /vep_bin
+ENV DEBIAN_FRONTEND noninteractive
+ENV TZ Etc/UTC
 ENV REFERENCE_GENOME grch37
+ENV VEP_DIR /vep
 
-RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
-    mkdir -p /usr/share/keyrings/ && \
-    apt-get update -y && \
-    apt-get install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev wget libbz2-dev && \
-    apt-get install -y curl gnupg software-properties-common && \
-    wget https://www.python.org/ftp/python/3.8.0/Python-3.8.0.tgz && \
-    tar -xf Python-3.8.0.tgz && \
-    cd Python-3.8.0 && \
-    ./configure --enable-optimizations && \
-    make -j 8 && \
-    make altinstall
+RUN apt-get update && apt-get -y install \
+    apache2 \
+    build-essential \
+    cpanminus \
+    curl \
+    git \
+    libmysqlclient-dev \
+    libpng-dev \
+    libssl-dev \
+    locales \
+    manpages \
+    mysql-client \
+    openssl \
+    perl \
+    perl-base \
+    python3.8 \
+    samtools \
+    sqlite3 \
+    tabix \
+    unzip \
+    vim \
+    wget
 
-RUN mv /vep $VEP_DIR
+RUN cpanm Devel::CheckLib \
+    DBI \
+    DBD::mysql \
+    DBD::SQLite \
+    Try \
+    File::Copy::Recursive \
+    Archive::Extract \
+    Archive::Zip \
+    CGI \
+    Bio::Root::Version \
+    Bio::DB:HTS \
+    JSON || { for i in /root/.cpanm/work/*/build.log; do echo $i; cat $i; done }
 
-WORKDIR $VEP_DIR/ensembl-tools-release-$VEP_VERSION/scripts/variant_effect_predictor/
-
-RUN sed -i 's/master/main/g' INSTALL.pl
-
-RUN perl INSTALL.pl -a a
-
+RUN mkdir $VEP_DIR
 WORKDIR $VEP_DIR
 
-RUN echo "#!/bin/bash" > /vep
-RUN echo "export PERL5LIB=$VEP_DIR/loftee:\$PERL5LIB" >> /vep
-RUN echo "perl $VEP_DIR/ensembl-tools-release-$VEP_VERSION/scripts/variant_effect_predictor/variant_effect_predictor.pl \"\$@\"" >> /vep
-RUN chmod +x /vep
+RUN wget https://github.com/Ensembl/ensembl-tools/archive/release/${VEP_VERSION}.zip && \
+    unzip ${VEP_VERSION}.zip && \
+    cd ensembl-tools-release-${VEP_VERSION}/scripts/variant_effect_predictor/ && \
+    perl INSTALL.pl -a a --NO_HTSLIB && \
+    echo >vep "#!/bin/bash" && \
+    echo >>vep "export PERL5LIB=\$PERL5LIB:${VEP_DIR}/loftee" && \
+    echo >>vep "exec perl ${VEP_DIR}/ensembl-tools-release-$VEP_VERSION/scripts/variant_effect_predictor/variant_effect_predictor.pl \"\$@\"" && \
+    git clone -b v1.0.2 https://github.com/konradjk/loftee.git
 
-ENV PERL5LIB "$VEP_DIR/loftee:${PERL5LIB}"
-
+ENV PERL5LIB "${PERL5LIB}:${VEP_DIR}/loftee"
 COPY vep.py /hail-vep/

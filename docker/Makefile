@@ -38,7 +38,8 @@ service-base-image-ref: base hail_version
 
 .PHONY: vep-grch37
 vep-grch37:
-	../docker-build.sh vep Dockerfile.GRCh37 $(VEP_GRCH37_IMAGE) "konradjk/vep85_loftee:1.0.3"
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image-ref)'"}}' vep/Dockerfile.GRCh37 vep/Dockerfile.GRCh37.out
+	../docker-build.sh vep Dockerfile.GRCh37.out $(VEP_GRCH37_IMAGE) $(HAIL_UBUNTU_IMAGE)
 
 .PHONY: deploy
 deploy: build
