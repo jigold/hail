@@ -3,7 +3,6 @@ FROM {{ hail_ubuntu_image.image }}
 ENV VEP_VERSION 85
 ENV DEBIAN_FRONTEND noninteractive
 ENV TZ Etc/UTC
-ENV REFERENCE_GENOME grch37
 ENV VEP_DIR /vep
 
 RUN apt-get update && apt-get -y install \
@@ -55,4 +54,6 @@ RUN wget https://github.com/Ensembl/ensembl-tools/archive/release/${VEP_VERSION}
     git clone -b v1.0.2 https://github.com/konradjk/loftee.git
 
 ENV PERL5LIB "${PERL5LIB}:${VEP_DIR}/loftee"
+
 COPY vep.py /hail-vep/
+COPY run_vep_grch37.py /hail-vep/
