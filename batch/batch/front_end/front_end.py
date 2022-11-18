@@ -179,7 +179,7 @@ async def rest_get_version(request):  # pylint: disable=W0613
 
 
 @routes.get('/api/v1alpha/cloud')
-async def rest_get_version(request):  # pylint: disable=W0613
+async def rest_cloud(request):  # pylint: disable=W0613
     return web.Response(text=CLOUD)
 
 
