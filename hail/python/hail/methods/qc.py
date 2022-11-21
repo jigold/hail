@@ -782,22 +782,22 @@ def _service_vep(backend: ServiceBackend,
 
     with timings.step("wait batch"):
         try:
-            status = await b.wait(description=name,
-                                  disable_progress_bar=backend.disable_progress_bar,
-                                  progress=None)
+            status = b.wait(description=name,
+                            disable_progress_bar=backend.disable_progress_bar,
+                            progress=None)
         except Exception:
-            await b.cancel()
+            b.cancel()
             raise
 
     with timings.step("parse status"):
         if status['n_succeeded'] != status['n_jobs']:
-            failing_job = [job async for job in b.jobs('!success')][0]
+            failing_job = [job for job in b.jobs('!success')][0]
             failing_job = b.get_job(failing_job['job_id'])
-            job_status = await failing_job.status()
+            job_status = failing_job.status()
             if 'status' in job_status:
                 if 'error' in job_status['status']:
                     job_status['status']['error'] = yaml_literally_shown_str(job_status['status']['error'].strip())
-            logs = await failing_job.log()
+            logs = failing_job.log()
             for k in logs:
                 logs[k] = yaml_literally_shown_str(logs[k].strip())
             message = {'batch_status': status,
@@ -828,7 +828,7 @@ def _service_vep(backend: ServiceBackend,
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),
-           config=oneof(nullable(str), dictof(str, anytype)),
+           config=oneof(nullable(str), nullable(dictof(str, anytype))),
            block_size=int,
            name=str,
            csq=bool,
@@ -972,7 +972,6 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
 
     backend = hl.current_backend()
     if isinstance(backend, ServiceBackend):
-        assert isinstance(config, dict)
         annotations = _service_vep(backend, ht, config, regions, block_size, csq, tolerate_parse_error)
     else:
         if config is None:
