@@ -709,8 +709,8 @@ def _service_vep(backend: ServiceBackend,
         vep_config = supported_vep_config(backend, reference_genome, regions=regions)
 
     token = secret_alnum_string(16)
-    vep_input_path = hl.TemporaryDirectory(prefix=f'vep/inputs/{token}.vcf')
-    vep_output_path = hl.TemporaryDirectory(prefix=f'vep/outputs/{token}')
+    vep_input_path = hl.TemporaryDirectory(prefix=f'qob/vep/inputs/')
+    vep_output_path = hl.TemporaryDirectory(prefix=f'qob/vep/outputs/')
 
     def get_env(part_id: int, input_file: str, output_file: str):
         return copy.deepcopy(vep_config.env).update({
