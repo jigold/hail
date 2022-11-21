@@ -371,7 +371,7 @@ class ServiceBackend(Backend):
                     status = await b.wait(description=name,
                                           disable_progress_bar=self.disable_progress_bar,
                                           progress=progress)
-                except Exception:
+                except BaseException:
                     await b.cancel()
                     raise
 

@@ -13,7 +13,7 @@ output_file = os.environ['VEP_OUTPUT_FILE']
 data_dir = os.environ['VEP_DATA_MOUNT']
 part_id = os.environ['VEP_PART_ID']
 
-vep_cmd = f'''/vep \
+vep_cmd = f'''/vep/vep \
 --input_file {input_file} \
 --format vcf {"--vcf" if consequence else "--json"} \
 --everything \

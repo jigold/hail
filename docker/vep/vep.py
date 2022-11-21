@@ -190,6 +190,8 @@ def main(action: str,
          output_file: str,
          part_id: str,
          vep_cmd: str):
+    vep_cmd = shlex.split(vep_cmd)
+
     if action == 'csq_header':
         csq_header = get_csq_header(vep_cmd)
         with open(output_file, 'w') as out:

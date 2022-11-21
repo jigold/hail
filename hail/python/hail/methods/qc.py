@@ -713,7 +713,8 @@ def _service_vep(backend: ServiceBackend,
     vep_output_path = hl.TemporaryDirectory(prefix=f'qob/vep/outputs/')
 
     def get_env(part_id: int, input_file: str, output_file: str):
-        return copy.deepcopy(vep_config.env).update({
+        local_env = copy.deepcopy(vep_config.env)
+        local_env.update({
             'VEP_BLOCK_SIZE': str(block_size),
             'VEP_DATA_MOUNT': shq(vep_config.data_mount),
             'VEP_CONSEQUENCE': str(int(csq)),
@@ -722,6 +723,7 @@ def _service_vep(backend: ServiceBackend,
             'VEP_INPUT_FILE': input_file,
             'VEP_OUTPUT_FILE': output_file,
         })
+        return local_env
 
     if csq:
         vep_typ = hl.tstr
@@ -729,7 +731,7 @@ def _service_vep(backend: ServiceBackend,
         vep_typ = vep_config.vep_json_typ
 
     def build_vep_batch(bb: bc.aioclient.BatchBuilder):
-        requester_pays_project = hl._get_flags().get('gcs_requester_pays_project')
+        requester_pays_project = backend.flags.get('gcs_requester_pays_project')
 
         if csq:
             local_output_file = '/io/output'
@@ -738,7 +740,7 @@ def _service_vep(backend: ServiceBackend,
                           attributes={'name': 'csq-header'},
                           resources={'cpu': '1', 'memory': 'standard'},
                           cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
-                          output_files=[(local_output_file, f'{vep_output_path}/csq-header')],
+                          output_files=[(local_output_file, f'{vep_output_path.name}/csq-header')],
                           regions=vep_config.regions,
                           requester_pays_project=requester_pays_project,
                           env=get_env(-1, 'null', local_output_file),
@@ -751,17 +753,15 @@ def _service_vep(backend: ServiceBackend,
                 continue
             part_id = int(part_name.split('-')[1])
 
-            run_vep_command = config['command']
-
             local_input_file = '/io/input'
             local_output_file = '/io/output.gz'
 
             bb.create_job(vep_config.image,
-                          run_vep_command,
+                          vep_config.command,
                           attributes={'name': f'vep-{part_id}'},
                           resources={'cpu': '1', 'memory': 'standard'},
                           input_files=[(path, local_input_file)],
-                          output_files=[(local_output_file, f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
+                          output_files=[(local_output_file, f'{vep_output_path.name}/annotations/{part_name}.tsv.gz')],
                           cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
                           regions=vep_config.regions,
                           requester_pays_project=requester_pays_project,
@@ -782,10 +782,12 @@ def _service_vep(backend: ServiceBackend,
 
     with timings.step("wait batch"):
         try:
+            print('waiting for batch')
             status = b.wait(description=name,
                             disable_progress_bar=backend.disable_progress_bar,
                             progress=None)
-        except Exception:
+        except BaseException:
+            print('cancelling batch...')
             b.cancel()
             raise
 
@@ -818,7 +820,7 @@ def _service_vep(backend: ServiceBackend,
     annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
 
     if csq:
-        with hl.hadoop_open(f'{vep_output_path}/csq-header') as f:
+        with hl.hadoop_open(f'{vep_output_path.name}/csq-header') as f:
             vep_csq_header = f.read().rstrip()
     else:
         vep_csq_header = ''

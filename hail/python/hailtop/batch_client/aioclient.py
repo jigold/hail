@@ -414,6 +414,7 @@ class Batch:
         url = deploy_config.external_url('batch', f'/batches/{self.id}')
         i = 0
         status = await self.status()
+        print('got first status')
         if is_notebook():
             description += f'[link={url}]{self.id}[/link]'
         else:
