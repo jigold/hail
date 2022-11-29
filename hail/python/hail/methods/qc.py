@@ -675,6 +675,21 @@ supported_vep_configs = {
         ["python3", "/hail-vep/run_vep_grch37.py", "vep"],
         ["python3", "/hail-vep/run_vep_grch37.py", "csq_header"],
     ),
+    ('GRCh38', 'gcp', 'us-central1', 'hail.is'): VEPConfig(
+        'hail-qob-vep-grch38-us-central1',
+        ['us-central1'],
+        'us-docker.pkg.dev/hail-vdc/hail/vep-grch38:cache-jigold',
+        '/vep_data/',
+        {'PERL5LIB': '/vep_data/loftee'},
+        VEPConfig.default_vep_json_typ._insert_field('transcript_consequences', hl.tarray(
+            VEPConfig.default_vep_json_typ['transcript_consequences'].element_type._insert_fields(
+                appris=hl.tstr,
+                tsl=hl.tint32,
+            )
+        )),
+        ["python3", "/hail-vep/run_vep_grch38.py", "vep"],
+        ["python3", "/hail-vep/run_vep_grch38.py", "csq_header"],
+    ),
 }
 
 

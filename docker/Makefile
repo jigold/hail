@@ -9,6 +9,7 @@ SERVICE_BASE_IMAGE := $(DOCKER_PREFIX)/service-base:$(TOKEN)
 HAIL_PUBLIC_IMAGE := $(DOCKER_PREFIX)/hail-public:$(TOKEN)
 GENETICS_PUBLIC_IMAGE := $(DOCKER_PREFIX)/genetics-public:$(TOKEN)
 VEP_GRCH37_IMAGE := $(DOCKER_PREFIX)/vep-grch37:$(TOKEN)
+VEP_GRCH38_IMAGE := $(DOCKER_PREFIX)/vep-grch38:$(TOKEN)
 
 .PHONY: hail-ubuntu hail-ubuntu-image-ref
 hail-ubuntu: hail-ubuntu-image-ref
@@ -40,6 +41,11 @@ service-base-image-ref: base hail_version
 vep-grch37:
 	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image-ref)'"}}' vep/Dockerfile.GRCh37 vep/Dockerfile.GRCh37.out
 	../docker-build.sh vep Dockerfile.GRCh37.out $(VEP_GRCH37_IMAGE) $(HAIL_UBUNTU_IMAGE)
+
+.PHONY: vep-grch38
+vep-grch38:
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image-ref)'"}}' vep/Dockerfile.GRCh38 vep/Dockerfile.GRCh38.out
+	../docker-build.sh vep Dockerfile.GRCh38.out $(VEP_GRCH38_IMAGE) $(HAIL_UBUNTU_IMAGE)
 
 .PHONY: deploy
 deploy: build
