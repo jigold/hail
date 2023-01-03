@@ -39,7 +39,7 @@ class ResourceUsageMonitor:
             ('cpu_usage', '>f8'),
         ]
 
-        if version >= 1:
+        if version > 1:
             assert version == ResourceUsageMonitor.VERSION, version
             dtype += [
                 ('non_io_storage_in_bytes', '>i8'),
@@ -131,7 +131,7 @@ iptables -t mangle -L -v -n -x | grep "{self.veth_host}" | awk '{{ if ($6 == "{s
 '''
         )
         output = iptables_output.decode('utf-8').rstrip().splitlines()
-        assert len(output) == 2, output
+        assert len(output) == 2, str((output, self.veth_host))
 
         now_upload_bytes = None
         now_download_bytes = None
@@ -178,8 +178,11 @@ iptables -t mangle -L -v -n -x | grep "{self.veth_host}" | awk '{{ if ($6 == "{s
 
         overlay_usage_bytes = self.overlay_storage_usage_bytes()
         io_usage_bytes = self.io_storage_usage_bytes()
-        non_io_usage_bytes = overlay_usage_bytes if self.is_attached_disk() else overlay_usage_bytes - io_usage_bytes
+        non_io_usage_bytes = overlay_usage_bytes if self.is_attached_disk else overlay_usage_bytes - io_usage_bytes
         network_upload_bytes_per_second, network_download_bytes_per_second = await self.network_bandwidth()
+
+        if network_upload_bytes_per_second is None or network_download_bytes_per_second is None:
+            return
 
         data = struct.pack(
             '>2qd2q2d',
