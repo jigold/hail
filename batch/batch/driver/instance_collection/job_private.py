@@ -190,12 +190,14 @@ LIMIT %s;
     def max_instances_to_create(self):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
-        return min(
+        instances_needed = min(
             self.max_live_instances - n_live_instances,
             self.max_instances - self.n_instances,
             # 20 queries/s; our GCE long-run quota
             300,
         )
+
+        return max(0, instances_needed)
 
     async def compute_fair_share(self):
         n_jobs_to_allocate = self.max_instances_to_create()

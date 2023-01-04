@@ -600,11 +600,11 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             raise ConfigError()
 
         max_instances = validate_int(
-            session, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
+            session, 'Max instances', post['max_instances'], lambda v: v >= 0, 'a non-negative integer'
         )
 
         max_live_instances = validate_int(
-            session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
+            session, 'Max live instances', post['max_live_instances'], lambda v: v >= 0, 'a non-negative integer'
         )
 
         enable_standing_worker = 'enable_standing_worker' in post
@@ -718,11 +718,11 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
             raise ConfigError()
 
         max_instances = validate_int(
-            session, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
+            session, 'Max instances', post['max_instances'], lambda v: v >= 0, 'a non-negative integer'
         )
 
         max_live_instances = validate_int(
-            session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
+            session, 'Max live instances', post['max_live_instances'], lambda v: v >= 0, 'a non-negative integer'
         )
 
         await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances)
