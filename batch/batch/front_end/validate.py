@@ -58,6 +58,7 @@ job_validator = keyed(
         ),
         'input_files': listof(keyed({required('from'): str_type, required('to'): str_type})),
         required('job_id'): int_type,
+        'job_group': anyof(listof(str_type), regex('^/.*')),
         'mount_tokens': bool_type,
         'network': oneof('public', 'private'),
         'unconfined': bool_type,
@@ -117,6 +118,16 @@ batch_update_validator = keyed(
     {
         required('token'): str_type,
         required('n_jobs'): numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0}),
+    }
+)
+
+
+job_group_validator = keyed(
+    {
+        required('job_group'): anyof(listof(str_type), regex('^/.*')),
+        'cancel_after_n_failures': nullable(int_type),
+        'callback': nullable(str_type),
+        'attributes': nullable(dictof(str_type)),
     }
 )
 
@@ -199,6 +210,8 @@ def handle_job_backwards_compatibility(job):
         job['absolute_parent_ids'] = job.pop('parent_ids')
     if 'always_copy_output' not in job:
         job['always_copy_output'] = True
+    if 'job_group' not in job:
+        job['job_group'] = '/'
 
 
 def validate_batch(batch):
@@ -207,3 +220,8 @@ def validate_batch(batch):
 
 def validate_batch_update(update):
     batch_update_validator.validate('batch_update', update)
+
+
+def validate_job_groups(job_groups):
+    for i, job_group in enumerate(job_groups):
+        job_group_validator.validate(f'job_group[{i}]', job_group)
