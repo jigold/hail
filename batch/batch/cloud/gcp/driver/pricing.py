@@ -1,4 +1,6 @@
 import logging
+import random
+import time
 from typing import AsyncGenerator, List, Optional
 
 import dateutil.parser
@@ -31,7 +33,10 @@ class GCPComputePrice(Price):
         self.preemptible = preemptible
         self.region = region
         self.cost_per_hour = cost_per_hour
-        self.effective_start_date = effective_start_date
+        # self.effective_start_date = effective_start_date
+        self.effective_start_date = int(time.time() * 1000) + 1
+        if random.random() < 0.3:
+            self.cost_per_hour += random.random()
         self.effective_end_date = effective_end_date
 
     @property
@@ -57,7 +62,10 @@ class GCPMemoryPrice(Price):
         self.preemptible = preemptible
         self.region = region
         self.cost_per_hour = cost_per_hour
-        self.effective_start_date = effective_start_date
+        # self.effective_start_date = effective_start_date
+        self.effective_start_date = int(time.time() * 1000) + 1
+        if random.random() < 0.3:
+            self.cost_per_hour += random.random()
         self.effective_end_date = effective_end_date
 
     @property
@@ -81,7 +89,10 @@ class GCPLocalSSDDiskPrice(Price):
         self.preemptible = preemptible
         self.region = region
         self.cost_per_month = cost_per_month
-        self.effective_start_date = effective_start_date
+        # self.effective_start_date = effective_start_date
+        self.effective_start_date = int(time.time() * 1000) + 1
+        if random.random() < 0.3:
+            self.cost_per_month += random.random()
         self.effective_end_date = effective_end_date
 
     @property
@@ -109,7 +120,10 @@ class GCPDiskPrice(Price):
         self.disk_type = disk_type
         self.region = region
         self.cost_per_month = cost_per_month
-        self.effective_start_date = effective_start_date
+        # self.effective_start_date = effective_start_date
+        self.effective_start_date = int(time.time() * 1000) + 1
+        if random.random() < 0.3:
+            self.cost_per_month += random.random()
         self.effective_end_date = effective_end_date
 
     @property
