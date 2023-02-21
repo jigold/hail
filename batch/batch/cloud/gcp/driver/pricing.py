@@ -35,7 +35,7 @@ class GCPComputePrice(Price):
         self.cost_per_hour = cost_per_hour
         # self.effective_start_date = effective_start_date
         self.effective_start_date = int(time.time() * 1000) + 1
-        if random.random() < 0.05:
+        if random.random() < 0.3:
             self.cost_per_hour += random.random()
         self.effective_end_date = effective_end_date
 
@@ -64,7 +64,7 @@ class GCPMemoryPrice(Price):
         self.cost_per_hour = cost_per_hour
         # self.effective_start_date = effective_start_date
         self.effective_start_date = int(time.time() * 1000) + 1
-        if random.random() < 0.05:
+        if random.random() < 0.3:
             self.cost_per_hour += random.random()
         self.effective_end_date = effective_end_date
 
@@ -91,7 +91,7 @@ class GCPLocalSSDDiskPrice(Price):
         self.cost_per_month = cost_per_month
         # self.effective_start_date = effective_start_date
         self.effective_start_date = int(time.time() * 1000) + 1
-        if random.random() < 0.05:
+        if random.random() < 0.3:
             self.cost_per_month += random.random()
         self.effective_end_date = effective_end_date
 
@@ -122,7 +122,7 @@ class GCPDiskPrice(Price):
         self.cost_per_month = cost_per_month
         # self.effective_start_date = effective_start_date
         self.effective_start_date = int(time.time() * 1000) + 1
-        if random.random() < 0.05:
+        if random.random() < 0.3:
             self.cost_per_month += random.random()
         self.effective_end_date = effective_end_date
 
