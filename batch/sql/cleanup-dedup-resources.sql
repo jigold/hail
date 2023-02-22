@@ -187,10 +187,10 @@ DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_after_update;
 DROP TRIGGER IF EXISTS aggregated_batch_resources_v2_after_update;
 DROP TRIGGER IF EXISTS aggregated_job_resources_v2_after_update;
 
--- ALTER TABLE aggregated_billing_project_user_resources_v2 DROP COLUMN migrated, ALGORITHM=INPLACE, LOCK=NONE;
--- ALTER TABLE aggregated_billing_project_user_resources_by_date_v2 DROP COLUMN migrated, ALGORITHM=INPLACE, LOCK=NONE;
--- ALTER TABLE aggregated_batch_resources_v2 DROP COLUMN migrated, ALGORITHM=INPLACE, LOCK=NONE;
--- ALTER TABLE aggregated_job_resources_v2 DROP COLUMN migrated, ALGORITHM=INPLACE, LOCK=NONE;
+ALTER TABLE aggregated_billing_project_user_resources_v2 DROP COLUMN migrated, ALGORITHM=INPLACE, LOCK=NONE;
+ALTER TABLE aggregated_billing_project_user_resources_by_date_v2 DROP COLUMN migrated, ALGORITHM=INPLACE, LOCK=NONE;
+ALTER TABLE aggregated_batch_resources_v2 DROP COLUMN migrated, ALGORITHM=INPLACE, LOCK=NONE;
+ALTER TABLE aggregated_job_resources_v2 DROP COLUMN migrated, ALGORITHM=INPLACE, LOCK=NONE;
 
 DROP TRIGGER IF EXISTS resources_before_insert;
 
@@ -198,12 +198,17 @@ DROP TRIGGER IF EXISTS resources_before_insert;
 -- At this point, they should be writing the exact same value. So a column swap is fine, but the new name "deduped_resource_id"
 -- has to stay despite being the original non-deduped resource id column. It will be deleted once the trigger that uses the
 -- deduped_resource_id is dropped
-ALTER TABLE attempt_resources DROP PRIMARY KEY,
-                              MODIFY COLUMN deduped_resource_id INT NOT NULL,
+ALTER TABLE attempt_resources MODIFY COLUMN deduped_resource_id INT NOT NULL,
                               RENAME COLUMN resource_id TO deduped_resource_id,
                               RENAME COLUMN deduped_resource_id TO resource_id,
-                              ADD PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
                               ALGORITHM=INPLACE, LOCK=NONE;
+--
+-- ALTER TABLE attempt_resources DROP PRIMARY KEY,
+--                               MODIFY COLUMN deduped_resource_id INT NOT NULL,
+--                               RENAME COLUMN resource_id TO deduped_resource_id,
+--                               RENAME COLUMN deduped_resource_id TO resource_id,
+--                               ADD PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
+--                               ALGORITHM=INPLACE, LOCK=NONE;
 
 SET foreign_key_checks = 0;
 ALTER TABLE attempt_resources ADD FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
