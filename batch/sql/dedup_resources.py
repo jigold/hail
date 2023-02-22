@@ -30,16 +30,19 @@ def offsets_to_where_statement(table, primary_key, start_offset, end_offset):
         query_args = []
         for i, key in enumerate(primary_key):
             conds = [f'{table}.{primary_key[:prev_i]} = %s' for prev_i in range(i)]
+            query_args += offset[:i]
             if is_start:
                 if i == len(primary_key) - 1:
                     conds.append(f'{table}.{primary_key[i]} >= %s')
+                    query_args.append(offset[i])
                 else:
                     conds.append(f'{table}.{primary_key[i]} > %s')
+                    query_args.append(offset[i])
             else:
                 conds.append(f'{table}.{primary_key[i]} < %s')
+                query_args.append(offset[i])
             cond = '(' + ' AND '.join(conds) + ')'
             where_statement.append(cond)
-            query_args += offset[:i]
         return where_statement, query_args
 
     if None in start_offset:
