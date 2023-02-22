@@ -6,7 +6,7 @@ FOR EACH ROW
 BEGIN
   DECLARE last_id INT;
 
-  SELECT MAX(resource_id) INTO last_id FROM resources;
+  SELECT MAX(resource_id) INTO last_id FROM resources FOR UPDATE;
 
   IF last_id IS NULL THEN
     SET NEW.deduped_resource_id = 1;
