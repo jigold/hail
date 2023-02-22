@@ -200,18 +200,16 @@ DROP TRIGGER IF EXISTS resources_before_insert;
 -- deduped_resource_id is dropped
 ALTER TABLE attempt_resources RENAME COLUMN resource_id TO deduped_resource_id,
                               RENAME COLUMN deduped_resource_id TO resource_id;
---
--- ALTER TABLE attempt_resources DROP PRIMARY KEY,
---                               MODIFY COLUMN deduped_resource_id INT NOT NULL,
---                               RENAME COLUMN resource_id TO deduped_resource_id,
---                               RENAME COLUMN deduped_resource_id TO resource_id,
---                               ADD PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
---                               ALGORITHM=INPLACE, LOCK=NONE;
 
--- SET foreign_key_checks = 0;
--- ALTER TABLE attempt_resources ADD FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
--- SET foreign_key_checks = 1;
+ALTER TABLE attempt_resources DROP PRIMARY KEY,
+                              MODIFY COLUMN resource_id INT NOT NULL,
+                              ADD PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
+                              ALGORITHM=INPLACE, LOCK=NONE;
+
+SET foreign_key_checks = 0;
+ALTER TABLE attempt_resources ADD FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+SET foreign_key_checks = 1;
 
 DROP TRIGGER IF EXISTS attempt_resources_before_insert;
 
--- ALTER TABLE attempt_resources DROP COLUMN deduped_resource_id, ALGORITHM=INPLACE, LOCK=NONE;
+ALTER TABLE attempt_resources DROP COLUMN deduped_resource_id, ALGORITHM=INPLACE, LOCK=NONE;
