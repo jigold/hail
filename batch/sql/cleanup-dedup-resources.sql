@@ -198,10 +198,8 @@ DROP TRIGGER IF EXISTS resources_before_insert;
 -- At this point, they should be writing the exact same value. So a column swap is fine, but the new name "deduped_resource_id"
 -- has to stay despite being the original non-deduped resource id column. It will be deleted once the trigger that uses the
 -- deduped_resource_id is dropped
-ALTER TABLE attempt_resources MODIFY COLUMN deduped_resource_id INT NOT NULL,
-                              RENAME COLUMN resource_id TO deduped_resource_id,
-                              RENAME COLUMN deduped_resource_id TO resource_id,
-                              ALGORITHM=INPLACE, LOCK=NONE;
+ALTER TABLE attempt_resources RENAME COLUMN resource_id TO deduped_resource_id,
+                              RENAME COLUMN deduped_resource_id TO resource_id;
 --
 -- ALTER TABLE attempt_resources DROP PRIMARY KEY,
 --                               MODIFY COLUMN deduped_resource_id INT NOT NULL,
