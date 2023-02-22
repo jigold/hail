@@ -2090,6 +2090,9 @@ steps:
       - name: add-dedup-resources-triggers
         script: /io/sql/add-dedup-resources-triggers.sql
         online: true
+      - name: fixed-dedup-resources-trigger
+        script: /io/sql/fixed-dedup-resources-trigger.sql
+        online: true
       - name: dedup-resources
         script: /io/sql/dedup_resources.py
         online: true

@@ -36,7 +36,7 @@ BEGIN
     ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_rollup * quantity;
 
     INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
-    SELECT batches.billing_project, `user`,
+    SELECT billing_project, `user`,
       resources.deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
