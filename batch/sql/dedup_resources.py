@@ -84,7 +84,7 @@ async def process_chunk_attempt_resources(counter, db, start, end, quiet=True):
 UPDATE attempt_resources
 SET deduped_resource_id = resources.deduped_resource_id
 JOIN resources ON attempt_resources.resource_id = resources.resource_id
-WHERE {where_statement}
+{where_statement}
 '''
 
     await process_chunk(counter, db, query, query_args, start, end, quiet)
@@ -98,7 +98,7 @@ async def process_chunk_aggregated_billing_project_user_resources(counter, db, s
     query = f'''
 UPDATE aggregated_billing_project_user_resources_v2
 SET migration = 1
-WHERE {where_statement}
+{where_statement}
 '''
 
     await process_chunk(counter, db, query, query_args, start, end, quiet)
@@ -112,7 +112,7 @@ async def process_chunk_aggregated_billing_project_user_resources_by_date(counte
     query = f'''
 UPDATE aggregated_billing_project_user_resources_by_date_v2
 SET migration = 1
-WHERE {where_statement}
+{where_statement}
 '''
 
     await process_chunk(counter, db, query, query_args, start, end, quiet)
@@ -126,7 +126,7 @@ async def process_chunk_aggregated_batch_resources(counter, db, start, end, quie
     query = f'''
 UPDATE aggregated_batch_resources_v2
 SET migration = 1
-WHERE {where_statement}
+{where_statement}
 '''
 
     await process_chunk(counter, db, query, query_args, start, end, quiet)
@@ -140,7 +140,7 @@ async def process_chunk_aggregated_job_resources(counter, db, start, end, quiet=
     query = f'''
 UPDATE aggregated_job_resources_v2
 SET migration = 1
-WHERE {where_statement}
+{where_statement}
 '''
 
     await process_chunk(counter, db, query, query_args, start, end, quiet)
