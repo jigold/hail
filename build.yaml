@@ -2105,6 +2105,9 @@ steps:
       - name: cleanup-dedup-resources
         script: /io/sql/cleanup-dedup-resources.sql
         online: true
+      - name: fix-dedup-resources-trigger-2
+        script: /io/sql/fix-dedup-resources-trigger-2.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

@@ -5,14 +5,8 @@ CREATE TRIGGER resources_before_insert BEFORE INSERT ON resources
 FOR EACH ROW
 BEGIN
   DECLARE last_id INT;
-
-  SELECT MAX(resource_id) INTO last_id FROM resources;
-
-  IF last_id IS NULL THEN
-    SET NEW.deduped_resource_id = 1;
-  ELSE
-    SET NEW.deduped_resource_id = last_id + 1;
-  END IF;
+  SELECT COALESCE(MAX(resource_id), 0) INTO last_id FROM resources FOR UPDATE;
+  SET NEW.deduped_resource_id = last_id + 1;
 END $$
 
 DELIMITER ;
