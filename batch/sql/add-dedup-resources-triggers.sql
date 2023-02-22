@@ -110,7 +110,7 @@ BEGIN
 
     INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, user, resource_id, token, `usage`)
     SELECT cur_billing_date,
-      billing_project,
+      batches.billing_project,
       `user`,
       resources.deduped_resource_id,
       rand_token,
