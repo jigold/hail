@@ -201,6 +201,7 @@ DROP TRIGGER IF EXISTS resources_before_insert;
 ALTER TABLE attempt_resources DROP PRIMARY KEY,
                               RENAME COLUMN resource_id TO deduped_resource_id,
                               RENAME COLUMN deduped_resource_id TO resource_id,
+                              MODIFY COLUMN resource_id INT NOT NULL,
                               ADD PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
                               ALGORITHM=INPLACE, LOCK=NONE;
 
