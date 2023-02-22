@@ -56,7 +56,7 @@ def offsets_to_where_statement(table, primary_key, start_offset, end_offset):
     else:
         start_where_statements, start_query_args = build_statement(start_offset, True)
         end_where_statements, end_query_args = build_statement(end_offset, False)
-        where_statement = f'WHERE ({" OR ".join(start_where_statements)}) AND ({" OR ".join(end_where_statements)})'
+        where_statement = f'WHERE {" OR ".join(start_where_statements)} AND {" OR ".join(end_where_statements)}'
         query_args = start_query_args + end_query_args
 
     return where_statement, query_args
