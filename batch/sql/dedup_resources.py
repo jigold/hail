@@ -83,7 +83,7 @@ async def process_chunk_attempt_resources(counter, db, start, end, quiet=True):
     query = f'''
 UPDATE attempt_resources
 LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
-SET deduped_resource_id = resources.deduped_resource_id
+SET attempt_resources.deduped_resource_id = resources.deduped_resource_id
 {where_statement}
 '''
 
