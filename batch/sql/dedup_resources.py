@@ -97,7 +97,7 @@ async def process_chunk_aggregated_billing_project_user_resources(counter, db, s
                                                              end)
     query = f'''
 UPDATE aggregated_billing_project_user_resources_v2
-SET migration = 1
+SET migrated = 1
 {where_statement}
 '''
 
@@ -111,7 +111,7 @@ async def process_chunk_aggregated_billing_project_user_resources_by_date(counte
                                                              end)
     query = f'''
 UPDATE aggregated_billing_project_user_resources_by_date_v2
-SET migration = 1
+SET migrated = 1
 {where_statement}
 '''
 
@@ -125,7 +125,7 @@ async def process_chunk_aggregated_batch_resources(counter, db, start, end, quie
                                                              end)
     query = f'''
 UPDATE aggregated_batch_resources_v2
-SET migration = 1
+SET migrated = 1
 {where_statement}
 '''
 
@@ -139,7 +139,7 @@ async def process_chunk_aggregated_job_resources(counter, db, start, end, quiet=
                                                              end)
     query = f'''
 UPDATE aggregated_job_resources_v2
-SET migration = 1
+SET migrated = 1
 {where_statement}
 '''
 
