@@ -2030,6 +2030,9 @@ steps:
       - name: case-sensitive-billing-project
         script: /io/sql/case-sensitive-billing-project.sql
         online: true
+      - name: add-deduped-resource-ids-to-resources
+        script: /io/sql/add-deduped-resource-ids-to-resources
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
