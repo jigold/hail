@@ -86,12 +86,12 @@ class CloudBillingManager(abc.ABC):
                         f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
                         f'did the vm price change without a version change?'
                     )
-                # elif not have_latest_version and have_latest_rate:
-                #     # this prevents having too many resources in the database with redundant information
-                #     log.info(
-                #         f'ignoring price update for product {product} -- the latest rate is equal to the previous rate '
-                #         f'({current_product_version}) => ({latest_product_version}) with rate {latest_resource_rate}'
-                #     )
+                elif not have_latest_version and have_latest_rate:
+                    # this prevents having too many resources in the database with redundant information
+                    log.info(
+                        f'ignoring price update for product {product} -- the latest rate is equal to the previous rate '
+                        f'({current_product_version}) => ({latest_product_version}) with rate {latest_resource_rate}'
+                    )
                 elif not have_latest_version:  #  and not have_latest_rate
                     if price.is_current_price():
                         latest_resource_name = product_version_to_resource(product, latest_product_version)
