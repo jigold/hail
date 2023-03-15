@@ -192,20 +192,8 @@ ALTER TABLE aggregated_billing_project_user_resources_by_date_v2 DROP COLUMN mig
 ALTER TABLE aggregated_batch_resources_v2 DROP COLUMN migrated, ALGORITHM=INPLACE, LOCK=NONE;
 ALTER TABLE aggregated_job_resources_v2 DROP COLUMN migrated, ALGORITHM=INPLACE, LOCK=NONE;
 
--- The attempt_resources_before_insert trigger requires that resource_id and deduped_resource_id are present
--- At this point, they should be writing the exact same value. So a column swap is fine, but the new name "deduped_resource_id"
--- has to stay despite being the original non-deduped resource id column. It will be deleted once the trigger that uses the
--- deduped_resource_id is dropped
-ALTER TABLE attempt_resources RENAME COLUMN resource_id TO deduped_resource_id,
-                              RENAME COLUMN deduped_resource_id TO resource_id;
+ALTER TABLE attempt_resources MODIFY COLUMN `deduped_resource_id` INT NOT NULL;
 
-ALTER TABLE attempt_resources DROP PRIMARY KEY,
-                              MODIFY COLUMN resource_id INT NOT NULL,
-                              ADD PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
-                              ALGORITHM=INPLACE, LOCK=NONE;
-
--- Even though we did not explicitly delete the old foreign key constraint, it is now pointing at "deduped_resource_id"
--- instead of the new "resource_id" column (which was the original deduped_resource_id)
 SET foreign_key_checks = 0;
-ALTER TABLE attempt_resources ADD FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+ALTER TABLE attempt_resources ADD FOREIGN KEY (`deduped_resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
 SET foreign_key_checks = 1;
