@@ -2249,6 +2249,8 @@ steps:
         online: true
       - name: dedup-job-resources
         script: /io/sql/dedup_job_resources.py
+      - name: dedup-agg-batch-resources
+        script: /io/sql/dedup_agg_batch_resources.py
         online: true
     inputs:
       - from: /repo/batch/sql
