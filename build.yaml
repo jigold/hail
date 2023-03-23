@@ -2244,6 +2244,9 @@ steps:
       - name: dedup-billing-project-users-v2
         script: /io/sql/dedup_billing_project_users_v2.py
         online: true
+      - name: dedup-billing-project-users-by-date
+        script: /io/sql/dedup_billing_project_users_by_date.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
