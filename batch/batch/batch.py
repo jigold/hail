@@ -94,6 +94,7 @@ def job_group_record_to_dict(record):
         duration = None
 
     d = {
+        'id': record['batch_id'],
         'batch_id': record['batch_id'],
         'job_group_id': record['job_group_id'],
         'user': record['user'],

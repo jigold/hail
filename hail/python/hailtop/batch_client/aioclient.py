@@ -945,7 +945,7 @@ class BatchClient:
         b_resp = await self._get(f'/api/v1alpha/batches/{id}')
         b = await b_resp.json()
         return Batch(self,
-                     b['id'],
+                     b['batch_id'],
                      attributes=b.get('attributes'),
                      token=b['token'],
                      last_known_status=b)

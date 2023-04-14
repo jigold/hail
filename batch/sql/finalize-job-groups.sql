@@ -515,7 +515,7 @@ BEGIN
             LEFT JOIN `jobs` ON jobs.batch_id = `job_parents`.batch_id AND jobs.job_id = `job_parents`.parent_id
             WHERE job_parents.batch_id = in_batch_id AND
               `job_parents`.job_id >= cur_update_start_job_id AND
-              `job_parents`.job_id < cur_update_start_job_id + staging_n_jobs
+              `job_parents`.job_id < cur_update_start_job_id + cur_expected_n_jobs
             GROUP BY `job_parents`.batch_id, `job_parents`.job_id
             FOR UPDATE
           ) AS t
@@ -525,7 +525,7 @@ BEGIN
               jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
               jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)
           WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
-              jobs.job_id < cur_update_start_job_id + staging_n_jobs;
+              jobs.job_id < cur_update_start_job_id + cur_expected_n_jobs;
       END IF;
 
       COMMIT;
