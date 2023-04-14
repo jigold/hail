@@ -225,3 +225,4 @@ def validate_batch_update(update):
 def validate_job_groups(job_groups):
     for i, job_group in enumerate(job_groups):
         job_group_validator.validate(f'job_group[{i}]', job_group)
+        job_group['job_group'] = job_group['job_group'].rstrip('/')

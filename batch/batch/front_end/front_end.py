@@ -3,6 +3,7 @@ import base64
 import collections
 import copy
 import datetime
+import functools
 import json
 import logging
 import os
@@ -46,6 +47,7 @@ from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import (
+    bounded_gather,
     cost_str,
     dump_all_stacktraces,
     humanize_timedelta_msecs,
@@ -74,6 +76,7 @@ from ..exceptions import (
     ClosedBillingProjectError,
     InvalidBillingLimitError,
     InvalidJobGroupPathError,
+    JobGroupAlreadyExistsError,
     NonExistentBillingProjectError,
     NonExistentJobGroupIDError,
     NonExistentJobGroupPathError,
@@ -1008,10 +1011,10 @@ class JobGroupCache:
     def __init__(self, db: Database):
         self.db = db
         self.job_group_path_cache = TimeLimitedMaxSizeCache[Tuple[int, str], JobGroup](
-            load=self._get_job_group_by_path, lifetime_ns=3600 * 10 ** 9, num_slots=1000, cache_name='job-group-cache'
+            load=self._get_job_group_by_path, lifetime_ns=3600 * 10**9, num_slots=1000, cache_name='job-group-cache'
         )
         self.job_group_id_cache = TimeLimitedMaxSizeCache[Tuple[int, int], JobGroup](
-            load=self._get_job_group_by_id, lifetime_ns=3600 * 10 ** 9, num_slots=1000, cache_name='job-group-cache'
+            load=self._get_job_group_by_id, lifetime_ns=3600 * 10**9, num_slots=1000, cache_name='job-group-cache'
         )
 
     async def lookup_by_path(self, batch_id: int, path: str) -> JobGroup:
@@ -1071,7 +1074,7 @@ async def _create_job_group(
     job_group_cache: JobGroupCache,
     tx: Union[Database, Transaction],
     batch_id: int,
-    path: List[str],
+    path: Union[str, List[str]],
     *,
     cancel_after_n_failures: Optional[int] = None,
     callback: Optional[str] = None,
@@ -1080,8 +1083,19 @@ async def _create_job_group(
     assert 0 <= len(path) <= MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB, path
     now = time_msecs()
 
+    if isinstance(path, str):
+        path = JobGroup.job_group_path_from_str(path)
+
     if not JobGroup.is_valid_job_group_path(path):
         raise InvalidJobGroupPathError(path)
+
+    if cancel_after_n_failures is not None or callback is not None or attributes is not None:
+        try:
+            await job_group_cache.lookup_by_path(batch_id, JobGroup.job_group_path_str(path))
+        except NonExistentJobGroupPathError:
+            pass
+        else:
+            raise JobGroupAlreadyExistsError
 
     async def _insert_job_group(
         tx: Union[Transaction, Database],
@@ -1141,7 +1155,7 @@ ON DUPLICATE KEY UPDATE level = level;
         parent_ids = copy.deepcopy(job_group.parent_ids) + [job_group.job_group_id]
         job_group = await _insert_job_group(
             tx,
-            path[:i+1],
+            path[: i + 1],
             parent_ids,
         )
 
@@ -1442,14 +1456,18 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         maybe_job_group_path = spec['job_group']
         if isinstance(maybe_job_group_path, str):
             if not JobGroup.is_valid_job_group_path_str(maybe_job_group_path):
-                raise web.HTTPBadRequest(reason=f'invalid job group path - must start with "/" but found "{maybe_job_group_path}"')
+                raise web.HTTPBadRequest(
+                    reason=f'invalid job group path - must start with "/" but found "{maybe_job_group_path}"'
+                )
             job_group_path = JobGroup.job_group_path_from_str(maybe_job_group_path)
         else:
             assert isinstance(maybe_job_group_path, list)
             job_group_path = maybe_job_group_path
 
         if len(job_group_path) + 1 > MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB:
-            raise web.HTTPBadRequest(reason=f'max level of nesting of job groups is {MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB}. Found {len(job_group_path)}')
+            raise web.HTTPBadRequest(
+                reason=f'max level of nesting of job groups is {MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB}. Found {len(job_group_path)}'
+            )
 
         try:
             job_group = await _create_job_group(job_group_cache, db, batch_id, job_group_path)
@@ -1657,20 +1675,50 @@ VALUES (%s, %s, %s);
 async def create_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
+    job_group_cache: JobGroupCache = app['job_group_cache']
 
     user = userdata['username']
     batch_and_bunch = await request.json()
     batch_spec = batch_and_bunch['batch']
+    job_groups = validate_job_groups(batch_and_bunch['job_groups'])
+
     bunch = batch_and_bunch['bunch']
     batch_id = await _create_batch(batch_spec, userdata, db)
     update_id, _ = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], user, db)
+
+    @transaction(db)
+    async def _insert_job_groups(tx):
+        return await bounded_gather(
+            *[
+                functools.partial(
+                    _create_job_group,
+                    job_group_cache,
+                    tx,
+                    batch_id,
+                    path=jg['job_group'],
+                    cancel_after_n_failures=jg.get('cancel_after_n_failures'),
+                    callback=jg.get('callback'),
+                    attributes=jg.get('attributes'),
+                )
+                for jg in job_groups
+            ],
+            parallelism=6,
+        )
+
+    try:
+        await _insert_job_groups()  # pylint: disable=no-value-for-parameter
+    except BatchUserError as e:
+        return e.http_response()
+
     try:
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
             return web.json_response({'id': batch_id})
         raise
+
     await _commit_update(app, batch_id, update_id, user, db)
+
     return web.json_response({'id': batch_id})
 
 
@@ -2060,26 +2108,33 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 @rest_billing_project_users_only
 async def create_job_groups(request, userdata, batch_id):  # pylint: disable=unused-argument
     db: Database = request.app['db']
+    job_group_cache: JobGroupCache = request.app['job_group_cache']
     post = await request.post()
     validate_job_groups(post)
 
     @transaction(db)
     async def _insert(tx):
-        for job_group in post:
-            job_group_path = job_group['path']
-            cancel_after_n_failures = job_group['cancel_after_n_failures']
-            callback = job_group['callback']
-            attributes = job_group['attributes']
-            await _handle_api_error(
-                _create_job_group,
-                tx,
-                batch_id,
-                job_group_path,
-                cancel_after_n_failures=cancel_after_n_failures,
-                callback=callback,
-                attributes=attributes,
-            )
-    await _insert()  # pylint: disable=no-value-for-parameter
+        await bounded_gather(
+            *[
+                functools.partial(
+                    _create_job_group,
+                    job_group_cache,
+                    tx,
+                    batch_id,
+                    jg['job_group'],
+                    cancel_after_n_failures=jg.get('cancel_after_n_failures'),
+                    callback=jg.get('callback'),
+                    attributes=jg.get('attributes'),
+                )
+                for jg in post
+            ],
+            parallelism=6,
+        )
+
+    try:
+        await _insert()  # pylint: disable=no-value-for-parameter
+    except BatchUserError as e:
+        return e.http_response()
 
     return web.Response()
 
@@ -2238,8 +2293,14 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
     errored = await _handle_ui_error(session, _cancel_job_group, request.app, batch_id, job_group_id)
     if not errored:
         job_group = await job_group_cache.lookup_by_id(batch_id, job_group_id)
-        set_message(session, f'Job group path="{job_group.path}" id={job_group_id} for batch {batch_id} cancelled.', 'info')
-    location = request.app.router['job_group'].url_for(batch_id=str(batch_id), job_group_id=str(job_group_id)).with_query(params)
+        set_message(
+            session, f'Job group path="{job_group.path}" id={job_group_id} for batch {batch_id} cancelled.', 'info'
+        )
+    location = (
+        request.app.router['job_group']
+        .url_for(batch_id=str(batch_id), job_group_id=str(job_group_id))
+        .with_query(params)
+    )
     return web.HTTPFound(location=location)
 
 

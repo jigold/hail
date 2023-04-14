@@ -12,7 +12,7 @@ import urllib.parse
 
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.auth import service_auth_headers
-from hailtop.utils import bounded_gather, request_retry_transient_errors
+from hailtop.utils import bounded_gather, grouped, request_retry_transient_errors
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
@@ -491,6 +491,7 @@ class BatchBuilder:
         self._job_idx = 0
         self._job_specs = []
         self._jobs = []
+        self._job_groups = []
         self._batch: Optional[Batch] = batch
         self.attributes = attributes
         self.callback = callback
@@ -502,6 +503,23 @@ class BatchBuilder:
         self._update_id = None
 
         self._cancel_after_n_failures = cancel_after_n_failures
+
+    def create_job_group(self, path: str,
+                         *,
+                         cancel_after_n_failures: Optional[str] = None,
+                         callback: Optional[str] = None,
+                         attributes: Optional[Dict[str, str]] = None,
+                         ):
+        if not path.startswith('/'):
+            raise ValueError(f'path must start with "/". Found "{path}".')
+        jg = {'job_group': path}
+        if cancel_after_n_failures is not None:
+            jg['cancel_after_n_failures'] = cancel_after_n_failures
+        if callback is not None:
+            jg['callback'] = callback
+        if attributes is not None:
+            jg['attributes'] = attributes
+        self._job_groups.append(jg)
 
     def create_job(self, image: str, command: List[str], *, mount_docker_socket: bool = False, **kwargs):
         return self._create_job(
@@ -641,6 +659,8 @@ class BatchBuilder:
         b.append(ord(']'))
         b.extend(b',"batch":')
         b.extend(json.dumps(self._batch_spec()).encode('utf-8'))
+        b.extend(b',"job_groups":')
+        b.extend(json.dumps(self._job_groups).encode('utf-8'))
         b.append(ord('}'))
         resp = await self._client._post(
             '/api/v1alpha/batches/create-fast',
@@ -648,6 +668,7 @@ class BatchBuilder:
         )
         batch_json = await resp.json()
         progress_task.update(n_jobs)
+        self._job_groups = []
         return Batch(self._client,
                      batch_json['id'],
                      self.attributes,
@@ -666,6 +687,8 @@ class BatchBuilder:
         b.append(ord(']'))
         b.extend(b',"update":')
         b.extend(json.dumps(self._update_spec()).encode('utf-8'))
+        b.extend(b',"job_groups":')
+        b.extend(json.dumps(self._job_groups).encode('utf-8'))
         b.append(ord('}'))
         resp = await self._client._post(
             f'/api/v1alpha/batches/{self._batch.id}/update-fast',
@@ -673,6 +696,7 @@ class BatchBuilder:
         )
         update_json = await resp.json()
         progress_task.update(len(byte_job_specs))
+        self._job_groups = []
         return int(update_json['start_job_id'])
 
     async def _submit_jobs(self, batch_id: int, update_id: int, byte_job_specs: List[bytes], n_jobs: int, progress_task: BatchProgressBarTask):
@@ -707,6 +731,16 @@ class BatchBuilder:
         if self._cancel_after_n_failures is not None:
             batch_spec['cancel_after_n_failures'] = self._cancel_after_n_failures
         return batch_spec
+
+    async def _submit_job_groups(self):
+        assert self._batch.id
+        await bounded_gather(
+            *[functools.partial(self._client._post, f'/api/v1/alpha/batches/{self._batch.id}/job_groups', specs)
+              for specs in grouped(100, self._job_groups)
+              ],
+            parallelism=6,
+        )
+        self._job_groups = []
 
     async def _open_batch(self) -> Batch:
         batch_spec = self._batch_spec()
@@ -746,12 +780,13 @@ class BatchBuilder:
                     self._batch = await self._open_batch()
                     log.info(f'created batch {self._batch.id}')
                     return self._batch
-                if n_bunches == 1:
+                if n_bunches == 1 and len(self._job_groups) <= 100:
                     self._batch = await self._create_fast(byte_job_specs_bunches[0], bunch_sizes[0], progress_task)
                     start_job_id = 1
                 else:
                     self._batch = await self._open_batch()
                     assert self._update_id is not None
+                    await self._submit_job_groups()
                     await bounded_gather(
                         *[functools.partial(self._submit_jobs, self._batch.id, self._update_id, bunch, size, progress_task)
                           for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
@@ -761,15 +796,17 @@ class BatchBuilder:
                     start_job_id = await self._commit_update(self._batch.id, self._update_id)
                     self._batch.submission_info.used_fast_update[self._update_id] = False
                     assert start_job_id == 1
+                    self._job_groups = []
                 log.info(f'created batch {self._batch.id}')
             else:
                 if n_bunches == 0:
                     log.warning('Tried to submit an update with 0 jobs. Doing nothing.')
                     return self._batch
-                if n_bunches == 1:
+                if n_bunches == 1 and len(self._job_groups) <= 100:
                     start_job_id = await self._update_fast(byte_job_specs_bunches[0], progress_task)
                 else:
                     self._update_id = await self._create_update(self._batch.id)
+                    await self._submit_job_groups()
                     await bounded_gather(
                         *[functools.partial(self._submit_jobs, self._batch.id, self._update_id, bunch, size, progress_task)
                           for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
@@ -959,9 +996,16 @@ class BatchClient:
         return BatchBuilder(self, batch=await self.get_batch(batch))
 
     async def create_job_group(self, id: int, job_group: str, *, cancel_after_n_failures: Optional[int] = None,
-                               callback: Optional[str] = None):
-        body = {'job_group': job_group, 'cancel_after_n_failures': cancel_after_n_failures, 'callback': callback}
-        await self._post(f'/api/v1/alpha/batches/{id}/job_groups', json=body)
+                               callback: Optional[str] = None, attributes: Optional[Dict[str, str]] = None):
+        jg = {'job_group': job_group}
+        if cancel_after_n_failures is not None:
+            jg['cancel_after_n_failures'] = cancel_after_n_failures
+        if callback is not None:
+            jg['callback'] = callback
+        if attributes is not None:
+            jg['attributes'] = attributes
+        jg_resp = await self._post(f'/api/v1/alpha/batches/{id}/job_groups', json=[jg])
+        return await jg_resp.json()
 
     async def get_billing_project(self, billing_project):
         bp_resp = await self._get(f'/api/v1alpha/billing_projects/{billing_project}')
