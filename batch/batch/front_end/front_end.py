@@ -438,6 +438,7 @@ WITH base_t AS
   LEFT JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND jobs.job_group_id = job_groups.job_group_id
   LEFT JOIN job_group_parents ON job_groups.batch_id = job_group_parents.batch_id AND job_groups.job_group_id = job_group_parents.job_group_id
   WHERE {' AND '.join(where_conditions)}
+  ORDER BY jobs.batch_id ASC, jobs.job_id ASC
   LIMIT 50
 )
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
