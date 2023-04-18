@@ -504,7 +504,8 @@ class BatchBuilder:
 
         self._cancel_after_n_failures = cancel_after_n_failures
 
-    def create_job_group(self, path: str,
+    def create_job_group(self,
+                         path: str,
                          *,
                          cancel_after_n_failures: Optional[str] = None,
                          callback: Optional[str] = None,

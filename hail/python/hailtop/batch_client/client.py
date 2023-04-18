@@ -228,6 +228,17 @@ class BatchBuilder:
     def token(self):
         return self._async_builder.token
 
+    def create_job_group(self,
+                         path: str,
+                         *,
+                         cancel_after_n_failures: Optional[str] = None,
+                         callback: Optional[str] = None,
+                         attributes: Optional[Dict[str, str]] = None,
+                         ):
+        return self._async_builder.create_job_group(
+            path, cancel_after_n_failures=cancel_after_n_failures, callback=callback, attributes=attributes
+        )
+
     def create_job(self,
                    image,
                    command,
@@ -339,9 +350,10 @@ class BatchClient:
             return BatchBuilder.from_async_builder(batch_builder, batch=batch)
         return BatchBuilder.from_async_builder(batch_builder, batch=None)
 
-    def create_job_group(self, batch_id: int, job_group: str, *, cancel_after_n_failures: Optional[int] = None, callback: Optional[str] = None):
+    def create_job_group(self, batch_id: int, job_group: str, *, cancel_after_n_failures: Optional[int] = None, callback: Optional[str] = None,
+                         attributes: Optional[Dict[str, str]] = None):
         return async_to_blocking(self._async_client.create_job_group(
-            batch_id, job_group, cancel_after_n_failures=cancel_after_n_failures, callback=callback
+            batch_id, job_group, cancel_after_n_failures=cancel_after_n_failures, callback=callback, attributes=attributes
         ))
 
     def get_billing_project(self, billing_project):
