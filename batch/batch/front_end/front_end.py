@@ -945,7 +945,7 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
 
     batch_id = int(request.match_info['batch_id'])
     job_specs = await request.json()
-    return await _create_jobs(userdata, job_specs, batch_id, 1, app)
+    return await _create_jobs(userdata, job_specs, batch_id, 1, token, app)
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
@@ -985,6 +985,8 @@ class JobGroup:
 
     @staticmethod
     def is_valid_job_group_path(path: List[str]) -> bool:
+        if not 0 <= len(path) <= MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB:
+            return False
         return all(segment != '' for segment in path)
 
     @staticmethod
@@ -1000,11 +1002,12 @@ class JobGroup:
             return JobGroup.job_group_path_str_from_list(path)
         raise InvalidJobGroupPathError(path)
 
-    def __init__(self, batch_id: int, job_group_id: int, path: str, parent_ids: List[int]):
+    def __init__(self, batch_id: int, job_group_id: int, path: str, parent_ids: List[int], token: str):
         self.batch_id = batch_id
         self.job_group_id = job_group_id
         self.path = path
         self.parent_ids = parent_ids
+        self.token = token
 
 
 class JobGroupCache:
@@ -1033,7 +1036,7 @@ class JobGroupCache:
         batch_id, path = input
         records = self.db.select_and_fetchall(
             '''
-SELECT job_groups.job_group_id, parent_id
+SELECT job_groups.job_group_id, parent_id, token
 FROM job_groups
 LEFT JOIN job_group_parents ON job_groups.batch_id = job_group_parents.batch_id AND job_groups.job_group_id = job_group_parents.job_group_id
 WHERE job_groups.batch_id = %s AND job_groups.path = %s
@@ -1047,13 +1050,13 @@ ORDER BY parent_id ASC;
 
         parent_ids = [record['parent_id'] for record in records if record['parent_id'] != record['job_group_id']]
         job_group_id = records[0]['job_group_id']
-        return JobGroup(batch_id, job_group_id, path, parent_ids)
+        return JobGroup(batch_id, job_group_id, path, parent_ids, records[0]['token'])
 
     async def _get_job_group_by_id(self, input: Tuple[int, int]) -> JobGroup:
         batch_id, job_group_id = input
         records = self.db.select_and_fetchall(
             '''
-SELECT job_groups.job_group_id, parent_id, path
+SELECT job_groups.job_group_id, parent_id, path, token
 FROM job_groups
 LEFT JOIN job_group_parents ON job_groups.batch_id = job_group_parents.batch_id AND job_groups.job_group_id = job_group_parents.job_group_id
 WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s
@@ -1067,7 +1070,7 @@ ORDER BY parent_id ASC;
 
         parent_ids = [record['parent_id'] for record in records if record['parent_id'] != record['job_group_id']]
         path = records[0]['path']
-        return JobGroup(batch_id, job_group_id, path, parent_ids)
+        return JobGroup(batch_id, job_group_id, path, parent_ids, records[0]['token'])
 
 
 async def _create_job_group(
@@ -1075,12 +1078,12 @@ async def _create_job_group(
     tx: Union[Database, Transaction],
     batch_id: int,
     path: Union[str, List[str]],
+    token: str,
     *,
     cancel_after_n_failures: Optional[int] = None,
     callback: Optional[str] = None,
     attributes: Optional[Dict[str, str]] = None,
 ) -> JobGroup:
-    assert 0 <= len(path) <= MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB, path
     now = time_msecs()
 
     if isinstance(path, str):
@@ -1091,11 +1094,12 @@ async def _create_job_group(
 
     if cancel_after_n_failures is not None or callback is not None or attributes is not None:
         try:
-            await job_group_cache.lookup_by_path(batch_id, JobGroup.job_group_path_str(path))
+            job_group = await job_group_cache.lookup_by_path(batch_id, JobGroup.job_group_path_str(path))
         except NonExistentJobGroupPathError:
             pass
         else:
-            raise JobGroupAlreadyExistsError
+            if job_group.token != token:
+                raise JobGroupAlreadyExistsError
 
     async def _insert_job_group(
         tx: Union[Transaction, Database],
@@ -1123,10 +1127,10 @@ FOR UPDATE;
 
             await tx.execute_insertone(
                 '''
-INSERT INTO job_groups (batch_id, job_group_id, path, state, n_jobs, time_created, time_completed, attributes)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO job_groups (batch_id, job_group_id, path, state, n_jobs, time_created, time_completed, attributes, token)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
-                (batch_id, job_group_id, path_str, 'complete', 0, now, now, json.dumps(None)),
+                (batch_id, job_group_id, path_str, 'complete', 0, now, now, json.dumps(None), token),
                 query_name='insert_job_groups',
             )
 
@@ -1147,9 +1151,9 @@ ON DUPLICATE KEY UPDATE level = level;
                 query_name='insert_job_group_parents',
             )
 
-            return JobGroup(batch_id, job_group_id, path_str, copy.deepcopy(parent_ids))
+            return JobGroup(batch_id, job_group_id, path_str, copy.deepcopy(parent_ids), token)
 
-    job_group = JobGroup(batch_id, 1, '/', [])
+    job_group = await job_group_cache.lookup_by_id(batch_id, 1)
     n_path_segments = len(path)
     for i in range(n_path_segments):
         parent_ids = copy.deepcopy(job_group.parent_ids) + [job_group.job_group_id]
@@ -1180,13 +1184,13 @@ INSERT INTO batch_attributes (batch_id, job_group_id, `key`, value)
 VALUES (%s, %s, %s, %s);                
 ''',
             [(batch_id, job_group_id, k, v) for k, v in attributes.items()],
-            'insert_batch_attributes',
+            'insert_job_group_attributes',
         )
 
     return job_group
 
 
-async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, update_id: int, app: aiohttp.web.Application):
+async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, update_id: int, token: str, app: aiohttp.web.Application):
     db: Database = app['db']
     file_store: FileStore = app['file_store']
     job_group_cache: JobGroupCache = app['job_group_cache']
@@ -1470,7 +1474,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             )
 
         try:
-            job_group = await _create_job_group(job_group_cache, db, batch_id, job_group_path)
+            job_group = await _create_job_group(job_group_cache, db, batch_id, job_group_path, token)
         except InvalidJobGroupPathError as e:
             raise e.http_response()
 
@@ -1679,8 +1683,10 @@ async def create_batch_fast(request, userdata):
 
     user = userdata['username']
     batch_and_bunch = await request.json()
+
     batch_spec = batch_and_bunch['batch']
-    job_groups = validate_job_groups(batch_and_bunch['job_groups'])
+    job_groups = batch_and_bunch['job_groups']
+    validate_job_groups(job_groups)
 
     bunch = batch_and_bunch['bunch']
     batch_id = await _create_batch(batch_spec, userdata, db)
@@ -1882,12 +1888,15 @@ VALUES (%s, %s, %s, %s)
 async def update_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
+    job_group_cache: JobGroupCache = app['job_group_cache']
 
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     update_and_bunch = await request.json()
     update_spec = update_and_bunch['update']
     bunch = update_and_bunch['bunch']
+    job_groups = update_and_bunch['job_groups']
+    validate_job_groups(job_groups)
 
     try:
         validate_batch_update(update_spec)
@@ -1897,6 +1906,27 @@ async def update_batch_fast(request, userdata):
     update_id, start_job_id = await _create_batch_update(
         batch_id, update_spec['token'], update_spec['n_jobs'], user, db
     )
+
+    try:
+        await bounded_gather(
+            *[
+                functools.partial(
+                    _create_job_group,
+                    job_group_cache,
+                    db,
+                    batch_id,
+                    path=jg['job_group'],
+                    token=update_spec['token'],
+                    cancel_after_n_failures=jg.get('cancel_after_n_failures'),
+                    callback=jg.get('callback'),
+                    attributes=jg.get('attributes'),
+                )
+                for jg in job_groups
+            ],
+            parallelism=6,
+        )
+    except BatchUserError as e:
+        return e.http_response()
 
     try:
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
@@ -2014,8 +2044,8 @@ async def _get_job_group_dict(app, batch_id: int, job_group_identifier: Union[st
         f'''
 WITH base_t AS (
   SELECT job_groups.batch_id, job_groups.job_group_id, job_groups.time_created, job_groups.time_completed, job_groups.path,
-    job_groups.state, job_groups.n_jobs, batches.`user`,
-    batches.msec_mcpu, batches.token, batches.billing_project, batches.attributes,
+    job_groups.state, job_groups.n_jobs, batches.`user`, job_groups.attributes,
+    batches.msec_mcpu, batches.token, batches.billing_project,
     batches_cancelled.id IS NOT NULL AS cancelled,
     CAST(COALESCE(SUM(batches_n_jobs_in_complete_states.n_completed), 0) AS SIGNED) AS n_completed,
     CAST(COALESCE(SUM(batches_n_jobs_in_complete_states.n_succeeded), 0) AS SIGNED) AS n_succeeded,
@@ -2109,8 +2139,8 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 async def create_job_groups(request, userdata, batch_id):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     job_group_cache: JobGroupCache = request.app['job_group_cache']
-    post = await request.post()
-    validate_job_groups(post)
+    job_groups = await request.post()
+    validate_job_groups(job_groups)
 
     @transaction(db)
     async def _insert(tx):
@@ -2126,7 +2156,7 @@ async def create_job_groups(request, userdata, batch_id):  # pylint: disable=unu
                     callback=jg.get('callback'),
                     attributes=jg.get('attributes'),
                 )
-                for jg in post
+                for jg in job_groups
             ],
             parallelism=6,
         )

@@ -511,6 +511,8 @@ class BatchBuilder:
                          callback: Optional[str] = None,
                          attributes: Optional[Dict[str, str]] = None,
                          ):
+        if path == '/':
+            raise ValueError('cannot create a job group with path equal to "/"')
         if not path.startswith('/'):
             raise ValueError(f'path must start with "/". Found "{path}".')
         jg = {'job_group': path}
@@ -998,6 +1000,8 @@ class BatchClient:
 
     async def create_job_group(self, id: int, job_group: str, *, cancel_after_n_failures: Optional[int] = None,
                                callback: Optional[str] = None, attributes: Optional[Dict[str, str]] = None):
+        if job_group == '/':
+            raise ValueError('cannot create a job group with path "/"')
         jg = {'job_group': job_group}
         if cancel_after_n_failures is not None:
             jg['cancel_after_n_failures'] = cancel_after_n_failures

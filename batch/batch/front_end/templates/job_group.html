@@ -34,6 +34,13 @@
 </form>
 {% endif %}
 
+<h2>Attributes</h2>
+{% if 'attributes' in job_group %}
+{% for name, value in job_group['attributes'].items() %}
+<p>{{ name }}: {{ value }}</p>
+{% endfor %}
+{% endif %}
+
 <h2>Job Groups</h2>
 <div class="flex-col">
   <div class='flex-col' style="overflow: auto;">
