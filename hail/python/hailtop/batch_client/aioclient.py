@@ -735,10 +735,17 @@ class BatchBuilder:
             batch_spec['cancel_after_n_failures'] = self._cancel_after_n_failures
         return batch_spec
 
+    def _create_job_group_spec(self, job_groups: List[Dict[str, Any]]):
+        return {
+            'token': self.token,
+            'job_groups': job_groups
+        }
+
     async def _submit_job_groups(self):
         assert self._batch.id
+
         await bounded_gather(
-            *[functools.partial(self._client._post, f'/api/v1/alpha/batches/{self._batch.id}/job_groups', specs)
+            *[functools.partial(self._client._post, f'/api/v1/alpha/batches/{self._batch.id}/job_groups', self._create_job_group_spec(specs))
               for specs in grouped(100, self._job_groups)
               ],
             parallelism=6,
@@ -999,7 +1006,8 @@ class BatchClient:
         return BatchBuilder(self, batch=await self.get_batch(batch))
 
     async def create_job_group(self, id: int, job_group: str, *, cancel_after_n_failures: Optional[int] = None,
-                               callback: Optional[str] = None, attributes: Optional[Dict[str, str]] = None):
+                               callback: Optional[str] = None, attributes: Optional[Dict[str, str]] = None,
+                               token: Optional[str] = None):
         if job_group == '/':
             raise ValueError('cannot create a job group with path "/"')
         jg = {'job_group': job_group}
@@ -1009,7 +1017,8 @@ class BatchClient:
             jg['callback'] = callback
         if attributes is not None:
             jg['attributes'] = attributes
-        jg_resp = await self._post(f'/api/v1/alpha/batches/{id}/job_groups', json=[jg])
+        spec = {'job_groups': [jg], 'token': token if token else secrets.token_urlsafe(32)}
+        jg_resp = await self._post(f'/api/v1/alpha/batches/{id}/job_groups', json=spec)
         return await jg_resp.json()
 
     async def get_billing_project(self, billing_project):

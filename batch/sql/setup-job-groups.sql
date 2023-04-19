@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS `job_groups` (
   `time_created` BIGINT NOT NULL,
   `time_completed` BIGINT,
   `callback` VARCHAR(255),
+  `update_id` VARCHAR(100) DEFAULT NULL,
   PRIMARY KEY (`batch_id`, `job_group_id`),
   UNIQUE (`batch_id`, `path`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE

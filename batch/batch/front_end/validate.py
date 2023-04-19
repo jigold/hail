@@ -128,6 +128,13 @@ job_group_validator = keyed(
         'cancel_after_n_failures': nullable(int_type),
         'callback': nullable(str_type),
         'attributes': nullable(dictof(str_type)),
+    })
+
+
+create_job_group_validator = keyed(
+    {
+        required('token'): str_type,
+        required('job_groups'): listof(job_group_validator)
     }
 )
 
@@ -226,3 +233,7 @@ def validate_job_groups(job_groups):
     for i, job_group in enumerate(job_groups):
         job_group_validator.validate(f'job_group[{i}]', job_group)
         job_group['job_group'] = job_group['job_group'].rstrip('/')
+
+
+def validate_create_job_groups(job_groups_spec):
+    create_job_group_validator.validate('create_job_groups', job_groups_spec)
