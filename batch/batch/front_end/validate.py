@@ -128,15 +128,11 @@ job_group_validator = keyed(
         'cancel_after_n_failures': nullable(int_type),
         'callback': nullable(str_type),
         'attributes': nullable(dictof(str_type)),
-    })
-
-
-create_job_group_validator = keyed(
-    {
-        required('token'): str_type,
-        required('job_groups'): listof(job_group_validator)
     }
 )
+
+
+create_job_group_validator = keyed({required('token'): str_type, required('job_groups'): listof(job_group_validator)})
 
 
 def validate_and_clean_jobs(jobs):

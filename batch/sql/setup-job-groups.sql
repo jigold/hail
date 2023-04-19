@@ -10,10 +10,11 @@ CREATE TABLE IF NOT EXISTS `job_groups` (
   `time_created` BIGINT NOT NULL,
   `time_completed` BIGINT,
   `callback` VARCHAR(255),
-  `update_id` VARCHAR(100) DEFAULT NULL,
+  `update_id` INT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_group_id`),
   UNIQUE (`batch_id`, `path`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(`batch_id`, `update_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `job_groups_path` ON `job_groups` (`batch_id`, `path`);
 CREATE INDEX `job_groups_state_callback` ON `job_groups` (`batch_id`, `state`, `callback`);

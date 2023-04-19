@@ -17,7 +17,7 @@ def _time_msecs_str(t):
     return None
 
 
-## FIXME: delete
+# FIXME: delete
 def batch_record_to_dict(record):
     if record['state'] == 'open':
         state = 'open'

@@ -1089,19 +1089,22 @@ async def _create_job_group(
     now = time_msecs()
 
     if isinstance(path, str):
+        path_str = path
         path = JobGroup.job_group_path_from_str(path)
+    else:
+        path_str = JobGroup.job_group_path_str(path)
 
     if not JobGroup.is_valid_job_group_path(path):
         raise InvalidJobGroupPathError(path)
 
     if cancel_after_n_failures is not None or callback is not None or attributes is not None:
         try:
-            job_group = await job_group_cache.lookup_by_path(batch_id, JobGroup.job_group_path_str(path))
+            job_group = await job_group_cache.lookup_by_path(batch_id, path_str)
         except NonExistentJobGroupPathError:
             pass
         else:
             if job_group.update_id != update_id:
-                raise JobGroupAlreadyExistsError
+                raise JobGroupAlreadyExistsError(batch_id, path_str)
 
     async def _insert_job_group(
         tx: Union[Transaction, Database],
@@ -1183,7 +1186,7 @@ WHERE batch_id = %s AND job_group_id = %s;
         await tx.execute_many(
             '''
 INSERT INTO batch_attributes (batch_id, job_group_id, `key`, value)
-VALUES (%s, %s, %s, %s);                
+VALUES (%s, %s, %s, %s);
 ''',
             [(batch_id, job_group_id, k, v) for k, v in attributes.items()],
             'insert_job_group_attributes',
@@ -1933,7 +1936,7 @@ async def update_batch_fast(request, userdata):
         return e.http_response()
 
     try:
-        await _create_jobs(userdata, bunch, batch_id, update_id, update_spec['token'], app)
+        await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
             return web.json_response({'update_id': update_id, 'start_job_id': start_job_id})
@@ -2132,7 +2135,7 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/job_groups/{job_group_id}/cancel')
 @rest_billing_project_users_only
-async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def cancel_batch_by_job_group(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_group_id = int(request.match_info['job_group_id'])
     await _handle_api_error(_cancel_job_group, request.app, batch_id, job_group_id)
     return web.Response()
