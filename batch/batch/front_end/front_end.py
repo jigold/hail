@@ -114,6 +114,110 @@ BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB = 5
 
 
+class JobGroup:
+    @staticmethod
+    def job_group_path_str_from_list(path: List[str]) -> str:
+        return '/' + '/'.join(path)
+
+    @staticmethod
+    def job_group_path_from_str(path: str) -> List[str]:
+        path = path.lstrip('/').rstrip('/')
+        if path == '':
+            return []
+        return path.split('/')
+
+    @staticmethod
+    def is_valid_job_group_path(path: List[str]) -> bool:
+        if not 0 <= len(path) <= MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB:
+            return False
+        return all(segment != '' for segment in path)
+
+    @staticmethod
+    def is_valid_job_group_path_str(path: str) -> bool:
+        path_list = JobGroup.job_group_path_from_str(path)
+        return JobGroup.is_valid_job_group_path(path_list)
+
+    @staticmethod
+    def job_group_path_str(path: Union[List[str], str]) -> str:
+        if isinstance(path, str) and JobGroup.is_valid_job_group_path_str(path):
+            return path
+        if isinstance(path, list) and JobGroup.is_valid_job_group_path(path):
+            return JobGroup.job_group_path_str_from_list(path)
+        raise InvalidJobGroupPathError(path)
+
+    def __init__(self, batch_id: int, update_id: int, job_group_id: int, path: str, parent_ids: List[int]):
+        self.batch_id = batch_id
+        self.update_id = update_id
+        self.job_group_id = job_group_id
+        self.path = path
+        self.parent_ids = parent_ids
+
+
+class JobGroupCache:
+    def __init__(self, db: Database):
+        self.db = db
+        self.job_group_path_cache = TimeLimitedMaxSizeCache[Tuple[int, str], JobGroup](
+            load=self._get_job_group_by_path, lifetime_ns=3600 * 10**9, num_slots=1000, cache_name='job-group-cache'
+        )
+        self.job_group_id_cache = TimeLimitedMaxSizeCache[Tuple[int, int], JobGroup](
+            load=self._get_job_group_by_id, lifetime_ns=3600 * 10**9, num_slots=1000, cache_name='job-group-cache'
+        )
+
+    async def lookup_by_path(self, batch_id: int, path: str) -> JobGroup:
+        return await self.job_group_path_cache.lookup((batch_id, path))
+
+    async def lookup_by_id(self, batch_id: int, job_group_id: int) -> JobGroup:
+        return await self.job_group_id_cache.lookup((batch_id, job_group_id))
+
+    def put_from_path(self, batch_id: int, path: str, job_group: JobGroup):
+        return self.job_group_path_cache._put((batch_id, path), job_group)
+
+    def put_from_id(self, batch_id: int, job_group_id: int, job_group: JobGroup):
+        return self.job_group_id_cache._put((batch_id, job_group_id), job_group)
+
+    async def _get_job_group_by_path(self, input: Tuple[int, str]) -> JobGroup:
+        batch_id, path = input
+        records = self.db.select_and_fetchall(
+            '''
+SELECT job_groups.job_group_id, parent_id, update_id
+FROM job_groups
+LEFT JOIN job_group_parents ON job_groups.batch_id = job_group_parents.batch_id AND job_groups.job_group_id = job_group_parents.job_group_id
+WHERE job_groups.batch_id = %s AND job_groups.path = %s
+ORDER BY parent_id ASC;
+''',
+            (batch_id, path),
+        )
+        records = [record async for record in records]
+        if not records:
+            raise NonExistentJobGroupPathError(batch_id, path)
+
+        parent_ids = [record['parent_id'] for record in records if record['parent_id'] != record['job_group_id']]
+        job_group_id = records[0]['job_group_id']
+        update_id = records[0]['update_id']
+        return JobGroup(batch_id, update_id, job_group_id, path, parent_ids)
+
+    async def _get_job_group_by_id(self, input: Tuple[int, int]) -> JobGroup:
+        batch_id, job_group_id = input
+        records = self.db.select_and_fetchall(
+            '''
+SELECT job_groups.job_group_id, parent_id, path, token
+FROM job_groups
+LEFT JOIN job_group_parents ON job_groups.batch_id = job_group_parents.batch_id AND job_groups.job_group_id = job_group_parents.job_group_id
+WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s
+ORDER BY parent_id ASC;
+''',
+            (batch_id, job_group_id),
+        )
+        records = [record async for record in records]
+        if not records:
+            raise NonExistentJobGroupIDError(batch_id, job_group_id)
+
+        parent_ids = [record['parent_id'] for record in records if record['parent_id'] != record['job_group_id']]
+        path = records[0]['path']
+        update_id = records[0]['update_id']
+        return JobGroup(batch_id, update_id, job_group_id, path, parent_ids)
+
+
 def rest_authenticated_developers_or_auth_only(fun):
     @auth.rest_authenticated_users_only
     @wraps(fun)
@@ -235,8 +339,9 @@ async def _handle_api_error(f, *args, **kwargs):
         raise e.http_response()
 
 
-async def _query_job_groups(request, user, q: str, batch_id: int, job_group_id: int):
+async def _query_job_groups(request, user, q: str, batch_id: int, job_group: JobGroup):
     db = request.app['db']
+    job_group_id = job_group.job_group_id
 
     where_conditions = [
         'job_groups.batch_id = %s',
@@ -253,6 +358,11 @@ async def _query_job_groups(request, user, q: str, batch_id: int, job_group_id: 
     else:
         job_group_filter = '(job_group_parents.parent_id = %s AND level = 1)'
         job_group_filter_args.append(job_group_id)
+
+    last_job_group_path = request.query.get('last_job_group_path')
+    if last_job_group_path is not None:
+        where_conditions.append('(job_groups.path > %s)')
+        where_args.append(last_job_group_path)
 
     terms = q.split()
     for t in terms:
@@ -317,6 +427,7 @@ WITH base_t AS (
   WHERE {' AND '.join(where_conditions)}
   GROUP BY job_groups.batch_id, job_groups.job_group_id
   ORDER BY path ASC
+  LIMIT 50
 )
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM base_t
@@ -338,7 +449,12 @@ ORDER BY path ASC;
         async for job_group in db.select_and_fetchall(sql, sql_args, query_name='get_job_groups')
     ]
 
-    return job_groups
+    if len(job_groups) == 50:
+        last_job_group_path = job_groups[-1]['path']
+    else:
+        last_job_group_path = None
+
+    return (job_groups, last_job_group_path)
 
 
 async def _query_batch_jobs(request, batch_id, job_group_id):
@@ -486,6 +602,26 @@ WHERE id = %s AND NOT deleted;
     resp = {'jobs': jobs}
     if last_job_id is not None:
         resp['last_job_id'] = last_job_id
+    return web.json_response(resp)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/job_groups')
+@rest_billing_project_users_only
+async def get_job_groups_from_path(request, userdata, batch_id):
+    user = userdata['username']
+    job_group_cache: JobGroupCache = request.app['job_group_cache']
+    job_group_path_str = request.query['job_group']
+    try:
+        job_group = await job_group_cache.lookup_by_path(batch_id, job_group_path_str)
+    except NonExistentJobGroupPathError as e:
+        return e.http_response()
+
+    q = request.query.get('q')
+
+    job_groups, last_job_group_path = await _query_job_groups(request, user, q, batch_id, job_group)
+    resp = {'job_groups': job_groups}
+    if last_job_group_path is not None:
+        resp['last_job_group_path'] = last_job_group_path
     return web.json_response(resp)
 
 
@@ -969,110 +1105,6 @@ NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
 def assert_is_sha_1_hex_string(revision: str):
     if len(revision) != 40 or NON_HEX_DIGIT.search(revision):
         raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
-
-
-class JobGroup:
-    @staticmethod
-    def job_group_path_str_from_list(path: List[str]) -> str:
-        return '/' + '/'.join(path)
-
-    @staticmethod
-    def job_group_path_from_str(path: str) -> List[str]:
-        path = path.lstrip('/').rstrip('/')
-        if path == '':
-            return []
-        return path.split('/')
-
-    @staticmethod
-    def is_valid_job_group_path(path: List[str]) -> bool:
-        if not 0 <= len(path) <= MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB:
-            return False
-        return all(segment != '' for segment in path)
-
-    @staticmethod
-    def is_valid_job_group_path_str(path: str) -> bool:
-        path_list = JobGroup.job_group_path_from_str(path)
-        return JobGroup.is_valid_job_group_path(path_list)
-
-    @staticmethod
-    def job_group_path_str(path: Union[List[str], str]) -> str:
-        if isinstance(path, str) and JobGroup.is_valid_job_group_path_str(path):
-            return path
-        if isinstance(path, list) and JobGroup.is_valid_job_group_path(path):
-            return JobGroup.job_group_path_str_from_list(path)
-        raise InvalidJobGroupPathError(path)
-
-    def __init__(self, batch_id: int, update_id: int, job_group_id: int, path: str, parent_ids: List[int]):
-        self.batch_id = batch_id
-        self.update_id = update_id
-        self.job_group_id = job_group_id
-        self.path = path
-        self.parent_ids = parent_ids
-
-
-class JobGroupCache:
-    def __init__(self, db: Database):
-        self.db = db
-        self.job_group_path_cache = TimeLimitedMaxSizeCache[Tuple[int, str], JobGroup](
-            load=self._get_job_group_by_path, lifetime_ns=3600 * 10**9, num_slots=1000, cache_name='job-group-cache'
-        )
-        self.job_group_id_cache = TimeLimitedMaxSizeCache[Tuple[int, int], JobGroup](
-            load=self._get_job_group_by_id, lifetime_ns=3600 * 10**9, num_slots=1000, cache_name='job-group-cache'
-        )
-
-    async def lookup_by_path(self, batch_id: int, path: str) -> JobGroup:
-        return await self.job_group_path_cache.lookup((batch_id, path))
-
-    async def lookup_by_id(self, batch_id: int, job_group_id: int) -> JobGroup:
-        return await self.job_group_id_cache.lookup((batch_id, job_group_id))
-
-    def put_from_path(self, batch_id: int, path: str, job_group: JobGroup):
-        return self.job_group_path_cache._put((batch_id, path), job_group)
-
-    def put_from_id(self, batch_id: int, job_group_id: int, job_group: JobGroup):
-        return self.job_group_id_cache._put((batch_id, job_group_id), job_group)
-
-    async def _get_job_group_by_path(self, input: Tuple[int, str]) -> JobGroup:
-        batch_id, path = input
-        records = self.db.select_and_fetchall(
-            '''
-SELECT job_groups.job_group_id, parent_id, update_id
-FROM job_groups
-LEFT JOIN job_group_parents ON job_groups.batch_id = job_group_parents.batch_id AND job_groups.job_group_id = job_group_parents.job_group_id
-WHERE job_groups.batch_id = %s AND job_groups.path = %s
-ORDER BY parent_id ASC;
-''',
-            (batch_id, path),
-        )
-        records = [record async for record in records]
-        if not records:
-            raise NonExistentJobGroupPathError(batch_id, path)
-
-        parent_ids = [record['parent_id'] for record in records if record['parent_id'] != record['job_group_id']]
-        job_group_id = records[0]['job_group_id']
-        update_id = records[0]['update_id']
-        return JobGroup(batch_id, update_id, job_group_id, path, parent_ids)
-
-    async def _get_job_group_by_id(self, input: Tuple[int, int]) -> JobGroup:
-        batch_id, job_group_id = input
-        records = self.db.select_and_fetchall(
-            '''
-SELECT job_groups.job_group_id, parent_id, path, token
-FROM job_groups
-LEFT JOIN job_group_parents ON job_groups.batch_id = job_group_parents.batch_id AND job_groups.job_group_id = job_group_parents.job_group_id
-WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s
-ORDER BY parent_id ASC;
-''',
-            (batch_id, job_group_id),
-        )
-        records = [record async for record in records]
-        if not records:
-            raise NonExistentJobGroupIDError(batch_id, job_group_id)
-
-        parent_ids = [record['parent_id'] for record in records if record['parent_id'] != record['job_group_id']]
-        path = records[0]['path']
-        update_id = records[0]['update_id']
-        return JobGroup(batch_id, update_id, job_group_id, path, parent_ids)
 
 
 async def _create_job_group(
@@ -2285,12 +2317,13 @@ async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 @catch_ui_error_in_dev
 async def ui_job_group(request, userdata, batch_id):
     app = request.app
-
+    job_group_cache: JobGroupCache = app['job_group_cache']
     user = userdata['username']
     job_group_id = int(request.match_info['job_group_id'])
-    job_group, child_job_groups, (jobs, last_job_id) = await asyncio.gather(
+    job_group = await job_group_cache.lookup_by_id(batch_id, job_group_id)
+    job_group_dict, child_job_groups, (jobs, last_job_group_path) = await asyncio.gather(
         _get_job_group_dict(app, batch_id, job_group_id),
-        _query_job_groups(request, user, '', batch_id, job_group_id),
+        _query_job_groups(request, user, '', batch_id, job_group),
         _query_batch_jobs(request, batch_id, job_group_id),
     )
 
@@ -2302,12 +2335,12 @@ async def ui_job_group(request, userdata, batch_id):
         j['duration'] = humanize_timedelta_msecs(j['duration'])
         j['cost'] = cost_str(j['cost'])
 
-    job_group['child_job_groups'] = child_job_groups
-    job_group['jobs'] = jobs
+    job_group_dict['child_job_groups'] = child_job_groups
+    job_group_dict['jobs'] = jobs
 
-    job_group['cost'] = cost_str(job_group['cost'])
+    job_group_dict['cost'] = cost_str(job_group_dict['cost'])
 
-    page_context = {'job_group': job_group, 'q': request.query.get('q'), 'last_job_id': last_job_id}
+    page_context = {'job_group': job_group_dict, 'q': request.query.get('q'), 'last_job_group_path': last_job_group_path}
     return await render_template('batch', request, userdata, 'job_group.html', page_context)
 
 
@@ -2494,6 +2527,14 @@ async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-a
 async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     status = await _get_job(request.app, batch_id, job_id)
+    return web.json_response(status)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/job_groups/{job_group_id}')
+@rest_billing_project_users_only
+async def get_job_group(request, userdata, batch_id):  # pylint: disable=unused-argument
+    job_group_id = int(request.match_info['job_group_id'])
+    status = await _get_job_group_dict(request.app, batch_id, job_group_id)
     return web.json_response(status)
 
 

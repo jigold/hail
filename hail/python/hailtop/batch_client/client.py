@@ -148,9 +148,9 @@ class Batch:
     def cancel_job_group(self, job_group: str):
         async_to_blocking(self._async_batch.cancel_job_group(job_group))
 
-    def create_job_group(self, job_group: str, *, cancel_after_n_failures: Optional[int] = None, callback: Optional[str] = None):
+    def create_job_group(self, job_group: str, *, cancel_after_n_failures: Optional[int] = None, callback: Optional[str] = None, attributes: Dict[str, Any] = None):
         async_to_blocking(self._async_batch.create_job_group(
-            job_group, cancel_after_n_failures=cancel_after_n_failures, callback=callback)
+            job_group, cancel_after_n_failures=cancel_after_n_failures, callback=callback, attributes=attributes)
         )
 
     # {
@@ -183,6 +183,9 @@ class Batch:
 
     def jobs(self, q=None):
         return agen_to_blocking(self._async_batch.jobs(q=q))
+
+    def job_groups(self, q=None):
+        return agen_to_blocking(self._async_batch.job_groups(q=q))
 
     def get_job(self, job_id: int) -> Job:
         j = async_to_blocking(self._async_batch.get_job(job_id))
@@ -351,9 +354,9 @@ class BatchClient:
         return BatchBuilder.from_async_builder(batch_builder, batch=None)
 
     def create_job_group(self, batch_id: int, job_group: str, *, cancel_after_n_failures: Optional[int] = None, callback: Optional[str] = None,
-                         attributes: Optional[Dict[str, str]] = None):
+                         attributes: Optional[Dict[str, str]] = None, token: Optional[str] = None):
         return async_to_blocking(self._async_client.create_job_group(
-            batch_id, job_group, cancel_after_n_failures=cancel_after_n_failures, callback=callback, attributes=attributes
+            batch_id, job_group, cancel_after_n_failures=cancel_after_n_failures, callback=callback, attributes=attributes, token=token
         ))
 
     def get_billing_project(self, billing_project):

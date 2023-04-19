@@ -387,17 +387,34 @@ class Batch:
             if last_job_id is None:
                 break
 
+    async def job_groups(self, q=None):
+        last_job_group_path = None
+        while True:
+            params = {}
+            if q is not None:
+                params['q'] = q
+            if last_job_group_path is not None:
+                params['last_job_group_path'] = last_job_group_path
+            resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/job_groups', params=params)
+            body = await resp.json()
+            for job_group in body['job_groups']:
+                yield job_group
+            last_job_group_path = body.get('last_job_group_path')
+            if last_job_group_path is None:
+                break
+
     async def get_job(self, job_id: int) -> Job:
         return await self._client.get_job(self.id, job_id)
 
     async def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
         return await self._client.get_job_log(self.id, job_id)
 
-    async def create_job_group(self, job_group: str, *, cancel_after_n_failures: Optional[int] = None, callback: Optional[str] = None):
-        return await self._client.create_job_group(self.id, job_group, cancel_after_n_failures=cancel_after_n_failures, callback=callback)
+    async def create_job_group(self, job_group: str, *, cancel_after_n_failures: Optional[int] = None, callback: Optional[str] = None, attributes: Optional[Dict[str, Any]] = None):
+        return await self._client.create_job_group(self.id, job_group, cancel_after_n_failures=cancel_after_n_failures, callback=callback, attributes=attributes, token=self.token)
 
     # {
     #   id: int
+    #   batch_id: int
     #   job_group_id: int
     #   user: str
     #   billing_project: str

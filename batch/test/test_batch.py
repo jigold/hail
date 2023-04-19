@@ -1331,3 +1331,80 @@ def test_region(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert status['status']['region'] == region, str((status, b.debug_info()))
     assert region in j.log()['main'], str((status, b.debug_info()))
+
+
+def test_job_group_creation_with_no_jobs(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job_group('/foo')
+    b = bb.submit()
+
+    b.list_job_groups()
+
+
+def test_batch_with_no_predeclared_job_groups(client: BatchClient):
+    pass
+
+
+def test_batch_with_predeclared_job_groups(client: BatchClient):
+    pass
+
+
+def test_existing_batch_with_job_groups_created_by_client(client: BatchClient):
+    pass
+
+
+def test_job_group_cancel_after_n_failures(client: BatchClient):
+    pass
+
+
+def test_job_group_attributes(client: BatchClient):
+    pass
+
+
+def test_nested_job_group_billing_propogation(client: BatchClient):
+    pass
+
+
+def test_nested_job_group_cancel_ready_jobs(client: BatchClient):
+    pass
+
+
+def test_nested_job_group_cancel_running_jobs(client: BatchClient):
+    pass
+
+
+def test_batch_update_with_predeclared_job_groups(client: BatchClient):
+    pass
+
+
+def test_job_groups_with_slow_create(client: BatchClient):
+    pass
+
+
+def test_job_groups_with_slow_update(client: BatchClient):
+    pass
+
+
+def test_nested_job_groups_callback(client: BatchClient):
+    pass
+
+
+def test_nested_job_groups_cancel_middle_group(client: BatchClient):
+    pass
+
+
+def test_job_group_creation_with_bad_paths(client: BatchClient):
+    pass
+
+
+def test_query_nested_job_groups(client: BatchClient):
+    pass
+
+
+def test_cant_create_or_update_already_existing_job_groups():
+    pass
+
+
+def test_query_job_groups():
+    pass
+

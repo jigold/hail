@@ -97,6 +97,12 @@
 	</tbody>
     </table>
   </div>
+  {% if last_job_group_path is not none %}
+  <form method="GET" action="{{ base_path }}/batches/{{ job_group['id'] }}/job_groups">
+    <input type="hidden" name="last_job_group_path" value="{{ last_job_group_path }}" />
+    <button>Next page</button>
+  </form>
+  {% endif %}
 </div>
 
 <h2>Jobs</h2>
