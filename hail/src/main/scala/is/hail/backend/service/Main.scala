@@ -1,7 +1,8 @@
 package is.hail.backend.service
 
 import is.hail.HailContext
-import org.apache.log4j.{LogManager, Logger, PropertyConfigurator}
+import org.apache.log4j
+import org.apache.log4j.{FileAppender, PatternLayout, Level, LogManager, Logger, PropertyConfigurator}
 
 import java.util.Properties
 import scala.jdk.CollectionConverters._
@@ -21,9 +22,23 @@ object Main {
     logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
     logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
 
-    LogManager.getCurrentLoggers.asScala.foreach(logger => logger.asInstanceOf[Logger].removeAllAppenders())
-    LogManager.resetConfiguration()
-    PropertyConfigurator.configure(logProps)
+//    val logger = LogManager.getRootLogger()
+//    logger.removeAllAppenders()
+    val fa = new FileAppender()
+    fa.setFile(logFile)
+    fa.setLayout(new PatternLayout(HailContext.logFormat))
+    fa.setThreshold(Level.INFO)
+//    logger.addAppender(fa)
+
+//    val appender = new FileAppender(SimpleLayout, logFile, false)
+//
+    for (logger <- LogManager.getCurrentLoggers.asScala) {
+      logger.asInstanceOf[Logger].removeAllAppenders()
+      logger.asInstanceOf[Logger].addAppender(fa)
+    }
+
+//    LogManager.resetConfiguration()
+//    PropertyConfigurator.configure(logProps)
   }
 
   def main(argv: Array[String]): Unit = {
