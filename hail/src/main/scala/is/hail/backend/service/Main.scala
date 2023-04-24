@@ -28,6 +28,7 @@ object Main {
     fa.setFile(logFile)
     fa.setLayout(new PatternLayout(HailContext.logFormat))
     fa.setThreshold(Level.INFO)
+    fa.activateOptions()
 //    logger.addAppender(fa)
 
 //    val appender = new FileAppender(SimpleLayout, logFile, false)
