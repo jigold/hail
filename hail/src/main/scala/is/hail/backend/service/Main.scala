@@ -1,9 +1,10 @@
 package is.hail.backend.service
 
 import is.hail.HailContext
-import org.apache.log4j.{LogManager, PropertyConfigurator}
+import org.apache.log4j.{LogManager, Logger, PropertyConfigurator}
 
 import java.util.Properties
+import scala.jdk.CollectionConverters._
 
 object Main {
   val WORKER = "worker"
@@ -20,6 +21,7 @@ object Main {
     logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
     logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
 
+    LogManager.getCurrentLoggers.asScala.foreach(logger => logger.asInstanceOf[Logger].removeAllAppenders())
     LogManager.resetConfiguration()
     PropertyConfigurator.configure(logProps)
   }

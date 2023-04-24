@@ -55,8 +55,7 @@ class ServiceBackendContext(
 }
 
 object ServiceBackend {
-  val token = tokenUrlSafe(8)
-  private val log = Logger.getLogger(getClass.getName() + s"$token")
+  private val log = Logger.getLogger(getClass.getName())
 }
 
 class ServiceBackend(
@@ -484,8 +483,7 @@ class ServiceBackendSocketAPI2(
 
   private[this] val dummy = new Array[Byte](8)
 
-  private[this] val token = tokenUrlSafe(8)
-  private[this] val log = Logger.getLogger(getClass.getName() + s"$token")
+  private[this] val log = Logger.getLogger(getClass.getName())
 
   def read(bytes: Array[Byte], off: Int, n: Int): Unit = {
     assert(off + n <= bytes.length)
