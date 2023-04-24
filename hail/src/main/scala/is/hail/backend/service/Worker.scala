@@ -81,7 +81,9 @@ class ExplicitClassLoaderInputStream(is: InputStream, cl: ClassLoader) extends O
 }
 
 object Worker {
-  private[this] val log = Logger.getLogger(getClass.getName())
+  private[this] val token = tokenUrlSafe(8)
+  private[this] val log = Logger.getLogger(getClass.getName() + s"$token")
+//  private[this] val log = Logger.getLogger(getClass.getName())
   private[this] val myRevision = HAIL_REVISION
   private[this] implicit val ec = ExecutionContext.fromExecutorService(
     javaConcurrent.Executors.newCachedThreadPool())
