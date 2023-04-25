@@ -2325,6 +2325,7 @@ class JVMContainer:
 
         command = [
             'java',
+            '-verbose:class',
             f'-Xmx{heap_memory_mib}M',
             '-cp',
             f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',

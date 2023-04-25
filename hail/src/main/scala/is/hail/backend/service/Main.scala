@@ -2,7 +2,8 @@ package is.hail.backend.service
 
 import is.hail.HailContext
 import org.apache.log4j
-import org.apache.log4j.{FileAppender, PatternLayout, Level, LogManager, Logger, PropertyConfigurator}
+import org.apache.log4j.spi.{RootLogger, DefaultRepositorySelector}
+import org.apache.log4j.{FileAppender, Hierarchy, Level, LogManager, Logger, PatternLayout, PropertyConfigurator}
 
 import java.util.Properties
 import scala.jdk.CollectionConverters._
@@ -12,35 +13,71 @@ object Main {
   val DRIVER = "driver"
 
   def configureLogging(logFile: String): Unit = {
-    val logProps = new Properties()
-
-    logProps.put("log4j.rootLogger", "INFO, logfile")
-    logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
-    logProps.put("log4j.appender.logfile.append", true.toString)
-    logProps.put("log4j.appender.logfile.file", logFile)
-    logProps.put("log4j.appender.logfile.threshold", "INFO")
-    logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
-    logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
-
-//    val logger = LogManager.getRootLogger()
-//    logger.removeAllAppenders()
+    LogManager.getRootLogger().removeAllAppenders()
     val fa = new FileAppender()
+    fa.setName("Hail File Appender: " + logFile)
     fa.setFile(logFile)
     fa.setLayout(new PatternLayout(HailContext.logFormat))
     fa.setThreshold(Level.INFO)
     fa.activateOptions()
-//    logger.addAppender(fa)
+    LogManager.getRootLogger().addAppender(fa)
+    LogManager.getRootLogger().error("HELLO I WORK!!!!")
+  }
 
-//    val appender = new FileAppender(SimpleLayout, logFile, false)
+//  def configureLogging(logFile: String): Unit = {
+//    LogManager.getRootLogger().removeAllAppenders()
+//    val fa = new FileAppender()
+//    fa.setName("Hail File Appender: " + logFile)
+//    fa.setFile(logFile)
+//    fa.setLayout(new PatternLayout(HailContext.logFormat))
+//    fa.setThreshold(Level.INFO)
+//    fa.activateOptions()
+//    LogManager.getRootLogger().addAppender(fa)
+//  }
+
+//  def configureLogging(logFile: String): Unit = {
+//    val logProps = new Properties()
 //
-    for (logger <- LogManager.getCurrentLoggers.asScala) {
-      logger.asInstanceOf[Logger].removeAllAppenders()
-      logger.asInstanceOf[Logger].addAppender(fa)
-    }
-
+//    logProps.put("log4j.rootLogger", "INFO, logfile")
+//    logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
+//    logProps.put("log4j.appender.logfile.append", true.toString)
+//    logProps.put("log4j.appender.logfile.file", logFile)
+//    logProps.put("log4j.appender.logfile.threshold", "INFO")
+//    logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
+//    logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
+//
+////    with open(logFile, 'w') as f:
+////      f.write(LogManager.getLoggerRepository.toString)
+//
+////    val logger = LogManager.getRootLogger()
+////    logger.removeAllAppenders()
+////    val fa = new FileAppender()
+////    fa.setFile(logFile)
+////    fa.setLayout(new PatternLayout(HailContext.logFormat))
+////    fa.setThreshold(Level.INFO)
+////    fa.activateOptions()
+////
+//////    LogManager.getLoggerRepository.shutdown()
+////    LogManager.resetConfiguration()
+////    LogManager.getRootLogger.addAppender(fa)
+////
+//
+//
+////    logger.addAppender(fa)
+//
+////    val appender = new FileAppender(SimpleLayout, logFile, false)
+////
+////    for (logger <- LogManager.getCurrentLoggers.asScala) {
+////      logger.asInstanceOf[Logger].removeAllAppenders()
+////      logger.asInstanceOf[Logger].addAppender(fa)
+////    }
+//
+//    val h = new Hierarchy(new RootLogger(Level.INFO));
+//    val repositorySelector = new DefaultRepositorySelector(h);
+//    LogManager.setRepositorySelector(repositorySelector, null)
 //    LogManager.resetConfiguration()
 //    PropertyConfigurator.configure(logProps)
-  }
+//  }
 
   def main(argv: Array[String]): Unit = {
     val logFile = argv(1)
