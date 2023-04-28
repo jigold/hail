@@ -1940,6 +1940,8 @@ class DockerJob(Job):
         finally:
             log.info(f'reset xfs quota for job {self.id} in {time_msecs() - start}')
 
+        await asyncio.sleep(600)
+
         # try:
         #     async with async_timeout.timeout(120):
         #         await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
