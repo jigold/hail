@@ -1,9 +1,9 @@
 import abc
-from typing import Dict
+from typing import Dict, Tuple
 
 from hailtop import httpx
 from hailtop.aiotools.fs import AsyncFS
-from hailtop.utils import CalledProcessError, check_shell, sleep_and_backoff
+from hailtop.utils import CalledProcessError, check_shell, check_shell_output, sleep_and_backoff
 
 from ..instance_config import InstanceConfig
 from .credentials import CloudUserCredentials
@@ -67,5 +67,5 @@ class CloudWorkerAPI(abc.ABC):
     def _unmount_cloudfuse(self, mount_base_path: str) -> str:
         raise NotImplementedError
 
-    async def unmount_cloudfuse(self, mount_base_path: str) -> None:
-        await check_shell(self._unmount_cloudfuse(mount_base_path))
+    async def unmount_cloudfuse(self, mount_base_path: str) -> Tuple[bytes, bytes]:
+        return await check_shell_output(self._unmount_cloudfuse(mount_base_path))

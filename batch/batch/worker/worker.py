@@ -1917,8 +1917,10 @@ class DockerJob(Job):
                     try:
                         assert CLOUD_WORKER_API
                         async with async_timeout.timeout(120):
-                            await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
+                            stdout, stderr = await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
                             log.info(f'unmounted fuse blob storage {bucket} from {mount_path} for job {self.id}')
+                            log.info(f'stdout: {stdout}')
+                            log.info(f'stderr: {stderr}')
                             config['mounted'] = False
                     except asyncio.CancelledError:
                         raise
