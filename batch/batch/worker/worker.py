@@ -1913,11 +1913,12 @@ class DockerJob(Job):
                     assert bucket
                     mount_path = self.cloudfuse_data_path(bucket)
 
+                    start = time_msecs()
                     try:
                         assert CLOUD_WORKER_API
                         async with async_timeout.timeout(120):
                             await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
-                            log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
+                            log.info(f'unmounted fuse blob storage {bucket} from {mount_path} for job {self.id}')
                             config['mounted'] = False
                     except asyncio.CancelledError:
                         raise
@@ -1925,7 +1926,10 @@ class DockerJob(Job):
                         log.exception(
                             f'while unmounting fuse blob storage {bucket} from {mount_path} for job {self.id}'
                         )
+                    finally:
+                        log.info(f'unmounted fuse blob storage for job {self.id} in {time_msecs() - start}')
 
+        start = time_msecs()
         try:
             async with async_timeout.timeout(120):
                 await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
@@ -1933,14 +1937,16 @@ class DockerJob(Job):
             raise
         except Exception:
             log.exception(f'while resetting xfs_quota project {self.project_id} for job {self.id}')
+        finally:
+            log.info(f'reset xfs quota for job {self.id} in {time_msecs() - start}')
 
-        try:
-            async with async_timeout.timeout(120):
-                await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            log.exception(f'while deleting scratch dir for job {self.id}')
+        # try:
+        #     async with async_timeout.timeout(120):
+        #         await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
+        # except asyncio.CancelledError:
+        #     raise
+        # except Exception:
+        #     log.exception(f'while deleting scratch dir for job {self.id}')
 
     def get_container_log_path(self, container_name: str) -> str:
         return self.containers[container_name].log_path
