@@ -456,7 +456,7 @@ class ServiceBackend(Backend):
                         description=name,
                         disable_progress_bar=self.disable_progress_bar,
                         progress=progress,
-                        starting_job=j.job_id,
+                        # starting_job=j.job_id,
                     )
                 except KeyboardInterrupt:
                     raise

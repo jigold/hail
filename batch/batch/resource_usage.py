@@ -9,12 +9,19 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from hailtop.utils import check_shell_output, time_msecs, time_ns
+from hailtop.utils import check_shell_output, sleep_and_backoff, time_msecs, time_ns
+from hailtop.aiotools.fs import AsyncFS
 
 log = logging.getLogger('resource_usage')
 
 
 iptables_lock = asyncio.Lock()
+
+
+async def read_resource_usage(fs: AsyncFS, path: str) -> bytes:
+    if os.path.exists(path):
+        return await fs.read(path)
+    return ResourceUsageMonitor.no_data()
 
 
 class ResourceUsageMonitor:
@@ -70,12 +77,14 @@ class ResourceUsageMonitor:
         io_volume_mount: Optional[str],
         veth_host: str,
         output_file_path: str,
+        fs: AsyncFS,
     ):
         self.container_name = container_name
         self.container_overlay = container_overlay
         self.io_volume_mount = io_volume_mount
         self.veth_host = veth_host
         self.output_file_path = output_file_path
+        self.fs = fs
 
         self.is_attached_disk = io_volume_mount is not None and os.path.ismount(io_volume_mount)
 
@@ -86,13 +95,14 @@ class ResourceUsageMonitor:
         self.last_upload_bytes: Optional[int] = None
         self.last_time_msecs: Optional[int] = None
 
+        os.makedirs(os.path.basename(output_file_path), exist_ok=True)
         self.out = open(output_file_path, 'wb')  # pylint: disable=consider-using-with
         self.write_header()
 
         self.task: Optional[asyncio.Future] = None
 
     def write_header(self):
-        data = ResourceUsageMonitor.version_to_bytes()
+        data = self.version_to_bytes()
         self.out.write(data)
         self.out.flush()
 
@@ -217,6 +227,9 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
 
         self.out.write(data)
         self.out.flush()
+
+    async def read(self):
+        return read_resource_usage(self.fs, self.output_file_path)
 
     async def __aenter__(self):
         async def periodically_measure():
