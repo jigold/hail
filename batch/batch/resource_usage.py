@@ -94,7 +94,7 @@ class ResourceUsageMonitor:
         self.last_upload_bytes: Optional[int] = None
         self.last_time_msecs: Optional[int] = None
 
-        os.makedirs(os.path.basename(output_file_path), exist_ok=True)
+        os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
         self.out = open(output_file_path, 'wb')  # pylint: disable=consider-using-with
         self.write_header()
 
