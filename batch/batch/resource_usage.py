@@ -231,7 +231,7 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
         self.out.flush()
 
     async def read(self):
-        return read_resource_usage(self.fs, self.output_file_path)
+        return await read_resource_usage(self.fs, self.output_file_path)
 
     async def __aenter__(self):
         async def periodically_measure():

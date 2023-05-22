@@ -1997,7 +1997,7 @@ class DockerJob(Job):
         return self.containers[container_name].log_path
 
     async def get_resource_usage(self) -> Dict[str, bytes]:
-        return {name: await m.read() for name, m in self.monitors.items()}
+        return {name: (await m.read()) for name, m in self.monitors.items()}
 
     async def delete(self):
         await super().delete()
