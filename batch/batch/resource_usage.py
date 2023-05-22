@@ -94,10 +94,6 @@ class ResourceUsageMonitor:
         self.last_upload_bytes: Optional[int] = None
         self.last_time_msecs: Optional[int] = None
 
-        os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
-        self.out = open(output_file_path, 'wb')  # pylint: disable=consider-using-with
-        self.write_header()
-
         self.task: Optional[asyncio.Future] = None
 
     @property
@@ -254,6 +250,10 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
                     if not cancelled:
                         await asyncio.sleep(5)
 
+        os.makedirs(os.path.dirname(self.output_file_path), exist_ok=True)
+        self.out = open(self.output_file_path, 'wb')  # pylint: disable=consider-using-with
+        self.write_header()
+        
         self.task = asyncio.ensure_future(periodically_measure())
         return self
 
