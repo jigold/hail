@@ -1028,14 +1028,7 @@ class Container:
             await self.netns.expose_port(self.port, self.host_port)
 
     def new_resource_usage_monitor(self, resource_usage_path):
-        return ResourceUsageMonitor(
-            self.name,
-            self.container_overlay_path,
-            self.io_mount_path,
-            self.netns.veth_host,
-            resource_usage_path,
-            self.fs,
-        )
+        return ResourceUsageMonitor(self, resource_usage_path)
 
     async def _run_container(self, monitor: ResourceUsageMonitor) -> bool:
         self.started_at = time_msecs()

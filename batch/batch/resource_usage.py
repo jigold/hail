@@ -4,13 +4,16 @@ import logging
 import os
 import shutil
 import struct
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 from hailtop.utils import check_shell_output, sleep_and_backoff, time_msecs, time_ns
 from hailtop.aiotools.fs import AsyncFS
+
+if TYPE_CHECKING:
+    from .worker.worker import Container  # pylint: disable=cyclic-import
 
 log = logging.getLogger('resource_usage')
 
@@ -72,21 +75,17 @@ class ResourceUsageMonitor:
 
     def __init__(
         self,
-        container_name: str,
-        container_overlay: str,
-        io_volume_mount: Optional[str],
-        veth_host: str,
+        container: 'Container',
         output_file_path: str,
-        fs: AsyncFS,
     ):
-        self.container_name = container_name
-        self.container_overlay = container_overlay
-        self.io_volume_mount = io_volume_mount
-        self.veth_host = veth_host
+        self.container = container
+        self.container_name = container.name
+        self.container_overlay = container.container_overlay_path
+        self.io_volume_mount = container.io_mount_path
         self.output_file_path = output_file_path
-        self.fs = fs
+        self.fs = container.fs
 
-        self.is_attached_disk = io_volume_mount is not None and os.path.ismount(io_volume_mount)
+        self.is_attached_disk = container.io_mount_path is not None and os.path.ismount(container.io_mount_path)
 
         self.last_time_ns: Optional[int] = None
         self.last_cpu_ns: Optional[int] = None
@@ -100,6 +99,10 @@ class ResourceUsageMonitor:
         self.write_header()
 
         self.task: Optional[asyncio.Future] = None
+
+    @property
+    def veth_host(self):
+        return self.container.netns.veth_host
 
     def write_header(self):
         data = self.version_to_bytes()
