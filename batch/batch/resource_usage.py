@@ -264,4 +264,7 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
         if self.task is not None:
             self.task.cancel()
             self.task = None
-        self.out.close()
+
+        if self.out is not None:
+            self.out.close()
+            self.out = None
