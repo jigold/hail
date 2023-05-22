@@ -1,5 +1,6 @@
 import asyncio
 import errno
+import io
 import logging
 import os
 import shutil
@@ -93,6 +94,8 @@ class ResourceUsageMonitor:
         self.last_download_bytes: Optional[int] = None
         self.last_upload_bytes: Optional[int] = None
         self.last_time_msecs: Optional[int] = None
+
+        self.out: Optional[io.BytesIO] = None
 
         self.task: Optional[asyncio.Future] = None
 
@@ -253,7 +256,7 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
         os.makedirs(os.path.dirname(self.output_file_path), exist_ok=True)
         self.out = open(self.output_file_path, 'wb')  # pylint: disable=consider-using-with
         self.write_header()
-        
+
         self.task = asyncio.ensure_future(periodically_measure())
         return self
 
