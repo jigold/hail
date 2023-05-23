@@ -458,9 +458,7 @@ class ServiceBackend(Backend):
                         progress=progress,
                         starting_job=j.job_id,
                     )
-                except KeyboardInterrupt:
-                    raise
-                except Exception:
+                except BaseException:
                     await self._batch.cancel()
                     self._batch = None
                     raise
