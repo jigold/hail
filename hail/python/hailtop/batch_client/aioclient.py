@@ -15,6 +15,7 @@ from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
 from hailtop.utils import bounded_gather
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
+from hailtop.utils.rich_multistate_progress_bar import BatchJobStateProgress, JobStateProgressTask, StateUpdate
 from hailtop import httpx
 
 from .globals import tasks, complete_states
@@ -422,7 +423,7 @@ class Batch:
             return await self.status()  # updates _last_known_status
         return self._last_known_status
 
-    async def _wait(self, description: str, progress: BatchProgressBar, disable_progress_bar: bool, starting_job: int):
+    async def _wait(self, description: str, progress: BatchJobStateProgress, disable_progress_bar: bool, starting_job: int):
         deploy_config = get_deploy_config()
         url = deploy_config.external_url('batch', f'/batches/{self.id}')
         i = 0
@@ -436,6 +437,13 @@ class Batch:
                                 disable=disable_progress_bar) as progress_task:
             while True:
                 status = await self.status()
+                n_running = status['n_jobs'] -
+                state_updates = [
+                    StateUpdate('succeeded', completed=status['n_succeeded']),
+                    StateUpdate('failed', completed=status['n_failed']),
+                    StateUpdate('cancelled', completed=status['n_cancelled']),
+                    StateUpdate('running', completed=n_running)
+                ]
                 progress_task.update(None, total=status['n_jobs'] - starting_job + 1, completed=status['n_completed'] - starting_job + 1)
                 if status['complete']:
                     return status
@@ -450,14 +458,14 @@ class Batch:
                    *,
                    disable_progress_bar: bool = False,
                    description: str = '',
-                   progress: Optional[BatchProgressBar] = None,
+                   progress: Optional[ProgressBar] = None,
                    starting_job: int = 1,
                    ):
         if description:
             description += ': '
         if progress is not None:
             return await self._wait(description, progress, disable_progress_bar, starting_job)
-        with BatchProgressBar(disable=disable_progress_bar) as progress2:
+        with ProgressBar(disable=disable_progress_bar) as progress2:
             return await self._wait(description, progress2, disable_progress_bar, starting_job)
 
     async def debug_info(self):
