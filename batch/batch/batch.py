@@ -62,6 +62,7 @@ def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
         'n_succeeded': record['n_succeeded'],
         'n_failed': record['n_failed'],
         'n_cancelled': record['n_cancelled'],
+        'n_running': record['n_running'],
         'time_created': time_created,
         'time_closed': time_closed,
         'time_completed': time_completed,

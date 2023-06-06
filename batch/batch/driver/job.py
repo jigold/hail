@@ -38,7 +38,8 @@ SELECT batches.*,
   job_groups_n_jobs_in_complete_states.n_completed,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
-  job_groups_n_jobs_in_complete_states.n_cancelled
+  job_groups_n_jobs_in_complete_states.n_cancelled,
+  job_groups_n_jobs_in_complete_states.n_running
 FROM batches
 LEFT JOIN job_groups_n_jobs_in_complete_states
   ON batches.id = job_groups_n_jobs_in_complete_states.id
