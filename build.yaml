@@ -2264,6 +2264,9 @@ steps:
       - name: list-jobs-extra-indices
         script: /io/sql/list-jobs-extra-indices.sql
         online: true
+      - name: add-list-batches-index
+        script: /io/sql/add-list-batches-index.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
