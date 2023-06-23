@@ -2,6 +2,12 @@
 {% block title %}Batch {{ batch['id'] }}{% endblock %}
 {% block head %}
   <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+  <style>
+    .button-dark-blue-hover:hover {
+      background-color: #283870;
+      color: #fff;
+    }
+  </style>
 {% endblock %}
 {% block content %}
 
@@ -43,10 +49,17 @@
 
 <h2>Jobs</h2>
 <div class="flex-col">
-  <div class="flex-col-align-right" style="margin: 10px; vertical-align: middle">
+  <div class="flex-col-align-right" style="margin: 10px; margin-left: 0px">
     <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
-      <textarea style="resize: none; width: 500px; white-space: pre; margin: 10px" rows="10" autofocus id="searchArea" name="q">{% if q %}{{ q }}{% endif %}</textarea>
-      <button type="submit">Search</button>
+      <div style="height: 15rem; width: 65vw; display: flex; align-items: center;">
+        <div>
+          <textarea style="background-color: #efefef; padding: 0.75rem; border-radius: 3px; font-size: 1rem; resize: none; width: 450px; white-space: pre;" rows="10" autofocus id="searchArea" name="q">{% if q %}{{ q }}{% endif %}</textarea>
+        </div>
+        <div style="margin-left: 1rem; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+          <i class="fa fa-question-circle" style="margin-top: 0.4rem; color: #8398e0; font-size: 2rem"></i>
+          <button class="button-dark-blue-hover" style="margin-bottom: 0.9rem;" type="submit">Search</button>
+        </div>
+      </div>
     </form>
 <!--    <input id="expand-search-syntax-checkbox" class="expand-checkbox" type="checkbox">-->
 <!--    <label for="expand-search-syntax-checkbox" class="expand-label">Search Help</label>-->
