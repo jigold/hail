@@ -1001,6 +1001,7 @@ class Container:
                 self._cleaned_up = True
 
     async def remove(self):
+        log.info(f'removing {self.name}')
         self.deleted_event.set()
         async with self._cleanup_lock:
             try:
@@ -2315,6 +2316,7 @@ class JVMJob(Job):
                     mjs_fut.cancel()
 
     async def cleanup(self):
+        log.info(f'cleaning up jvm job {self}')
         assert self.worker
         assert self.worker.file_store is not None
         assert self.worker.fs
@@ -2327,6 +2329,7 @@ class JVMJob(Job):
             )
 
         with self.step('uploading_resource_usage'):
+            log.info(f'uploading resource usage for {self}')
             resource_usage_contents = await self.jvm.get_job_resource_usage()
             await self.worker.file_store.write_resource_usage_file(
                 self.format_version,
@@ -2592,7 +2595,9 @@ class JVMContainer:
 
     async def get_job_resource_usage(self) -> bytes:
         if self.job_monitor is None:
+            log.info(f'job_monitor for {self.container.name} is None')
             return ResourceUsageMonitor.no_data()
+        log.info(f'job_monitor for {self.container.name} exists')
         return await self.job_monitor.read()
 
     def monitor_resource_usage(self, path: str):
@@ -2600,6 +2605,7 @@ class JVMContainer:
         return self.job_monitor
 
     def clear_job_monitor(self):
+        log.info('clearing job monitor')
         self.job_monitor = None
 
 
@@ -2774,17 +2780,21 @@ class JVM:
         return f'JVM-{self.index}'
 
     def interrupt(self):
+        log.info(f'interrupting {self}')
         self.should_interrupt.set()
 
     def reset(self):
+        log.info(f'resetting {self}')
         self.container.clear_job_monitor()
         self.should_interrupt.clear()
 
     async def kill(self):
+        log.info(f'killing {self} with container {self.container}')
         if self.container is not None:
             await self.container.remove()
 
     async def new_connection(self):
+        log.info(f'opening new connection {self}')
         while True:
             try:
                 return await asyncio.open_unix_connection(self.socket_file)
@@ -2793,6 +2803,7 @@ class JVM:
                 if self.container:
                     await self.container.remove()
 
+                log.info(f'rmtree for {self.root_dir} for {self}')
                 await blocking_to_async(self.pool, shutil.rmtree, f'{self.root_dir}/container', ignore_errors=True)
 
                 container = await self.create_container_and_connect(
@@ -2958,6 +2969,7 @@ class Worker:
         return self._jvms.pop(index)
 
     def return_jvm(self, jvm: JVM):
+        log.info(f'returning {jvm}')
         jvm.reset()
         self._jvms.add(jvm)
 
