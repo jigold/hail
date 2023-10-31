@@ -1,7 +1,9 @@
+import logging
+
 from hailtop.hail_logging import configure_logging
 
 # configure logging before importing anything else
-configure_logging()
+configure_logging(logging.DEBUG)
 
 import sys  # noqa: E402 pylint: disable=wrong-import-position
 import traceback  # noqa: E402 pylint: disable=wrong-import-position

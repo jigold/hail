@@ -147,7 +147,7 @@ def compose_auth_header_urlsafe(orig_f):
 aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)  # type: ignore
 
 
-configure_logging()
+configure_logging(logging.DEBUG)
 log = logging.getLogger('batch-worker')
 
 MAX_DOCKER_IMAGE_PULL_SECS = 20 * 60
