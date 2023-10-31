@@ -2922,7 +2922,7 @@ SELECT instance_id, n_tokens, frozen FROM globals;
         assert max(regions.values()) < 64, str(regions)
     app['regions'] = regions
 
-    fs = get_cloud_async_fs()
+    fs = get_cloud_async_fs(http_session=app['client_session'])
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
     app['inst_coll_configs'] = await InstanceCollectionConfigs.create(db)

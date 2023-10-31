@@ -14,14 +14,14 @@ def get_identity_client():
     return aiogoogle.GoogleIAmClient(project)
 
 
-def get_cloud_async_fs() -> AsyncFS:
+def get_cloud_async_fs(*args, **kwargs) -> AsyncFS:
     cloud = get_global_config()['cloud']
 
     if cloud == 'azure':
-        return aioazure.AzureAsyncFS()
+        return aioazure.AzureAsyncFS(*args, **kwargs)
 
     assert cloud == 'gcp', cloud
-    return aiogoogle.GoogleStorageAsyncFS()
+    return aiogoogle.GoogleStorageAsyncFS(*args, **kwargs)
 
 
 def get_cloud_async_fs_factory() -> AsyncFSFactory:

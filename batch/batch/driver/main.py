@@ -1592,7 +1592,7 @@ SELECT instance_id, frozen FROM globals;
     app['cancel_running_state_changed'] = asyncio.Event()
     app['async_worker_pool'] = AsyncWorkerPool(100, queue_size=100)
 
-    fs = get_cloud_async_fs()
+    fs = get_cloud_async_fs(http_session=app['client_session'])
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
