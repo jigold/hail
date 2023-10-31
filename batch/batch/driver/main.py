@@ -1637,6 +1637,8 @@ async def on_cleanup(app):
 
 
 def run():
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
     install_profiler_if_requested('batch-driver')
 
     app = web.Application(
@@ -1653,6 +1655,8 @@ def run():
     app.on_cleanup.append(on_cleanup)
 
     asyncio.get_event_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
+    asyncio.get_event_loop().add_signal_handler(signal.SIGTERM, dump_all_stacktraces)
+    asyncio.get_event_loop().add_signal_handler(signal.SIGKILL, dump_all_stacktraces)
 
     web.run_app(
         deploy_config.prefix_application(app, 'batch-driver', client_max_size=HTTP_CLIENT_MAX_SIZE),
