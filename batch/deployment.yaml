@@ -173,6 +173,8 @@ spec:
             cpu: "1.5"
             memory: "2.5G"
         env:
+         - name: PYTHONASYNCIODEBUG
+           value: "1"
          - name: PORT
            value: "5000"
          - name: GOOGLE_APPLICATION_CREDENTIALS
@@ -369,6 +371,8 @@ spec:
          - -m
          - batch.front_end
         env:
+         - name: PYTHONASYNCIODEBUG
+           value: "1"
          - name: PORT
            value: "443"
          - name: HAIL_DOMAIN
