@@ -318,6 +318,7 @@ class Tests(unittest.TestCase):
         assert pytest.approx(d['C1046::HG02024'], abs=0.0001) == .00126
         assert pytest.approx(d['C1046::HG02025'], abs=0.0001) == .00124
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
@@ -338,6 +339,7 @@ class Tests(unittest.TestCase):
         vep_csq_header = hl.eval(hail_vep_result.vep_csq_header)
         assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
@@ -358,6 +360,7 @@ class Tests(unittest.TestCase):
         vep_csq_header = hl.eval(hail_vep_result.vep_csq_header)
         assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
@@ -369,6 +372,7 @@ class Tests(unittest.TestCase):
         result = ht.head(1).collect()[0]
         assert result.variant_class == 'SNV', result
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
@@ -380,6 +384,7 @@ class Tests(unittest.TestCase):
         result = ht.head(1).collect()[0]
         assert result.variant_class == 'SNV', result
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
@@ -422,6 +427,7 @@ class Tests(unittest.TestCase):
 
         assert hail_vep_result._same(dataproc_result)
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
