@@ -8,7 +8,25 @@ import math
 
 from rich.live import Live
 from rich.panel import Panel
-from rich.progress import TimeElapsedColumn, RenderableType, Group, GetTimeCallable, Progress, ProgressSample, TransferSpeedColumn, SpinnerColumn, BarColumn, TextColumn, ProgressColumn, StyleType, Column, Task, ProgressBar, JupyterMixin, TaskID
+from rich.progress import (
+    TimeElapsedColumn,
+    RenderableType,
+    Group,
+    GetTimeCallable,
+    Progress,
+    ProgressSample,
+    TransferSpeedColumn,
+    SpinnerColumn,
+    BarColumn,
+    TextColumn,
+    ProgressColumn,
+    StyleType,
+    Column,
+    Task,
+    ProgressBar,
+    JupyterMixin,
+    TaskID,
+)
 from rich.segment import Segment, SegmentLines, Segments
 from rich.table import Table
 from rich.text import Text
@@ -31,18 +49,18 @@ from rich.style import Style, StyleType
 PULSE_SIZE = 20
 
 
-class CustomState:
+class ProgressBarState:
     def __init__(self, description: str, val: float, style: StyleType):
         self.description = description
         self.val = val
         self.style = style
 
 
-class CustomProgressBar(JupyterMixin):
+class MultiStateProgressBar(JupyterMixin):
     def __init__(
         self,
         total: Optional[float] = 100.0,
-        states: Optional[List[CustomState]] = None,
+        states: Optional[List[ProgressBarState]] = None,
         width: Optional[int] = None,
         pulse: bool = False,
         style: StyleType = "bar.back",
@@ -97,22 +115,12 @@ class CustomProgressBar(JupyterMixin):
         segments: List[Segment] = []
         if color_system not in ("standard", "eight_bit", "truecolor") or no_color:
             segments += [Segment(bar, fore_style)] * (PULSE_SIZE // 2)
-            segments += [Segment(" " if no_color else bar, back_style)] * (
-                PULSE_SIZE - (PULSE_SIZE // 2)
-            )
+            segments += [Segment(" " if no_color else bar, back_style)] * (PULSE_SIZE - (PULSE_SIZE // 2))
             return segments
 
         append = segments.append
-        fore_color = (
-            fore_style.color.get_truecolor()
-            if fore_style.color
-            else ColorTriplet(255, 0, 255)
-        )
-        back_color = (
-            back_style.color.get_truecolor()
-            if back_style.color
-            else ColorTriplet(0, 0, 0)
-        )
+        fore_color = fore_style.color.get_truecolor() if fore_style.color else ColorTriplet(255, 0, 255)
+        back_color = back_style.color.get_truecolor() if back_style.color else ColorTriplet(0, 0, 0)
         cos = math.cos
         pi = math.pi
         _Segment = Segment
@@ -135,9 +143,7 @@ class CustomProgressBar(JupyterMixin):
         """
         self.total = total if total is not None else self.total
 
-    def _render_pulse(
-        self, console: Console, width: int, ascii: bool = False
-    ) -> Iterable[Segment]:
+    def _render_pulse(self, console: Console, width: int, ascii: bool = False) -> Iterable[Segment]:
         """Renders the pulse animation.
 
         Args:
@@ -157,17 +163,13 @@ class CustomProgressBar(JupyterMixin):
             fore_style, back_style, console.color_system, console.no_color, ascii=ascii
         )
         segment_count = len(pulse_segments)
-        current_time = (
-            monotonic() if self.animation_time is None else self.animation_time
-        )
+        current_time = monotonic() if self.animation_time is None else self.animation_time
         segments = pulse_segments * (int(width / segment_count) + 2)
         offset = int(-current_time * 15) % segment_count
         segments = segments[offset : offset + width]
         yield from segments
 
-    def __rich_console__(
-        self, console: Console, options: ConsoleOptions
-    ) -> RenderResult:
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
 
         width = min(self.width or options.max_width, options.max_width)
         ascii = options.legacy_windows or options.ascii_only
@@ -183,19 +185,15 @@ class CustomProgressBar(JupyterMixin):
 
         bar = "-" if ascii else "█"  # "━"
         half_bar_right = " " if ascii else "█"  # "╸"
-        half_bar_left = " " if ascii else "█" # "╺"
+        half_bar_left = " " if ascii else "█"  # "╺"
 
         _Segment = Segment
 
         for state in self.states:
-            completed = (
-                min(self.total, max(0, state.val)) if self.total is not None else None
-            )
+            completed = min(self.total, max(0, state.val)) if self.total is not None else None
 
             complete_halves = (
-                int(width * 2 * completed / self.total)
-                if self.total and completed is not None
-                else width * 2
+                int(width * 2 * completed / self.total) if self.total and completed is not None else width * 2
             )
             bar_count = complete_halves // 2
             total_bar_count += bar_count
@@ -226,20 +224,25 @@ class CustomProgressBar(JupyterMixin):
 
         yield Segments(segments)
 
-    def __rich_measure__(
-        self, console: Console, options: ConsoleOptions
-    ) -> Measurement:
-        return (
-            Measurement(self.width, self.width)
-            if self.width is not None
-            else Measurement(4, options.max_width)
-        )
+    def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
+        return Measurement(self.width, self.width) if self.width is not None else Measurement(4, options.max_width)
 
 
-class CustomStateTask(Task):
-    def __init__(self, id: TaskID, description: str, total: Optional[float], _get_time: GetTimeCallable, finished_time: Optional[float] = None,
-                 visible: bool = True, fields: Optional[Dict[str, Any]] = None, start_time: Optional[float] = None,
-                 stop_time: Optional[float] = None, finished_speed: Optional[float] = None, _lock: Optional[RLock] = None):
+class MultiStateTask(Task):
+    def __init__(
+        self,
+        id: TaskID,
+        description: str,
+        total: Optional[float],
+        _get_time: GetTimeCallable,
+        finished_time: Optional[float] = None,
+        visible: bool = True,
+        fields: Optional[Dict[str, Any]] = None,
+        start_time: Optional[float] = None,
+        stop_time: Optional[float] = None,
+        finished_speed: Optional[float] = None,
+        _lock: Optional[RLock] = None,
+    ):
         self.id = id
         self.description = description
         self.total = total
@@ -250,7 +253,7 @@ class CustomStateTask(Task):
         self.start_time = start_time
         self.stop_time = stop_time
         self.finished_speed = finished_speed
-        self.states: List[CustomState] = []
+        self.states: List[ProgressBarState] = []
         self._progress = collections.deque(maxlen=1000)
         self._lock = _lock or RLock()
 
@@ -275,7 +278,7 @@ class CustomStateTask(Task):
             return sum(s.val for s in self.states)
         return None
 
-    def add_state(self, state: CustomState) -> int:
+    def add_state(self, state: ProgressBarState) -> int:
         self.states.append(state)
         return len(self.states) - 1
 
@@ -318,7 +321,7 @@ class CustomStateTask(Task):
         self.finished_speed = None
 
 
-class CustomMarkCompleteColumn(ProgressColumn):
+class BatchMarkJobCompleteColumn(ProgressColumn):
     def render(self, task: "Task") -> Text:
         """Show data transfer speed."""
         speed = task.finished_speed or task.speed
@@ -327,7 +330,7 @@ class CustomMarkCompleteColumn(ProgressColumn):
         return Text(f"{speed:>1.0f} jobs/s", style="progress.data.speed")
 
 
-class CustomBarColumn(ProgressColumn):
+class MultiStateProgressColumn(ProgressColumn):
     """Renders a visual progress bar.
 
     Args:
@@ -352,9 +355,9 @@ class CustomBarColumn(ProgressColumn):
         self.pulse_style = pulse_style
         super().__init__(table_column=table_column)
 
-    def render(self, task: "CustomStateTask") -> CustomProgressBar:
+    def render(self, task: "MultiStateTask") -> MultiStateProgressBar:
         """Gets a progress bar widget for a task."""
-        return CustomProgressBar(
+        return MultiStateProgressBar(
             total=max(0, task.total) if task.total is not None else None,
             states=task.states,
             width=None if self.bar_width is None else max(1, self.bar_width),
@@ -365,17 +368,18 @@ class CustomBarColumn(ProgressColumn):
         )
 
 
-class CustomProgress(Progress):
-    _tasks: Dict[TaskID, CustomStateTask] = {}
+class MultiStateProgress(Progress):
+    _tasks: Dict[TaskID, MultiStateTask] = {}
 
-    def update_state(self,
-                     task_id: TaskID,
-                     state_id: int,
-                     *,
-                     completed: Optional[float] = None,
-                     advance: Optional[float] = None,
-                     refresh: bool = False,
-                     ):
+    def update_state(
+        self,
+        task_id: TaskID,
+        state_id: int,
+        *,
+        completed: Optional[float] = None,
+        advance: Optional[float] = None,
+        refresh: bool = False,
+    ):
         with self._lock:
             task = self._tasks[task_id]
             state = task.states[state_id]
@@ -397,11 +401,7 @@ class CustomProgress(Progress):
                 popleft()
             if update_completed > 0:
                 _progress.append(ProgressSample(current_time, update_completed))
-            if (
-                task.total is not None
-                and task.not_running_or_pending >= task.total
-                and task.finished_time is None
-            ):
+            if task.total is not None and task.not_running_or_pending >= task.total and task.finished_time is None:
                 task.finished_time = task.elapsed
 
         if refresh:
@@ -452,23 +452,20 @@ class CustomProgress(Progress):
                 popleft()
             if update_completed > 0:
                 _progress.append(ProgressSample(current_time, update_completed))
-            if (
-                task.total is not None
-                and task.completed >= task.total
-                and task.finished_time is None
-            ):
+            if task.total is not None and task.completed >= task.total and task.finished_time is None:
                 task.finished_time = task.elapsed
 
         if refresh:
             self.refresh()
 
-    def add_state(self,
-                  task_id: TaskID,
-                  description: str,
-                  value: float,
-                  style: StyleType,
-                  ) -> int:
-        state = CustomState(description, value, style)
+    def add_state(
+        self,
+        task_id: TaskID,
+        description: str,
+        value: float,
+        style: StyleType,
+    ) -> int:
+        state = ProgressBarState(description, value, style)
         task = self._tasks[task_id]
         state_id = task.add_state(state)
         self.update(task_id, refresh=False)
@@ -499,7 +496,7 @@ class CustomProgress(Progress):
             TaskID: An ID you can use when calling `update`.
         """
         with self._lock:
-            task = CustomStateTask(
+            task = MultiStateTask(
                 self._task_index,
                 description,
                 total,
@@ -543,22 +540,14 @@ class CustomProgress(Progress):
                 seen.add(description)
 
         table_columns = (
-            (
-                Column(no_wrap=True)
-                if isinstance(_column, str)
-                else _column.get_table_column().copy()
-            )
+            (Column(no_wrap=True) if isinstance(_column, str) else _column.get_table_column().copy())
             for _column in columns
         )
         table = Table.grid(*table_columns, padding=(0, 2), expand=self.expand)
 
         table.add_row(
             *(
-                (
-                    column.format(task=current_task)
-                    if isinstance(column, str)
-                    else column(current_task)
-                )
+                (column.format(task=current_task) if isinstance(column, str) else column(current_task))
                 for column in columns
             )
         )
@@ -574,22 +563,14 @@ class CustomProgress(Progress):
         columns = [TextColumn(f'{previous_n_tasks} task(s) previously completed')]
 
         table_columns = (
-            (
-                Column(no_wrap=True)
-                if isinstance(_column, str)
-                else _column.get_table_column().copy()
-            )
+            (Column(no_wrap=True) if isinstance(_column, str) else _column.get_table_column().copy())
             for _column in columns
         )
         table = Table.grid(*table_columns, padding=(0, 2), expand=self.expand)
 
         table.add_row(
             *(
-                (
-                    column.format(task=current_task)
-                    if isinstance(column, str)
-                    else column(current_task)
-                )
+                (column.format(task=current_task) if isinstance(column, str) else column(current_task))
                 for column in columns
             )
         )
@@ -616,31 +597,37 @@ class CustomProgress(Progress):
             yield table2
 
 
-job_progress1 = CustomProgress(
+job_progress1 = MultiStateProgress(
     "{task.description}",
-    CustomBarColumn(),
+    MultiStateProgressColumn(),
     TextColumn("[progress.percentage]{task.not_running_or_pending_percentage:>3.0f}%"),
     TextColumn("[progress.completed]{task.not_running_or_pending}/{task.total} jobs"),
-    CustomMarkCompleteColumn(),
+    BatchMarkJobCompleteColumn(),
     TimeElapsedColumn(),
     SpinnerColumn(style=Style(color=Color.from_rgb(50, 175, 255))),
 )
 
-task_names = ['matrix_type(...)', 'exec(...)', 'exec(...)', 'foo(...)', 'table_type(...)', 'reference_genome(...)',
-              'vep(...)', 'collect(...)']
+task_names = [
+    'matrix_type(...)',
+    'exec(...)',
+    'exec(...)',
+    'foo(...)',
+    'table_type(...)',
+    'reference_genome(...)',
+    'vep(...)',
+    'collect(...)',
+]
 
-cluster_capacity_progress = CustomProgress(
+cluster_capacity_progress = MultiStateProgress(
     "{task.description}",
-    CustomBarColumn(),
+    MultiStateProgressColumn(),
     TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
     TextColumn("[progress.total]{task.total} cores"),
 )
 
 progress_table = Table.grid()
 progress_table.add_row(
-    Panel.fit(
-        cluster_capacity_progress, title="[b]Cluster Capacity", border_style="black", padding=(1, 2)
-    ),
+    Panel.fit(cluster_capacity_progress, title="[b]Cluster Capacity", border_style="black", padding=(1, 2)),
 )
 progress_table.add_row(
     Panel.fit(job_progress1, title="[b]Progress Bar", border_style="black", padding=(1, 2)),
@@ -684,4 +671,3 @@ with Live(progress_table, refresh_per_second=10):
             job_progress1.update_state(job2, state22, advance=10)
         sleep(10)
     job_progress1.stop_task(job2)
-

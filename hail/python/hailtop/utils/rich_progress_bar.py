@@ -1,6 +1,8 @@
 from typing import Optional, Callable, Tuple, List
 from rich import filesize
+from rich.panel import Panel
 from rich.progress import MofNCompleteColumn, BarColumn, TextColumn, TimeRemainingColumn, TimeElapsedColumn, Progress, ProgressColumn, TaskProgressColumn, Task
+from rich.table import Table
 from rich.text import Text
 
 
@@ -188,3 +190,38 @@ class BatchProgressBarTask:
 
     def update(self, advance: Optional[int] = None, **kwargs):
         self._progress.update(self.tid, advance=advance, **kwargs)
+
+
+class ClusterCapacityProgress:
+    CustomProgress(
+        "{task.description}",
+        CustomBarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TextColumn("[progress.total]{task.total} cores"),
+    )
+
+
+class JobProgress:
+    CustomProgress(
+        "{task.description}",
+        CustomBarColumn(),
+        TextColumn("[progress.percentage]{task.not_running_or_pending_percentage:>3.0f}%"),
+        TextColumn("[progress.completed]{task.not_running_or_pending}/{task.total} jobs"),
+        CustomMarkCompleteColumn(),
+        TimeElapsedColumn(),
+        SpinnerColumn(style=Style(color=Color.from_rgb(50, 175, 255))),
+    )
+
+
+class BatchStatusTable():
+    def __init__(self):
+        progress_table = Table.grid()
+        progress_table.add_row(
+            Panel.fit(
+                cluster_capacity_progress, title="[b]Cluster Capacity", border_style="black", padding=(1, 2)
+            ),
+        )
+        progress_table.add_row(
+            Panel.fit(job_progress1, title="[b]Progress Bar", border_style="black", padding=(1, 2)),
+        )
+
