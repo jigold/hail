@@ -88,7 +88,7 @@ class ClusterState(Enum):
     PROVISIONING = ClusterStyle('Provisioning', Style(color='yellow'))
 
 
-class ClusterStateData:
+class StateData:
     def __init__(self, task_id: TaskID, state_id: int, value: int):
         self.task_id = task_id
         self.state_id = state_id
@@ -105,7 +105,7 @@ class ClusterCapacityProgress:
             TextColumn("[progress.total]{task.total} cores"),
             max_visible_tasks=None
         )
-        self._pool_states: Dict[str, Dict[ClusterState, ClusterStateData]] = collections.defaultdict(dict)
+        self._pool_states: Dict[str, Dict[ClusterState, StateData]] = collections.defaultdict(dict)
         self._pool_tasks: Dict[str, TaskID] = {}
 
     async def cluster_stats(self):
@@ -126,7 +126,7 @@ class ClusterCapacityProgress:
             value = pool_stats.get_value_from_cluster_state(state)
             state_info = state.value
             state_id = self._progress.add_state(t, state_info.label, value, state_info.style)
-            self._pool_states[pool_stats.name][state] = ClusterStateData(t, state_id, value)
+            self._pool_states[pool_stats.name][state] = StateData(t, state_id, value)
 
     async def update(self):
         cluster_stats = await self.cluster_stats()
@@ -141,6 +141,98 @@ class ClusterCapacityProgress:
                 new_value = pool_stats.get_value_from_cluster_state(state)
                 state_data.value = new_value
                 self._progress.update_state(state_data.task_id, state_data.state_id, completed=new_value)
+
+
+JobStyle = namedtuple('JobStyle', ['label', 'style'])
+
+
+class JobState(Enum):
+    SUCCEEDED = JobStyle('succeeded', Style(color='green'))
+    FAILED = JobStyle('failed', Style(color='red'))
+    CANCELLED = JobStyle('cancelled', Style(color='yellow'))
+    RUNNING = JobStyle('running', Style(color='blue'))
+    READY = JobStyle('ready', Style(color='cyan'))
+
+
+class JobStats:
+    @staticmethod
+    def from_batch_status(status: dict) -> 'JobStats':
+        n_jobs = status['n_jobs']
+        n_succeeded = status['n_succeeded']
+        n_failed = status['n_failed']
+        n_cancelled = status['n_cancelled']
+        n_running = status['n_running']
+        n_ready = status['n_ready']
+        return JobStats(n_jobs, n_succeeded, n_failed, n_cancelled, n_running, n_ready)
+
+    def __init__(self, n_jobs: int, n_succeeded: int, n_failed: int, n_cancelled: int, n_running: int, n_ready: int):
+        self.n_jobs = n_jobs
+        self.n_succeeded = n_succeeded
+        self.n_failed = n_failed
+        self.n_cancelled = n_cancelled
+        self.n_running = n_running
+        self.n_ready = n_ready
+
+    def get_value_from_job_state(self, state: 'JobState'):
+        if state == JobState.SUCCEEDED:
+            return self.n_succeeded
+        elif state == JobState.FAILED:
+            return self.n_failed
+        elif state == JobState.CANCELLED:
+            return self.n_cancelled
+        elif state == JobState.READY:
+            return self.n_ready
+        assert state == JobState.RUNNING
+        return self.n_running
+
+
+class BatchProgress:
+    def __init__(self, batch_client, batch_id: int):
+        self.batch_client = batch_client
+        self.batch_id = batch_id
+        self._batch = None
+        self._job_states: Dict[JobState, StateData] = {}
+        self._t = None
+        self._progress = MultiStateProgress(
+            "{task.description}",
+            MultiStateProgressColumn(),
+            TextColumn("[progress.percentage]{task.not_running_or_pending_percentage:>3.0f}%"),
+            TextColumn("[progress.completed]{task.not_running_or_pending}/{task.total} jobs"),
+            MarkJobCompleteColumn(),
+            TimeElapsedColumn(),
+            SpinnerColumn(style=Style(color=Color.from_rgb(50, 175, 255))),
+        )
+
+    async def initialize(self):
+        self._batch = await self.batch_client.get_batch(self.batch_id)
+        status = self._batch.status()
+        job_stats = JobStats.from_batch_status(status)
+        self._t = self._progress.add_task(f'Batch {self.batch_id}', total=job_stats.n_jobs)
+        for state in JobState:
+            value = job_stats.get_value_from_job_state(state)
+            state_info = state.value
+            state_id = self._progress.add_state(self._t, state_info.label, value, state_info.style)
+            self._job_states[state] = StateData(self._t, state_id, value)
+
+    async def update(self):
+        status = self._batch.status()
+        job_stats = JobStats.from_batch_status(status)
+        self._progress.update(self._t, total=job_stats.n_jobs)
+        for state, state_data in self._job_states.items():
+            new_value = job_stats.get_value_from_job_state(state)
+            state_data.value = new_value
+            self._progress.update_state(state_data.task_id, state_data.state_id, completed=new_value)
+
+
+class ActiveBatchesProgress:
+    def __init__(self, batch_client):
+        self.batch_client = batch_client
+        self._batch_progresses: Dict[int, BatchProgress] = {}
+
+    async def initialize(self):
+        async for b in self.batch_client.list_batches(q='running', limit=10):
+            self._batch_progresses[b.id] = BatchProgress(self.batch_client, b.id)
+
 
 
 class BatchStatusTable:
@@ -159,21 +251,13 @@ class BatchStatusTable:
             ),
         )
 
-        self._live = Live(self.progress_table, refresh_per_second=10)
+        self._live = Live(self.progress_table)
         self._live_update_task = None
 
-        # self.job_progress = MultiStateProgress(
-        #     "{task.description}",
-        #     MultiStateProgressColumn(),
-        #     TextColumn("[progress.percentage]{task.not_running_or_pending_percentage:>3.0f}%"),
-        #     TextColumn("[progress.completed]{task.not_running_or_pending}/{task.total} jobs"),
-        #     MarkJobCompleteColumn(),
-        #     TimeElapsedColumn(),
-        #     SpinnerColumn(style=Style(color=Color.from_rgb(50, 175, 255))),
-        # )
-        # self.progress_table.add_row(
-        #     Panel.fit(self.job_progress, title="[b]Progress Bar", border_style="black", padding=(1, 2)),
-        # )
+        self.batch_progress = BatchProgress(batch_client, 1)
+        self.progress_table.add_row(
+            Panel.fit(self.batch_progress._progress, title="[b]Active Batches", border_style="black", padding=(1, 2)),
+        )
 
     async def update(self):
         while True:
