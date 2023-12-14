@@ -23,7 +23,6 @@ from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
-from ..batch_client.aioclient import BatchClient
 from .rich_multistate_progress_bar_v2 import (
     MultiStateProgressColumn,
     MultiStateProgress
@@ -279,7 +278,7 @@ class ClusterStateData:
 
 
 class ClusterCapacityProgress:
-    def __init__(self, batch_client: BatchClient):
+    def __init__(self, batch_client):
         self.batch_client = batch_client
         self._progress = MultiStateProgress(
             "{task.description}",
@@ -320,7 +319,7 @@ class ClusterCapacityProgress:
 
 
 class BatchStatusTable:
-    def __init__(self, batch_client: BatchClient):
+    def __init__(self, batch_client):
         self.batch_client = batch_client
         self.progress_table = Table.grid()
 
