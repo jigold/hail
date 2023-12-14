@@ -146,6 +146,7 @@ BEGIN
     n_cancelled_running_jobs = n_cancelled_running_jobs + delta_n_cancelled_running_jobs,
     n_cancelled_creating_jobs = n_cancelled_creating_jobs + delta_n_cancelled_creating_jobs;
 
+  # FIXME: this will serialize updates without tokenizing the job_groups_n_jobs_in_complete_states table
   UPDATE job_groups_n_jobs_in_complete_states
   SET n_running = n_running + now_running - was_running,
       n_ready = n_ready + now_ready - was_ready,
