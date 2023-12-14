@@ -184,3 +184,11 @@ def initialize(
         verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False
 ):
     asyncio.run(async_basic_initialize(verbose=verbose))
+
+
+@app.command('monitor', help='Monitor batch progress.')
+def monitor(
+        include_cluster_stats: Ann[bool, Opt('--cluster-stats', '-c', help='Include cluster statistics')] = True,
+
+):
+    pass

@@ -456,13 +456,13 @@ class Batch:
                                 disable=disable_progress_bar) as progress_task:
             while True:
                 status = await self.status()
-                n_running = status['n_jobs'] -
-                state_updates = [
-                    StateUpdate('succeeded', completed=status['n_succeeded']),
-                    StateUpdate('failed', completed=status['n_failed']),
-                    StateUpdate('cancelled', completed=status['n_cancelled']),
-                    StateUpdate('running', completed=n_running)
-                ]
+                # n_running = status['n_jobs'] -
+                # state_updates = [
+                #     StateUpdate('succeeded', completed=status['n_succeeded']),
+                #     StateUpdate('failed', completed=status['n_failed']),
+                #     StateUpdate('cancelled', completed=status['n_cancelled']),
+                #     StateUpdate('running', completed=n_running)
+                # ]
                 progress_task.update(None, total=status['n_jobs'] - starting_job + 1, completed=status['n_completed'] - starting_job + 1)
                 if status['complete']:
                     return status
