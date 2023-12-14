@@ -219,6 +219,33 @@ async def rest_get_supported_regions(request: web.Request, _) -> web.Response:
     return json_response(list(request.app['regions'].keys()))
 
 
+@routes.get('/api/v1alpha/cluster_stats')
+@auth.authenticated_users_only()
+async def rest_get_cluster_stats(request: web.Request, userdata) -> web.Response:
+    username = userdata['username']
+    app = request.app
+    client_session: httpx.ClientSession = app['client_session']
+    resp = await retry_transient_errors(
+        client_session.post,
+        deploy_config.url('batch-driver', '/api/v1alpha/cluster_stats'),
+        headers=await app['hail_credentials'].auth_headers(),
+    )
+    data = await resp.json()
+
+    for pool in data.values():
+        user_running_cores_mcpu = pool['user_running_cores_mcpu']
+
+        other_users_running_cores_mcpu = sum(
+            cores_mcpu for user, cores_mcpu in user_running_cores_mcpu.items() if user != username
+        )
+        pool['user_running_cores_mcpu'] = {
+            username: user_running_cores_mcpu[username],
+            'other_users': other_users_running_cores_mcpu,
+        }
+
+    return json_response(resp)
+
+
 async def _handle_ui_error(
     session: aiohttp_session.Session, f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs
 ) -> T:
