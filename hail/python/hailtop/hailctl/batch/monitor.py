@@ -151,27 +151,36 @@ class JobState(Enum):
     FAILED = JobStyle('failed', Style(color='red'))
     CANCELLED = JobStyle('cancelled', Style(color='yellow'))
     RUNNING = JobStyle('running', Style(color='blue'))
-    READY = JobStyle('ready', Style(color='cyan'))
+    READY = JobStyle('ready', Style(color='white'))
+    CREATING = JobStyle('creating', Style(color='aqua'))
 
 
 class JobStats:
     @staticmethod
     def from_batch_status(status: dict) -> 'JobStats':
-        n_jobs = status['n_jobs']
-        n_succeeded = status['n_succeeded']
-        n_failed = status['n_failed']
-        n_cancelled = status['n_cancelled']
-        n_running = status['n_running']
-        n_ready = status['n_ready']
-        return JobStats(n_jobs, n_succeeded, n_failed, n_cancelled, n_running, n_ready)
+        return JobStats(status['n_jobs'],
+                        status['n_succeeded'],
+                        status['n_failed'],
+                        status['n_cancelled'],
+                        status['n_running'],
+                        status['n_ready'],
+                        status['n_creating'])
 
-    def __init__(self, n_jobs: int, n_succeeded: int, n_failed: int, n_cancelled: int, n_running: int, n_ready: int):
+    def __init__(self,
+                 n_jobs: int,
+                 n_succeeded: int,
+                 n_failed: int,
+                 n_cancelled: int,
+                 n_running: int,
+                 n_ready: int,
+                 n_creating: int):
         self.n_jobs = n_jobs
         self.n_succeeded = n_succeeded
         self.n_failed = n_failed
         self.n_cancelled = n_cancelled
         self.n_running = n_running
         self.n_ready = n_ready
+        self.n_creating = n_creating
 
     def get_value_from_job_state(self, state: 'JobState'):
         if state == JobState.SUCCEEDED:
@@ -182,6 +191,8 @@ class JobStats:
             return self.n_cancelled
         elif state == JobState.READY:
             return self.n_ready
+        elif state == JobState.CREATING:
+            return self.n_creating
         assert state == JobState.RUNNING
         return self.n_running
 
