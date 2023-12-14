@@ -15,7 +15,7 @@ from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
 from hailtop.utils import bounded_gather, sleep_before_try
-from hailtop.utils.rich_progress_bar import BatchProgressBar, BatchProgressBarTask, BatchStatusTable
+from hailtop.utils.rich_progress_bar import BatchProgressBar, BatchProgressBarTask
 # from hailtop.utils.rich_multistate_progress_bar import BatchJobStateProgress, JobStateProgressTask, StateUpdate
 from hailtop import httpx
 
@@ -483,11 +483,10 @@ class Batch:
         self._raise_if_not_created()
         if description:
             description += ': '
-        with BatchStatusTable(self._client) as table:
-            if progress is not None:
-                return await self._wait(description, progress, disable_progress_bar, starting_job)
-            with BatchProgressBar(disable=disable_progress_bar) as progress2:
-                return await self._wait(description, progress2, disable_progress_bar, starting_job)
+        if progress is not None:
+            return await self._wait(description, progress, disable_progress_bar, starting_job)
+        with BatchProgressBar(disable=disable_progress_bar) as progress2:
+            return await self._wait(description, progress2, disable_progress_bar, starting_job)
 
     async def debug_info(self,
                          _jobs_query_string: Optional[str] = None,

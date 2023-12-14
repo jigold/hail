@@ -371,6 +371,34 @@ class MultiStateProgressColumn(ProgressColumn):
 class MultiStateProgress(Progress):
     _tasks: Dict[TaskID, MultiStateTask] = {}
 
+    def __init__(
+        self,
+        *columns: Union[str, ProgressColumn],
+        console: Optional[Console] = None,
+        auto_refresh: bool = True,
+        refresh_per_second: float = 10,
+        speed_estimate_period: float = 30.0,
+        transient: bool = False,
+        redirect_stdout: bool = True,
+        redirect_stderr: bool = True,
+        get_time: Optional[GetTimeCallable] = None,
+        disable: bool = False,
+        expand: bool = False,
+        max_visible_tasks: Optional[int] = 5
+    ):
+        self._max_n_visible_tasks = max_visible_tasks
+        super().__init__(*columns,
+                         console=console,
+                         auto_refresh=auto_refresh,
+                         refresh_per_second=refresh_per_second,
+                         speed_estimate_period=speed_estimate_period,
+                         transient=transient,
+                         redirect_stdout=redirect_stdout,
+                         redirect_stderr=redirect_stderr,
+                         get_time=get_time,
+                         disable=disable,
+                         expand=expand)
+
     def update_state(
         self,
         task_id: TaskID,
@@ -510,10 +538,15 @@ class MultiStateProgress(Progress):
                 self.start_task(self._task_index)
 
             tasks = list(self._tasks.values())
-            last_tasks = tasks[-5:]
+
+            max_visible_task = self._max_n_visible_tasks or 0
+
+            last_tasks = tasks[-max_visible_task:]
+
             for task in last_tasks:
                 task.visible = True
-            other_tasks = tasks[:-5]
+
+            other_tasks = tasks[:-max_visible_task]
             for task in other_tasks:
                 task.visible = False
             new_task_index = self._task_index
@@ -555,11 +588,10 @@ class MultiStateProgress(Progress):
         return table
 
     def make_previous_tasks_table(self) -> Optional[Table]:
-        if not self._tasks:
-            return None
         tasks = list(self._tasks.values())
         current_task = tasks[0]  # dummy
-        previous_n_tasks = len(tasks) - 5
+        previous_n_tasks = len(tasks) - self._max_n_visible_tasks
+        assert previous_n_tasks > 0
         columns = [TextColumn(f'{previous_n_tasks} task(s) previously completed')]
 
         table_columns = (
@@ -584,7 +616,7 @@ class MultiStateProgress(Progress):
 
     def get_renderables(self) -> Iterable[RenderableType]:
         """Get a number of renderables for the progress display."""
-        if len(self.tasks) > 5:
+        if self._max_n_visible_tasks and len(self.tasks) > self._max_n_visible_tasks:
             yield self.make_previous_tasks_table()
             empty_table = Table.grid(padding=(0, 2), expand=self.expand)
             yield empty_table

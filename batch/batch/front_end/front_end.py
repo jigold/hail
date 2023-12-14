@@ -232,11 +232,17 @@ async def rest_get_cluster_stats(request: web.Request, userdata) -> web.Response
     )
     data = await resp.json()
 
-    for pool in data.values():
-        user_running_cores_mcpu = pool['user_running_cores_mcpu']
-        pool['user_running_cores_mcpu'] = user_running_cores_mcpu[username]
+    for pool_data in data.values():
+        user_running_cores_mcpu = pool_data['user_running_cores_mcpu']
+        if user_running_cores_mcpu is not None:
+            user_running_cores_mcpu = json.loads(user_running_cores_mcpu)
+            pool_data['user_running_cores_mcpu'] = user_running_cores_mcpu.get(username, 0.0)
+        else:
+            pool_data['user_running_cores_mcpu'] = 0.0
 
-    return json_response(resp)
+    # FIXME: make pools a key with a list of pool_data
+
+    return json_response(data)
 
 
 async def _handle_ui_error(
