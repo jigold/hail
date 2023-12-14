@@ -234,14 +234,7 @@ async def rest_get_cluster_stats(request: web.Request, userdata) -> web.Response
 
     for pool in data.values():
         user_running_cores_mcpu = pool['user_running_cores_mcpu']
-
-        other_users_running_cores_mcpu = sum(
-            cores_mcpu for user, cores_mcpu in user_running_cores_mcpu.items() if user != username
-        )
-        pool['user_running_cores_mcpu'] = {
-            username: user_running_cores_mcpu[username],
-            'other_users': other_users_running_cores_mcpu,
-        }
+        pool['user_running_cores_mcpu'] = user_running_cores_mcpu[username]
 
     return json_response(resp)
 

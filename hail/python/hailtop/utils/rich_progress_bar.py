@@ -23,13 +23,13 @@ from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
-from ..auth.auth import get_userinfo
 from ..batch_client.aioclient import BatchClient
 from .rich_multistate_progress_bar_v2 import (
     MultiStateProgressColumn,
     MultiStateProgress
 )
 from .utils import async_to_blocking
+
 
 class SimpleCopyToolProgressBarTask:
     def __init__(self, progress: Progress, tid):
@@ -228,20 +228,18 @@ class MarkJobCompleteColumn(ProgressColumn):
 
 class PoolStats:
     @staticmethod
-    def from_dict(pool: dict, user_name: str) -> 'PoolStats':
+    def from_dict(pool: dict) -> 'PoolStats':
         name = pool['name']
-        cores_by_state = pool['cores_by_state']
-        total_cores = sum(cores for cores in cores_by_state.values())
-        pending_cores = cores_by_state['pending']
-        active_cores = cores_by_state['active']
+        cores_mcpu_by_state = pool['all_versions_cores_mcpu_by_state']
+        total_cores = pool['total_capacity_cores_mcpu'] // 1000
+        pending_cores = cores_mcpu_by_state['pending'] // 1000
+        active_cores = cores_mcpu_by_state['active'] // 1000
 
-        me_cores = pool['cores_by_user'][user_name]
+        me_cores = pool['user_running_cores_mcpu'] // 1000
         provisioning_cores = pending_cores
-        available_cores = pool['free_cores']
+        available_cores = pool['current_worker_version_active_schedulable_free_cores_mcpu'] // 1000
         other_users_cores = active_cores - me_cores - available_cores
-        assert other_users_cores + me_cores + available_cores + provisioning_cores <= total_cores
-
-        assert 0 <= me_cores <= active_cores
+        assert 0 <= other_users_cores + me_cores + available_cores + provisioning_cores <= total_cores
         return PoolStats(name, total_cores, me_cores, other_users_cores, available_cores, provisioning_cores)
 
     def __init__(self, name: str, total_cores, me_cores, other_users_cores, available_cores, provisioning_cores):
@@ -283,7 +281,6 @@ class ClusterStateData:
 class ClusterCapacityProgress:
     def __init__(self, batch_client: BatchClient):
         self.batch_client = batch_client
-        self.user_name = get_userinfo()['username']
         self._progress = MultiStateProgress(
             "{task.description}",
             MultiStateProgressColumn(),
@@ -302,7 +299,7 @@ class ClusterCapacityProgress:
             self._initialize_pool(pool)
 
     def _initialize_pool(self, pool: dict):
-        pool_stats = PoolStats.from_dict(pool, self.user_name)
+        pool_stats = PoolStats.from_dict(pool)
         t = self._progress.add_task(pool_stats.name, total=pool_stats.total_cores)
         for state in ClusterState:
             value = pool_stats.get_value_from_cluster_state(state)
@@ -313,7 +310,7 @@ class ClusterCapacityProgress:
     def update(self):
         cluster_stats = self.cluster_stats()
         for pool in cluster_stats['pools']:
-            pool_stats = PoolStats.from_dict(pool, self.user_name)
+            pool_stats = PoolStats.from_dict(pool)
             if pool_stats.name not in self._pool_states:
                 self._initialize_pool(pool)
             for state, state_data in self._pool_states[pool_stats.name]:

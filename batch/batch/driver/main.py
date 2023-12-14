@@ -215,6 +215,7 @@ GROUP BY inst_coll;
     for name, pool in inst_coll_manager.pools.items():
         assert isinstance(pool, Pool)
         pool_data = {
+            'name': pool.name,
             'total_capacity_cores_mcpu': pool.max_instances * pool.worker_cores,
             'user_running_cores_mcpu': user_running_cores_mcpu[name],
             'all_versions_instances_by_state': pool.all_versions_instances_by_state,
