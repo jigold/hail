@@ -327,44 +327,29 @@ class BatchStatusTable:
         self.batch_client = batch_client
         self.progress_table = Table.grid()
 
-        self.cluster_capacity_progress = MultiStateProgress(
-            "{task.description}",
-            MultiStateProgressColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn("[progress.total]{task.total} cores"),
-        )
-
+        self.cluster_capacity_progress = ClusterCapacityProgress(batch_client)
         self.progress_table.add_row(
             Panel.fit(
-                self.cluster_capacity_progress, title="[b]Cluster Capacity", border_style="black", padding=(1, 2)
+                self.cluster_capacity_progress._progress,
+                title="[b]Cluster Capacity",
+                border_style="black",
+                padding=(1, 2)
             ),
         )
 
-        self.job_progress = MultiStateProgress(
-            "{task.description}",
-            MultiStateProgressColumn(),
-            TextColumn("[progress.percentage]{task.not_running_or_pending_percentage:>3.0f}%"),
-            TextColumn("[progress.completed]{task.not_running_or_pending}/{task.total} jobs"),
-            MarkJobCompleteColumn(),
-            TimeElapsedColumn(),
-            SpinnerColumn(style=Style(color=Color.from_rgb(50, 175, 255))),
-        )
-        self.progress_table.add_row(
-            Panel.fit(self.job_progress, title="[b]Progress Bar", border_style="black", padding=(1, 2)),
-        )
+        # self.job_progress = MultiStateProgress(
+        #     "{task.description}",
+        #     MultiStateProgressColumn(),
+        #     TextColumn("[progress.percentage]{task.not_running_or_pending_percentage:>3.0f}%"),
+        #     TextColumn("[progress.completed]{task.not_running_or_pending}/{task.total} jobs"),
+        #     MarkJobCompleteColumn(),
+        #     TimeElapsedColumn(),
+        #     SpinnerColumn(style=Style(color=Color.from_rgb(50, 175, 255))),
+        # )
+        # self.progress_table.add_row(
+        #     Panel.fit(self.job_progress, title="[b]Progress Bar", border_style="black", padding=(1, 2)),
+        # )
 
     def __enter__(self):
-        with Live(self.progress_table, refresh_per_second=10):
-
-
-            t1 = cluster_capacity_progress.add_task("standard", total=1500)
-            cluster_capacity_progress.add_state(t1, 'Me', 300, Style(color="magenta"))
-            cluster_capacity_progress.add_state(t1, 'Other Users', 600, Style(color="cyan"))
-            cluster_capacity_progress.add_state(t1, 'Available', 100, Style(color="green"))
-            cluster_capacity_progress.add_state(t1, 'Provisioning', 100, Style(color="yellow"))
-
-            t2 = cluster_capacity_progress.add_task("standard-np", total=100)
-            cluster_capacity_progress.add_state(t2, 'Me', 10, Style(color="magenta"))
-            cluster_capacity_progress.add_state(t2, 'Other Users', 40, Style(color="cyan"))
-            cluster_capacity_progress.add_state(t2, 'Available', 10, Style(color="green"))
-            cluster_capacity_progress.add_state(t2, 'Provisioning', 10, Style(color="yellow"))
+        with Live(self.progress_table, refresh_per_second=30):
+            self.cluster_capacity_progress.update()

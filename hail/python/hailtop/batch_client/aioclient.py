@@ -15,7 +15,7 @@ from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
 from hailtop.utils import bounded_gather, sleep_before_try
-from hailtop.utils.rich_progress_bar import BatchProgressBar, BatchProgressBarTask
+from hailtop.utils.rich_progress_bar import BatchProgressBar, BatchProgressBarTask, BatchStatusTable
 from hailtop.utils.rich_multistate_progress_bar import BatchJobStateProgress, JobStateProgressTask, StateUpdate
 from hailtop import httpx
 
