@@ -41,6 +41,11 @@ def parse_cost(word: str) -> float:
     return parse_float(word)
 
 
+class QueryType(Enum):
+    WHERE = 'where'
+    ATTRIBUTES_LATERAL_JOIN = 'attributes_lateral_join'
+
+
 class Query(abc.ABC):
     @abc.abstractmethod
     def query(self) -> Tuple[str, List[Any]]:
